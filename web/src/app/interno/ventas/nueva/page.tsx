@@ -19,7 +19,7 @@ type CobranzaDraft = {
 }
 
 export default function NuevaVentaPage() {
-  const { data, addVenta } = useData()
+  const { data, addVenta, getStockActual, addMovimientoStock } = useData()
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -55,6 +55,9 @@ export default function NuevaVentaPage() {
   const unidadLabel = selectedProduct?.unidad === 'unidad' ? 'Unidades' : 'Kg'
   const selectedCliente = data.clientes.find(c => c.id === clienteId)
   const selectedVendedor = data.vendedores.find(v => v.id === vendedorId)
+  const stockActual = selectedProduct ? getStockActual(selectedProduct.id) : 0
+  const cantidadNum = cantidad ? parseFloat(cantidad) : 0
+  const stockInsuficiente = cantidadNum > stockActual && stockActual > 0
 
   function onClienteChange(id: string) {
     setClienteId(id)
@@ -117,6 +120,8 @@ export default function NuevaVentaPage() {
       formaPago: c.formaPago,
       estado: 'pendiente' as const,
     }))
+    
+    const ventaId = generateId()
     addVenta(
       {
         clienteId,
@@ -131,6 +136,21 @@ export default function NuevaVentaPage() {
       },
       cobsInput
     )
+    
+    // Registrar movimientos de stock automáticamente (salidas por venta)
+    items.forEach(item => {
+      addMovimientoStock({
+        productoId: item.productoId,
+        tipo: 'salida',
+        cantidad: item.cantidad,
+        motivo: 'venta',
+        usuarioId: 'system', // Placeholder, se debería obtener del usuario actual
+        ventaId,
+        fecha: fechaEntrega,
+        observaciones: `Venta confirmada - ${selectedCliente?.nombre}`,
+      })
+    })
+    
     router.push('/interno/ventas')
   }
 
@@ -254,6 +274,13 @@ export default function NuevaVentaPage() {
                 className={fieldClass}
               />
             </div>
+            {selectedProduct && (
+              <div className={`text-xs px-3 py-2 rounded ${stockActual === 0 ? 'bg-red-100 text-red-800' : stockInsuficiente ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'}`}>
+                <span className="font-semibold">Stock actual: {stockActual.toFixed(2)} {unidadLabel.toLowerCase()}</span>
+                {stockActual === 0 && <span> — ⚠️ SIN STOCK DISPONIBLE</span>}
+                {stockInsuficiente && <span> — ⚠️ Stock insuficiente: solicitadas {cantidadNum.toFixed(2)}, disponibles {stockActual.toFixed(2)}</span>}
+              </div>
+            )}
             <button
               type="button"
               onClick={addItem}

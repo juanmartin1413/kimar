@@ -11,7 +11,7 @@ import { Trash2, ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 
 export default function NuevoPedidoPage() {
-  const { data, addPedido } = useData()
+  const { data, addPedido, getStockActual } = useData()
   const { usuario } = useAuth()
   const router = useRouter()
 
@@ -28,6 +28,9 @@ export default function NuevoPedidoPage() {
 
   const selectedProduct = data.productos.find(p => p.id === productoId)
   const unidadLabel = selectedProduct?.unidad === 'unidad' ? 'Unidades' : 'Kg'
+  const stockActual = selectedProduct ? getStockActual(selectedProduct.id) : 0
+  const cantidadNum = cantidad ? parseFloat(cantidad) : 0
+  const stockInsuficiente = cantidadNum > stockActual && stockActual > 0
 
   function onClienteChange(id: string) {
     setClienteId(id)
@@ -146,6 +149,13 @@ export default function NuevoPedidoPage() {
                 className={fieldClass}
               />
             </div>
+            {selectedProduct && (
+              <div className={`text-xs px-3 py-2 rounded ${stockActual === 0 ? 'bg-red-100 text-red-800' : stockInsuficiente ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'}`}>
+                <span className="font-semibold">Stock actual: {stockActual.toFixed(2)} {unidadLabel.toLowerCase()}</span>
+                {stockActual === 0 && <span> — ⚠️ SIN STOCK DISPONIBLE</span>}
+                {stockInsuficiente && <span> — ⚠️ Stock insuficiente: solicitadas {cantidadNum.toFixed(2)}, disponibles {stockActual.toFixed(2)}</span>}
+              </div>
+            )}
             <button
               type="button"
               onClick={addItem}

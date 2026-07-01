@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useContext, useState, useCallback } from 'react'
-import { AppData, Cliente, Cobranza, CompromisoProveedor, EstadoVenta, GastoFijo, InstanciaGasto, Pedido, Producto, Proveedor, Vendedor, Venta } from '@/lib/types'
+import { AppData, Cliente, Cobranza, CompromisoProveedor, EstadoVenta, GastoFijo, InstanciaGasto, Pedido, Producto, Proveedor, Vendedor, Venta, MovimientoStock, ProductoProveedor, StockPorProducto, StockRealRegistrado } from '@/lib/types'
 import { loadData, saveData, generateId } from '@/lib/storage'
 import { today } from '@/lib/format'
 
@@ -42,6 +42,19 @@ interface DataContextValue {
   generarInstanciasMensuales: (mes: number, anio: number) => void
   pagarInstanciaGasto: (id: string) => void
   updateInstanciaGasto: (id: string, g: Partial<InstanciaGasto>) => void
+  // Stock
+  addMovimientoStock: (m: Omit<any, 'id' | 'fechaCreacion'>) => void
+  updateMovimientoStock: (id: string, m: Partial<any>) => void
+  deleteMovimientoStock: (id: string) => void
+  getStockActual: (productoId: string) => number
+  addProductoProveedor: (pp: Omit<any, 'id'>) => void
+  updateProductoProveedor: (id: string, pp: Partial<any>) => void
+  deleteProductoProveedor: (id: string) => void
+  getProveedoresDelProducto: (productoId: string) => any[]
+  updateStockMinimo: (productoId: string, minimo: number) => void
+  isStockBajo: (productoId: string) => boolean
+  addStockRealRegistrado: (srr: Omit<any, 'id'>) => void
+  getStockRealPorProducto: (productoId: string) => any | null
 }
 
 const DataContext = createContext<DataContextValue | null>(null)
@@ -281,6 +294,150 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     update(d => ({ ...d, instanciasGasto: d.instanciasGasto.map(x => x.id === id ? { ...x, ...g } : x) }))
   }
 
+  // --- Stock ---
+  function addMovimientoStock(m: Omit<MovimientoStock, 'id' | 'fechaCreacion'>) {
+    const movimiento: MovimientoStock = { ...m, id: generateId(), fechaCreacion: today() }
+    update(d => {
+      // Crear o actualizar StockPorProducto
+      let stockPorProducto = [...d.stockPorProducto]
+      const stock = stockPorProducto.find(s => s.productoId === m.productoId)
+      if (!stock) {
+        stockPorProducto.push({
+          id: generateId(),
+          productoId: m.productoId,
+          cantidad: m.tipo === 'entrada' ? m.cantidad : -m.cantidad,
+          stockMinimo: 0,
+          fechaActualizacion: today()
+        })
+      } else {
+        stockPorProducto = stockPorProducto.map(s =>
+          s.productoId === m.productoId
+            ? { ...s, cantidad: s.cantidad + (m.tipo === 'entrada' ? m.cantidad : -m.cantidad), fechaActualizacion: today() }
+            : s
+        )
+      }
+      return { ...d, movimientosStock: [...d.movimientosStock, movimiento], stockPorProducto }
+    })
+  }
+
+  function updateMovimientoStock(id: string, m: Partial<MovimientoStock>) {
+    update(d => {
+      const movimiento = d.movimientosStock.find(x => x.id === id)
+      if (!movimiento) return d
+      const cantidadAnterior = movimiento.tipo === 'entrada' ? movimiento.cantidad : -movimiento.cantidad
+      const cantidadNueva = (m.tipo || movimiento.tipo) === 'entrada' ? (m.cantidad ?? movimiento.cantidad) : -(m.cantidad ?? movimiento.cantidad)
+      const diferencia = cantidadNueva - cantidadAnterior
+      
+      let stockPorProducto = [...d.stockPorProducto]
+      const stock = stockPorProducto.find(s => s.productoId === movimiento.productoId)
+      if (stock) {
+        stockPorProducto = stockPorProducto.map(s =>
+          s.productoId === movimiento.productoId
+            ? { ...s, cantidad: s.cantidad + diferencia, fechaActualizacion: today() }
+            : s
+        )
+      }
+      
+      return {
+        ...d,
+        movimientosStock: d.movimientosStock.map(x => x.id === id ? { ...x, ...m } : x),
+        stockPorProducto
+      }
+    })
+  }
+
+  function deleteMovimientoStock(id: string) {
+    update(d => {
+      const movimiento = d.movimientosStock.find(x => x.id === id)
+      if (!movimiento) return d
+      const cantidad = movimiento.tipo === 'entrada' ? movimiento.cantidad : -movimiento.cantidad
+      
+      let stockPorProducto = [...d.stockPorProducto]
+      stockPorProducto = stockPorProducto.map(s =>
+        s.productoId === movimiento.productoId
+          ? { ...s, cantidad: s.cantidad - cantidad, fechaActualizacion: today() }
+          : s
+      )
+      
+      return {
+        ...d,
+        movimientosStock: d.movimientosStock.filter(x => x.id !== id),
+        stockPorProducto
+      }
+    })
+  }
+
+  function getStockActual(productoId: string): number {
+    const stock = data.stockPorProducto.find(s => s.productoId === productoId)
+    return stock ? stock.cantidad : 0
+  }
+
+  function addProductoProveedor(pp: Omit<ProductoProveedor, 'id'>) {
+    update(d => ({
+      ...d,
+      productosProveedores: [...d.productosProveedores, { ...pp, id: generateId() }]
+    }))
+  }
+
+  function updateProductoProveedor(id: string, pp: Partial<ProductoProveedor>) {
+    update(d => ({
+      ...d,
+      productosProveedores: d.productosProveedores.map(x => x.id === id ? { ...x, ...pp } : x)
+    }))
+  }
+
+  function deleteProductoProveedor(id: string) {
+    update(d => ({
+      ...d,
+      productosProveedores: d.productosProveedores.filter(x => x.id !== id)
+    }))
+  }
+
+  function getProveedoresDelProducto(productoId: string): ProductoProveedor[] {
+    return data.productosProveedores.filter(pp => pp.productoId === productoId && pp.activo)
+  }
+
+  function updateStockMinimo(productoId: string, minimo: number) {
+    update(d => {
+      let stockPorProducto = [...d.stockPorProducto]
+      const stock = stockPorProducto.find(s => s.productoId === productoId)
+      if (stock) {
+        stockPorProducto = stockPorProducto.map(s =>
+          s.productoId === productoId
+            ? { ...s, stockMinimo: minimo }
+            : s
+        )
+      } else {
+        stockPorProducto.push({
+          id: generateId(),
+          productoId,
+          cantidad: 0,
+          stockMinimo: minimo,
+          fechaActualizacion: today()
+        })
+      }
+      return { ...d, stockPorProducto }
+    })
+  }
+
+  function isStockBajo(productoId: string): boolean {
+    const stock = data.stockPorProducto.find(s => s.productoId === productoId)
+    return stock ? stock.cantidad < stock.stockMinimo : false
+  }
+
+  function addStockRealRegistrado(srr: Omit<StockRealRegistrado, 'id'>) {
+    update(d => ({
+      ...d,
+      stockRealRegistrado: [...d.stockRealRegistrado, { ...srr, id: generateId() }]
+    }))
+  }
+
+  function getStockRealPorProducto(productoId: string): StockRealRegistrado | null {
+    // Retorna el registro más reciente
+    const registros = data.stockRealRegistrado.filter(sr => sr.productoId === productoId)
+    return registros.length > 0 ? registros[registros.length - 1] : null
+  }
+
   return (
     <DataContext.Provider value={{
       data, refresh,
@@ -292,6 +449,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       addVendedor, updateVendedor,
       addProveedor, updateProveedor, addCompromisoProveedor, updateCompromisoProveedor, pagarCuotaProveedor,
       addGastoFijo, updateGastoFijo, deleteGastoFijo, generarInstanciasMensuales, pagarInstanciaGasto, updateInstanciaGasto,
+      addMovimientoStock, updateMovimientoStock, deleteMovimientoStock,
+      getStockActual, addProductoProveedor, updateProductoProveedor, deleteProductoProveedor, getProveedoresDelProducto,
+      updateStockMinimo, isStockBajo, addStockRealRegistrado, getStockRealPorProducto,
     }}>
       {children}
     </DataContext.Provider>

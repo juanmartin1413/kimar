@@ -15,6 +15,10 @@ export function loadData(): AppData {
     // Migration: ensure new fields exist
     if (!parsed.compromisosProveedor) parsed.compromisosProveedor = []
     if (!parsed.instanciasGasto) parsed.instanciasGasto = []
+    if (!parsed.productosProveedores) parsed.productosProveedores = []
+    if (!parsed.movimientosStock) parsed.movimientosStock = []
+    if (!parsed.stockPorProducto) parsed.stockPorProducto = []
+    if (!parsed.stockRealRegistrado) parsed.stockRealRegistrado = []
     // Remove legacy fields
     delete parsed.deudasProveedor
     return parsed as AppData

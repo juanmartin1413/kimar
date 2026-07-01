@@ -135,8 +135,35 @@ export interface CompromisoProveedor {
   fechaCreacion: string
 }
 
+// Stock management types
+export interface ProductoProveedor {
+  id: string
+  productoId: string
+  proveedorId: string
+  codigo?: string // SKU del proveedor
+  precioCompra: number
+  activo: boolean
+}
+
+export interface StockPorProducto {
+  id: string
+  productoId: string
+  cantidad: number // en kg
+  stockMinimo: number // en kg, para alertas
+  fechaActualizacion: string
+}
+
+export interface StockRealRegistrado {
+  id: string
+  productoId: string
+  cantidad: number // cantidad física registrada
+  fecha: string
+  usuarioId: string // quién hizo el conteo
+  observaciones?: string
+}
+
 export type TipoMovimientoStock = 'entrada' | 'salida'
-export type MotivoStock = 'compra' | 'venta' | 'ajuste' | 'merma'
+export type MotivoStock = 'compra' | 'venta' | 'ajuste' | 'merma' | 'devolución'
 
 export interface MovimientoStock {
   id: string
@@ -144,9 +171,12 @@ export interface MovimientoStock {
   tipo: TipoMovimientoStock
   cantidad: number
   motivo: MotivoStock
-  ventaId?: string
+  usuarioId: string // quién registró el movimiento (auditoría)
+  ventaId?: string // para salidas por venta
+  proveedorId?: string // para entradas de compra
   fecha: string
   observaciones?: string
+  fechaCreacion: string
 }
 
 export type TipoGasto = 'mensual' | 'ocasional'
@@ -184,7 +214,10 @@ export interface AppData {
   cobranzas: Cobranza[]
   proveedores: Proveedor[]
   compromisosProveedor: CompromisoProveedor[]
-  movimientosStock: MovimientoStock[]
+  productosProveedores: ProductoProveedor[] // relación 1:N producto -> proveedor
+  movimientosStock: MovimientoStock[] // historial completo con auditoría
+  stockPorProducto: StockPorProducto[] // stock actual + mínimo por producto
+  stockRealRegistrado: StockRealRegistrado[] // registros de auditoría física
   gastosFijos: GastoFijo[]
   instanciasGasto: InstanciaGasto[]
 }
