@@ -70,6 +70,24 @@ public class StockController(KimarDbContext db, StockService stockSvc) : Control
         return Ok(new { id = mov.Id });
     }
 
+    [HttpPost("salida")]
+    public async Task<IActionResult> RegistrarSalida([FromBody] RegistrarSalidaRequest req)
+    {
+        var userId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value!);
+        var mov = new MovimientoStock
+        {
+            ProductoId = req.ProductoId,
+            Tipo = "salida",
+            Cantidad = req.Cantidad,
+            Motivo = req.Motivo,
+            UsuarioId = userId,
+            Fecha = req.Fecha,
+            Observaciones = req.Observaciones
+        };
+        await stockSvc.AplicarMovimientoAsync(mov);
+        return Ok(new { id = mov.Id });
+    }
+
     [HttpPost("ajuste")]
     public async Task<IActionResult> AjusteManual([FromBody] AjusteStockRequest req)
     {

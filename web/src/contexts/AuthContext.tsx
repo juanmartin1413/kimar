@@ -2,19 +2,19 @@
 
 import { createContext, useContext, useEffect, useState } from 'react'
 import { Rol, Usuario } from '@/lib/types'
-import { loadData } from '@/lib/storage'
+import { api } from '@/lib/api'
 
-const HARDCODED_PASSWORDS: Record<string, string> = {
-  'admin@kimar.com': 'kimar123',
-  'gestor@kimar.com': 'kimar123',
-  'marcos@kimar.com': 'kimar123',
-  'lucho@kimar.com': 'kimar123',
-  'lucas@kimar.com': 'kimar123',
+interface LoginApiResponse {
+  token: string
+  id: string
+  nombre: string
+  email: string
+  rol: string
 }
 
 interface AuthContextValue {
   usuario: Usuario | null
-  login: (email: string, password: string) => Rol | null
+  login: (email: string, password: string) => Promise<Rol | null>
   logout: () => void
   isAdmin: boolean
   isGestor: boolean
@@ -29,31 +29,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [usuario, setUsuario] = useState<Usuario | null>(null)
 
   useEffect(() => {
-    const raw = sessionStorage.getItem('kimar_session')
+    const raw = localStorage.getItem('kimar_user')
     if (raw) {
       try { setUsuario(JSON.parse(raw)) } catch { /* ignore */ }
     }
   }, [])
 
-  function login(email: string, password: string): Rol | null {
-    const expectedPwd = HARDCODED_PASSWORDS[email.toLowerCase()]
-    if (!expectedPwd || expectedPwd !== password) return null
-
-    const data = loadData()
-    const found = data.usuarios.find(u => u.email.toLowerCase() === email.toLowerCase() && u.activo)
-    if (!found) return null
-
-    sessionStorage.setItem('kimar_session', JSON.stringify(found))
-    setUsuario(found)
-    return found.rol
+  async function login(email: string, password: string): Promise<Rol | null> {
+    try {
+      const res = await api.post<LoginApiResponse>('/auth/login', { email, password })
+      const user: Usuario = {
+        id: res.id,
+        nombre: res.nombre,
+        email: res.email,
+        rol: res.rol as Rol,
+        activo: true,
+        fechaCreacion: '',
+      }
+      localStorage.setItem('kimar_token', res.token)
+      localStorage.setItem('kimar_user', JSON.stringify(user))
+      setUsuario(user)
+      return user.rol
+    } catch {
+      return null
+    }
   }
 
   function logout() {
-    sessionStorage.removeItem('kimar_session')
+    localStorage.removeItem('kimar_token')
+    localStorage.removeItem('kimar_user')
     setUsuario(null)
   }
 
-  const rol: Rol | undefined = usuario?.rol
+  const rol = usuario?.rol
   const isAdmin = rol === 'admin'
   const isGestor = rol === 'gestor'
   const isVendedor = rol === 'vendedor'

@@ -1,370 +1,468 @@
 'use client'
 
-import { createContext, useContext, useState, useCallback } from 'react'
-import { AppData, Cliente, Cobranza, CompromisoProveedor, EstadoVenta, GastoFijo, InstanciaGasto, Pedido, Producto, Proveedor, Vendedor, Venta, MovimientoStock, ProductoProveedor, StockPorProducto, StockRealRegistrado } from '@/lib/types'
-import { loadData, saveData, generateId } from '@/lib/storage'
+import { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import { useAuth } from '@/contexts/AuthContext'
+import { api } from '@/lib/api'
+import {
+  AppData, Cliente, Cobranza, CompromisoProveedor,
+  GastoFijo, InstanciaGasto, MovimientoStock, Pedido,
+  Producto, ProductoProveedor, Proveedor, StockPorProducto, StockRealRegistrado,
+  Vendedor, Venta,
+} from '@/lib/types'
 import { today } from '@/lib/format'
+import { generateId } from '@/lib/storage'
+
+const EMPTY: AppData = {
+  usuarios: [], vendedores: [], clientes: [], productos: [], pedidos: [],
+  ventas: [], cobranzas: [], proveedores: [], compromisosProveedor: [],
+  productosProveedores: [], movimientosStock: [], stockPorProducto: [],
+  stockRealRegistrado: [], gastosFijos: [], instanciasGasto: [],
+}
 
 interface DataContextValue {
   data: AppData
+  isLoading: boolean
   refresh: () => void
-  // Clientes
   addCliente: (c: Omit<Cliente, 'id' | 'fechaCreacion' | 'activo'>) => void
   updateCliente: (id: string, c: Partial<Cliente>) => void
   deleteCliente: (id: string) => void
-  // Productos
   updateProductoPrecio: (id: string, precio: number) => void
   updateProducto: (id: string, p: Partial<Omit<Producto, 'id'>>) => void
   addProducto: (p: Omit<Producto, 'id'>) => void
-  // Pedidos
-  addPedido: (p: Omit<Pedido, 'id' | 'fechaCreacion' | 'estado'>) => string
+  addPedido: (p: Omit<Pedido, 'id' | 'fechaCreacion' | 'estado'>) => Promise<string>
   updatePedido: (id: string, p: Partial<Pedido>) => void
-  // Ventas
-  addVenta: (v: Omit<Venta, 'id' | 'fechaCreacion' | 'estado' | 'cobranzas'>, cobranzas: Omit<Cobranza, 'id' | 'fechaCreacion' | 'clienteId' | 'ventaId'>[]) => void
+  addVenta: (v: Omit<Venta, 'id' | 'fechaCreacion' | 'estado' | 'cobranzas'>, cobranzas: Omit<Cobranza, 'id' | 'fechaCreacion' | 'clienteId' | 'ventaId'>[]) => Promise<void>
   updateVentaCompleta: (id: string, v: Omit<Venta, 'id' | 'fechaCreacion' | 'estado' | 'cobranzas'>, cobranzas: Omit<Cobranza, 'id' | 'fechaCreacion' | 'clienteId' | 'ventaId'>[]) => void
-  // Cobranzas
   addCobranza: (c: Omit<Cobranza, 'id' | 'fechaCreacion'>) => void
   updateCobranza: (id: string, c: Partial<Omit<Cobranza, 'id' | 'fechaCreacion'>>) => void
   cobrarCobranza: (id: string) => void
-  // Vendedores
   addVendedor: (v: Omit<Vendedor, 'id'>) => void
   updateVendedor: (id: string, v: Partial<Vendedor>) => void
-  // Proveedores
   addProveedor: (p: Omit<Proveedor, 'id' | 'fechaCreacion' | 'activo'>) => void
   updateProveedor: (id: string, p: Partial<Proveedor>) => void
   addCompromisoProveedor: (c: Omit<CompromisoProveedor, 'id' | 'fechaCreacion'>) => void
   updateCompromisoProveedor: (id: string, c: Partial<CompromisoProveedor>) => void
   pagarCuotaProveedor: (compromisoId: string, cuotaId: string) => void
-  // Gastos
   addGastoFijo: (g: Omit<GastoFijo, 'id' | 'fechaCreacion' | 'activo'>) => void
   updateGastoFijo: (id: string, g: Partial<GastoFijo>) => void
   deleteGastoFijo: (id: string) => void
   generarInstanciasMensuales: (mes: number, anio: number) => void
   pagarInstanciaGasto: (id: string) => void
   updateInstanciaGasto: (id: string, g: Partial<InstanciaGasto>) => void
-  // Stock
-  addMovimientoStock: (m: Omit<any, 'id' | 'fechaCreacion'>) => void
-  updateMovimientoStock: (id: string, m: Partial<any>) => void
+  addMovimientoStock: (m: Omit<MovimientoStock, 'id' | 'fechaCreacion'>) => void
+  updateMovimientoStock: (id: string, m: Partial<MovimientoStock>) => void
   deleteMovimientoStock: (id: string) => void
   getStockActual: (productoId: string) => number
-  addProductoProveedor: (pp: Omit<any, 'id'>) => void
-  updateProductoProveedor: (id: string, pp: Partial<any>) => void
+  addProductoProveedor: (pp: Omit<ProductoProveedor, 'id'>) => void
+  updateProductoProveedor: (id: string, pp: Partial<ProductoProveedor>) => void
   deleteProductoProveedor: (id: string) => void
-  getProveedoresDelProducto: (productoId: string) => any[]
+  getProveedoresDelProducto: (productoId: string) => ProductoProveedor[]
   updateStockMinimo: (productoId: string, minimo: number) => void
   isStockBajo: (productoId: string) => boolean
-  addStockRealRegistrado: (srr: Omit<any, 'id'>) => void
-  getStockRealPorProducto: (productoId: string) => any | null
+  addStockRealRegistrado: (srr: Omit<StockRealRegistrado, 'id'>) => void
+  getStockRealPorProducto: (productoId: string) => StockRealRegistrado | null
 }
 
 const DataContext = createContext<DataContextValue | null>(null)
 
+function mapStock(raw: any[]): StockPorProducto[] {
+  return raw.map(d => ({
+    id: String(d.productoId),
+    productoId: String(d.productoId),
+    cantidad: d.cantidad,
+    stockMinimo: d.stockMinimo,
+    fechaActualizacion: d.fechaActualizacion
+      ? String(d.fechaActualizacion).slice(0, 10)
+      : today(),
+  }))
+}
+
 export function DataProvider({ children }: { children: React.ReactNode }) {
-  const [data, setData] = useState<AppData>(() => loadData())
+  const { usuario } = useAuth()
+  const [data, setData] = useState<AppData>(EMPTY)
+  const [isLoading, setIsLoading] = useState(true)
 
-  const refresh = useCallback(() => setData(loadData()), [])
+  const loadAll = useCallback(async () => {
+    setIsLoading(true)
+    try {
+      const [clientes, productos, vendedores, pedidos, ventas, cobranzas, proveedores, gastosFijos, movimientosStock] =
+        await Promise.all([
+          api.get<Cliente[]>('/api/clientes').catch(() => [] as Cliente[]),
+          api.get<Producto[]>('/api/productos').catch(() => [] as Producto[]),
+          api.get<Vendedor[]>('/api/vendedores').catch(() => [] as Vendedor[]),
+          api.get<Pedido[]>('/api/pedidos').catch(() => [] as Pedido[]),
+          api.get<Venta[]>('/api/ventas').catch(() => [] as Venta[]),
+          api.get<Cobranza[]>('/api/cobranzas').catch(() => [] as Cobranza[]),
+          api.get<Proveedor[]>('/api/proveedores').catch(() => [] as Proveedor[]),
+          api.get<GastoFijo[]>('/api/gastos').catch(() => [] as GastoFijo[]),
+          api.get<MovimientoStock[]>('/api/stock/movimientos').catch(() => [] as MovimientoStock[]),
+        ])
 
-  function update(updater: (d: AppData) => AppData) {
-    setData(prev => {
-      const next = updater(prev)
-      saveData(next)
-      return next
-    })
-  }
+      const [stockRaw, instanciasGasto] = await Promise.all([
+        api.get<any[]>('/api/stock/actual').catch(() => [] as any[]),
+        api.get<InstanciaGasto[]>('/api/gastos/instancias').catch(() => [] as InstanciaGasto[]),
+      ])
 
-  // Auto-generate monthly instances on load
-  const autoGenerate = useCallback(() => {
-    const now = new Date()
-    const mes = now.getMonth() + 1
-    const anio = now.getFullYear()
-    setData(prev => {
-      const mensuales = prev.gastosFijos.filter(g => g.tipo === 'mensual' && g.activo)
-      const nuevas: InstanciaGasto[] = []
-      for (const gasto of mensuales) {
-        const exists = prev.instanciasGasto.some(i => i.gastoFijoId === gasto.id && i.mes === mes && i.anio === anio)
-        if (!exists) {
-          const fechaVenc = gasto.diaPago ? `${anio}-${String(mes).padStart(2, '0')}-${String(gasto.diaPago).padStart(2, '0')}` : undefined
-          nuevas.push({ id: generateId(), gastoFijoId: gasto.id, mes, anio, monto: gasto.monto, fechaVencimiento: fechaVenc, pagado: false, fechaCreacion: today() })
-        }
-      }
-      if (nuevas.length === 0) return prev
-      const next = { ...prev, instanciasGasto: [...prev.instanciasGasto, ...nuevas] }
-      saveData(next)
-      return next
-    })
+      const compromisosPorProv = await Promise.all(
+        proveedores.map(p =>
+          api.get<CompromisoProveedor[]>(`/api/proveedores/${p.id}/compromisos`).catch(() => [] as CompromisoProveedor[])
+        )
+      )
+
+      setData({
+        usuarios: [],
+        vendedores,
+        clientes,
+        productos,
+        pedidos,
+        ventas,
+        cobranzas,
+        proveedores,
+        compromisosProveedor: compromisosPorProv.flat(),
+        productosProveedores: [],
+        movimientosStock,
+        stockPorProducto: mapStock(stockRaw),
+        stockRealRegistrado: [],
+        gastosFijos,
+        instanciasGasto,
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }, [])
 
-  // Run auto-generation once on mount
-  useState(() => { autoGenerate() })
+  useEffect(() => {
+    if (!usuario) {
+      setData(EMPTY)
+      setIsLoading(false)
+      return
+    }
+    loadAll()
+  }, [usuario?.id, loadAll])
 
-  // --- Clientes ---
-  function addCliente(c: Omit<Cliente, 'id' | 'fechaCreacion' | 'activo'>) {
-    update(d => ({ ...d, clientes: [...d.clientes, { ...c, id: generateId(), activo: true, fechaCreacion: today() }] }))
-  }
-  function updateCliente(id: string, c: Partial<Cliente>) {
-    update(d => ({ ...d, clientes: d.clientes.map(x => x.id === id ? { ...x, ...c } : x) }))
-  }
-  function deleteCliente(id: string) {
-    update(d => ({ ...d, clientes: d.clientes.map(x => x.id === id ? { ...x, activo: false } : x) }))
-  }
-
-  // --- Productos ---
-  function updateProductoPrecio(id: string, precio: number) {
-    update(d => ({ ...d, productos: d.productos.map(x => x.id === id ? { ...x, precioKg: precio } : x) }))
-  }
-  function updateProducto(id: string, p: Partial<Omit<Producto, 'id'>>) {
-    update(d => ({ ...d, productos: d.productos.map(x => x.id === id ? { ...x, ...p } : x) }))
-  }
-  function addProducto(p: Omit<Producto, 'id'>) {
-    update(d => ({ ...d, productos: [...d.productos, { ...p, id: generateId() }] }))
+  // ── refresh helpers ──────────────────────────────────────────────────────────
+  async function rClientes() {
+    const list = await api.get<Cliente[]>('/api/clientes').catch(() => null)
+    if (list) setData(p => ({ ...p, clientes: list }))
   }
 
-  // --- Pedidos ---
-  function addPedido(p: Omit<Pedido, 'id' | 'fechaCreacion' | 'estado'>): string {
-    const id = generateId()
-    update(d => ({ ...d, pedidos: [...d.pedidos, { ...p, id, estado: 'pendiente', fechaCreacion: today() }] }))
-    return id
-  }
-  function updatePedido(id: string, p: Partial<Pedido>) {
-    update(d => ({ ...d, pedidos: d.pedidos.map(x => x.id === id ? { ...x, ...p } : x) }))
+  async function rProductos() {
+    const list = await api.get<Producto[]>('/api/productos').catch(() => null)
+    if (list) setData(p => ({ ...p, productos: list }))
   }
 
-  // --- Ventas ---
-  function addVenta(v: Omit<Venta, 'id' | 'fechaCreacion' | 'estado' | 'cobranzas'>, cobranzasInput: Omit<Cobranza, 'id' | 'fechaCreacion' | 'clienteId' | 'ventaId'>[]) {
-    const ventaId = generateId()
-    const cobranzas: Cobranza[] = cobranzasInput.map(c => ({
-      ...c, id: generateId(), ventaId, clienteId: v.clienteId, fechaCreacion: today()
+  async function rVendedores() {
+    const list = await api.get<Vendedor[]>('/api/vendedores').catch(() => null)
+    if (list) setData(p => ({ ...p, vendedores: list }))
+  }
+
+  async function rPedidos() {
+    const list = await api.get<Pedido[]>('/api/pedidos').catch(() => null)
+    if (list) setData(p => ({ ...p, pedidos: list }))
+  }
+
+  async function rVentas() {
+    const [ventas, cobranzas] = await Promise.all([
+      api.get<Venta[]>('/api/ventas').catch(() => null),
+      api.get<Cobranza[]>('/api/cobranzas').catch(() => null),
+    ])
+    setData(p => ({
+      ...p,
+      ...(ventas ? { ventas } : {}),
+      ...(cobranzas ? { cobranzas } : {}),
     }))
-    const totalCobrado = cobranzas.filter(c => c.estado === 'cobrado').reduce((s, c) => s + c.monto, 0)
-    const estado: EstadoVenta = totalCobrado >= v.total ? 'pagado' : totalCobrado > 0 ? 'cobrado_parcial' : 'debe'
-    const venta: Venta = { ...v, id: ventaId, estado, cobranzas, fechaCreacion: today() }
+  }
 
-    if (v.pedidoId) {
-      update(d => ({
-        ...d,
-        ventas: [...d.ventas, venta],
-        cobranzas: [...d.cobranzas, ...cobranzas],
-        pedidos: d.pedidos.map(p => p.id === v.pedidoId ? { ...p, estado: 'confirmado' } : p),
-      }))
-    } else {
-      update(d => ({
-        ...d,
-        ventas: [...d.ventas, venta],
-        cobranzas: [...d.cobranzas, ...cobranzas],
-      }))
+  async function rCobranzas() {
+    const list = await api.get<Cobranza[]>('/api/cobranzas').catch(() => null)
+    if (list) setData(p => ({ ...p, cobranzas: list }))
+  }
+
+  async function rStock() {
+    const raw = await api.get<any[]>('/api/stock/actual').catch(() => null)
+    if (raw) setData(p => ({ ...p, stockPorProducto: mapStock(raw) }))
+  }
+
+  async function rMovimientos() {
+    const list = await api.get<MovimientoStock[]>('/api/stock/movimientos').catch(() => null)
+    if (list) setData(p => ({ ...p, movimientosStock: list }))
+  }
+
+  async function rProveedoresYCompromisos() {
+    const provs = await api.get<Proveedor[]>('/api/proveedores').catch(() => null)
+    if (!provs) return
+    const compromisosPorProv = await Promise.all(
+      provs.map(p =>
+        api.get<CompromisoProveedor[]>(`/api/proveedores/${p.id}/compromisos`).catch(() => [] as CompromisoProveedor[])
+      )
+    )
+    setData(p => ({ ...p, proveedores: provs, compromisosProveedor: compromisosPorProv.flat() }))
+  }
+
+  async function rGastos() {
+    const [gastosFijos, instanciasGasto] = await Promise.all([
+      api.get<GastoFijo[]>('/api/gastos').catch(() => null),
+      api.get<InstanciaGasto[]>('/api/gastos/instancias').catch(() => null),
+    ])
+    setData(p => ({
+      ...p,
+      ...(gastosFijos ? { gastosFijos } : {}),
+      ...(instanciasGasto ? { instanciasGasto } : {}),
+    }))
+  }
+
+  // ── Clientes ─────────────────────────────────────────────────────────────────
+  async function addCliente(c: Omit<Cliente, 'id' | 'fechaCreacion' | 'activo'>) {
+    await api.post('/api/clientes', c)
+    await rClientes()
+  }
+
+  async function updateCliente(id: string, c: Partial<Cliente>) {
+    await api.put(`/api/clientes/${id}`, c)
+    await rClientes()
+  }
+
+  async function deleteCliente(id: string) {
+    await api.put(`/api/clientes/${id}`, { activo: false })
+    await rClientes()
+  }
+
+  // ── Productos ────────────────────────────────────────────────────────────────
+  async function updateProductoPrecio(id: string, precio: number) {
+    await api.put(`/api/productos/${id}`, { precioKg: precio })
+    await rProductos()
+  }
+
+  async function updateProducto(id: string, p: Partial<Omit<Producto, 'id'>>) {
+    await api.put(`/api/productos/${id}`, p)
+    await rProductos()
+  }
+
+  async function addProducto(p: Omit<Producto, 'id'>) {
+    await api.post('/api/productos', p)
+    await rProductos()
+  }
+
+  // ── Pedidos ──────────────────────────────────────────────────────────────────
+  async function addPedido(p: Omit<Pedido, 'id' | 'fechaCreacion' | 'estado'>): Promise<string> {
+    const res = await api.post<{ id: string }>('/api/pedidos', {
+      clienteId: p.clienteId,
+      vendedorId: p.vendedorId,
+      fecha: p.fecha,
+      observaciones: p.observaciones ?? null,
+      items: p.items.map(i => ({
+        productoId: i.productoId,
+        productoNombre: i.productoNombre,
+        cantidad: i.cantidad,
+        precioUnitario: i.precioUnitario,
+      })),
+    })
+    await rPedidos()
+    return res.id
+  }
+
+  async function updatePedido(id: string, p: Partial<Pedido>) {
+    await api.put(`/api/pedidos/${id}`, { estado: p.estado, observaciones: p.observaciones ?? null })
+    await rPedidos()
+  }
+
+  // ── Ventas ───────────────────────────────────────────────────────────────────
+  async function addVenta(
+    v: Omit<Venta, 'id' | 'fechaCreacion' | 'estado' | 'cobranzas'>,
+    cobranzasInput: Omit<Cobranza, 'id' | 'fechaCreacion' | 'clienteId' | 'ventaId'>[]
+  ): Promise<void> {
+    await api.post('/api/ventas', {
+      pedidoId: v.pedidoId ?? null,
+      clienteId: v.clienteId,
+      vendedorId: v.vendedorId,
+      fechaEntrega: v.fechaEntrega,
+      nroRemito: v.nroRemito ?? null,
+      nroFactura: v.nroFactura ?? null,
+      observaciones: v.observaciones ?? null,
+      items: v.items.map(i => ({
+        productoId: i.productoId,
+        descripcion: i.descripcion,
+        cantidad: i.cantidad,
+        precioUnitario: i.precioUnitario,
+      })),
+      cobranzas: cobranzasInput.map(c => ({
+        fecha: c.fecha,
+        monto: c.monto,
+        formaPago: c.formaPago,
+        estado: c.estado,
+        observaciones: c.observaciones ?? null,
+      })),
+    })
+    await Promise.all([rVentas(), rStock(), rPedidos()])
+  }
+
+  async function updateVentaCompleta(
+    id: string,
+    v: Omit<Venta, 'id' | 'fechaCreacion' | 'estado' | 'cobranzas'>,
+    _cobranzas: Omit<Cobranza, 'id' | 'fechaCreacion' | 'clienteId' | 'ventaId'>[]
+  ) {
+    await api.put(`/api/ventas/${id}`, {
+      nroRemito: v.nroRemito ?? null,
+      nroFactura: v.nroFactura ?? null,
+      observaciones: v.observaciones ?? null,
+    })
+    await rVentas()
+  }
+
+  // ── Cobranzas ────────────────────────────────────────────────────────────────
+  async function addCobranza(c: Omit<Cobranza, 'id' | 'fechaCreacion'>) {
+    await api.post(`/api/cobranzas?clienteId=${c.clienteId}${c.ventaId ? `&ventaId=${c.ventaId}` : ''}`, {
+      fecha: c.fecha,
+      monto: c.monto,
+      formaPago: c.formaPago,
+      estado: c.estado,
+      observaciones: c.observaciones ?? null,
+    })
+    await Promise.all([rCobranzas(), rVentas()])
+  }
+
+  async function updateCobranza(id: string, changes: Partial<Omit<Cobranza, 'id' | 'fechaCreacion'>>) {
+    await api.put(`/api/cobranzas/${id}`, {
+      fecha: changes.fecha,
+      monto: changes.monto,
+      formaPago: changes.formaPago,
+      estado: changes.estado,
+      observaciones: changes.observaciones ?? null,
+    })
+    await Promise.all([rCobranzas(), rVentas()])
+  }
+
+  async function cobrarCobranza(id: string) {
+    await api.post(`/api/cobranzas/${id}/cobrar`)
+    await Promise.all([rCobranzas(), rVentas()])
+  }
+
+  // ── Vendedores ───────────────────────────────────────────────────────────────
+  async function addVendedor(v: Omit<Vendedor, 'id'>) {
+    await api.post('/api/vendedores', { nombre: v.nombre, usuarioId: v.usuarioId ?? null })
+    await rVendedores()
+  }
+
+  async function updateVendedor(id: string, v: Partial<Vendedor>) {
+    await api.put(`/api/vendedores/${id}`, { nombre: v.nombre, activo: v.activo })
+    await rVendedores()
+  }
+
+  // ── Proveedores ──────────────────────────────────────────────────────────────
+  async function addProveedor(p: Omit<Proveedor, 'id' | 'fechaCreacion' | 'activo'>) {
+    await api.post('/api/proveedores', p)
+    await rProveedoresYCompromisos()
+  }
+
+  async function updateProveedor(id: string, p: Partial<Proveedor>) {
+    await api.put(`/api/proveedores/${id}`, p)
+    await rProveedoresYCompromisos()
+  }
+
+  async function addCompromisoProveedor(c: Omit<CompromisoProveedor, 'id' | 'fechaCreacion'>) {
+    await api.post('/api/proveedores/compromisos', {
+      proveedorId: c.proveedorId,
+      concepto: c.concepto,
+      observaciones: c.observaciones ?? null,
+      cuotas: c.cuotas.map(q => ({ fecha: q.fecha, monto: q.monto, formaPago: q.formaPago })),
+    })
+    await rProveedoresYCompromisos()
+  }
+
+  function updateCompromisoProveedor(id: string, c: Partial<CompromisoProveedor>) {
+    setData(prev => ({
+      ...prev,
+      compromisosProveedor: prev.compromisosProveedor.map(x => x.id === id ? { ...x, ...c } : x),
+    }))
+  }
+
+  async function pagarCuotaProveedor(compromisoId: string, cuotaId: string) {
+    await api.post(`/api/proveedores/cuotas/${cuotaId}/pagar`)
+    const compromiso = data.compromisosProveedor.find(c => c.id === compromisoId)
+    if (compromiso) {
+      const refreshed = await api.get<CompromisoProveedor[]>(
+        `/api/proveedores/${compromiso.proveedorId}/compromisos`
+      ).catch(() => null)
+      if (refreshed) {
+        setData(prev => ({
+          ...prev,
+          compromisosProveedor: [
+            ...prev.compromisosProveedor.filter(c => c.proveedorId !== compromiso.proveedorId),
+            ...refreshed,
+          ],
+        }))
+      }
     }
   }
 
-  function updateVentaCompleta(id: string, v: Omit<Venta, 'id' | 'fechaCreacion' | 'estado' | 'cobranzas'>, cobranzasInput: Omit<Cobranza, 'id' | 'fechaCreacion' | 'clienteId' | 'ventaId'>[]) {
-    update(d => {
-      // Keep existing cobradas, replace/add pendientes
-      const existingCobs = d.cobranzas.filter(c => c.ventaId === id && c.estado === 'cobrado')
-      const newCobs: Cobranza[] = cobranzasInput.map(c => ({
-        ...c, id: generateId(), ventaId: id, clienteId: v.clienteId, fechaCreacion: today()
-      }))
-      const allCobsForVenta = [...existingCobs, ...newCobs]
-      const totalCobrado = allCobsForVenta.filter(c => c.estado === 'cobrado').reduce((s, c) => s + c.monto, 0)
-      const estado: EstadoVenta = totalCobrado >= v.total ? 'pagado' : totalCobrado > 0 ? 'cobrado_parcial' : 'debe'
-
-      const updatedVenta: Venta = {
-        ...v,
-        id,
-        estado,
-        cobranzas: allCobsForVenta,
-        fechaCreacion: d.ventas.find(x => x.id === id)?.fechaCreacion ?? today(),
-      }
-
-      // Remove old pendiente cobranzas for this venta, keep cobradas + add new
-      const otherCobs = d.cobranzas.filter(c => c.ventaId !== id)
-      return {
-        ...d,
-        ventas: d.ventas.map(x => x.id === id ? updatedVenta : x),
-        cobranzas: [...otherCobs, ...allCobsForVenta],
-      }
-    })
+  // ── Gastos Fijos ─────────────────────────────────────────────────────────────
+  async function addGastoFijo(g: Omit<GastoFijo, 'id' | 'fechaCreacion' | 'activo'>) {
+    await api.post('/api/gastos', g)
+    await rGastos()
   }
 
-  // --- Cobranzas ---
-  function addCobranza(c: Omit<Cobranza, 'id' | 'fechaCreacion'>) {
-    const newCob: Cobranza = { ...c, id: generateId(), fechaCreacion: today() }
-    update(d => {
-      const cobranzas = [...d.cobranzas, newCob]
-      const ventas = recalcVentas(d.ventas, cobranzas)
-      return { ...d, cobranzas, ventas }
-    })
-  }
-  function updateCobranza(id: string, changes: Partial<Omit<Cobranza, 'id' | 'fechaCreacion'>>) {
-    update(d => {
-      const cobranzas = d.cobranzas.map(c => c.id === id ? { ...c, ...changes } : c)
-      const ventas = recalcVentas(d.ventas, cobranzas)
-      return { ...d, cobranzas, ventas }
-    })
-  }
-  function cobrarCobranza(id: string) {
-    update(d => {
-      const cobranzas = d.cobranzas.map(c => c.id === id ? { ...c, estado: 'cobrado' as const } : c)
-      const ventas = recalcVentas(d.ventas, cobranzas)
-      return { ...d, cobranzas, ventas }
-    })
+  async function updateGastoFijo(id: string, g: Partial<GastoFijo>) {
+    await api.put(`/api/gastos/${id}`, g)
+    await rGastos()
   }
 
-  function recalcVentas(ventas: Venta[], cobranzas: Cobranza[]): Venta[] {
-    return ventas.map(v => {
-      const cobsDeVenta = cobranzas.filter(c => c.ventaId === v.id)
-      const cobradas = cobsDeVenta.filter(c => c.estado === 'cobrado').reduce((s, c) => s + c.monto, 0)
-      const estado: EstadoVenta = cobradas >= v.total ? 'pagado' : cobradas > 0 ? 'cobrado_parcial' : 'debe'
-      return { ...v, cobranzas: cobsDeVenta, estado }
-    })
+  async function deleteGastoFijo(id: string) {
+    await api.put(`/api/gastos/${id}`, { activo: false })
+    await rGastos()
   }
 
-  // --- Vendedores ---
-  function addVendedor(v: Omit<Vendedor, 'id'>) {
-    update(d => ({ ...d, vendedores: [...d.vendedores, { ...v, id: generateId() }] }))
-  }
-  function updateVendedor(id: string, v: Partial<Vendedor>) {
-    update(d => ({ ...d, vendedores: d.vendedores.map(x => x.id === id ? { ...x, ...v } : x) }))
+  async function generarInstanciasMensuales(mes: number, anio: number) {
+    await api.post(`/api/gastos/generar-mensuales?mes=${mes}&anio=${anio}`)
+    await rGastos()
   }
 
-  // --- Proveedores ---
-  function addProveedor(p: Omit<Proveedor, 'id' | 'fechaCreacion' | 'activo'>) {
-    update(d => ({ ...d, proveedores: [...d.proveedores, { ...p, id: generateId(), activo: true, fechaCreacion: today() }] }))
+  async function pagarInstanciaGasto(id: string) {
+    await api.post(`/api/gastos/instancias/${id}/pagar`)
+    const list = await api.get<InstanciaGasto[]>('/api/gastos/instancias').catch(() => null)
+    if (list) setData(p => ({ ...p, instanciasGasto: list }))
   }
-  function updateProveedor(id: string, p: Partial<Proveedor>) {
-    update(d => ({ ...d, proveedores: d.proveedores.map(x => x.id === id ? { ...x, ...p } : x) }))
-  }
-  function addCompromisoProveedor(c: Omit<CompromisoProveedor, 'id' | 'fechaCreacion'>) {
-    const compromiso: CompromisoProveedor = { ...c, id: generateId(), fechaCreacion: today() }
-    update(d => ({ ...d, compromisosProveedor: [...d.compromisosProveedor, compromiso] }))
-  }
-  function updateCompromisoProveedor(id: string, c: Partial<CompromisoProveedor>) {
-    update(d => ({ ...d, compromisosProveedor: d.compromisosProveedor.map(x => x.id === id ? { ...x, ...c } : x) }))
-  }
-  function pagarCuotaProveedor(compromisoId: string, cuotaId: string) {
-    update(d => ({
-      ...d,
-      compromisosProveedor: d.compromisosProveedor.map(comp =>
-        comp.id === compromisoId
-          ? { ...comp, cuotas: comp.cuotas.map(cu => cu.id === cuotaId ? { ...cu, estado: 'pagado' as const, fechaPago: today() } : cu) }
-          : comp
-      )
+
+  function updateInstanciaGasto(id: string, g: Partial<InstanciaGasto>) {
+    setData(prev => ({
+      ...prev,
+      instanciasGasto: prev.instanciasGasto.map(x => x.id === id ? { ...x, ...g } : x),
     }))
   }
 
-  // --- Gastos Fijos ---
-  function addGastoFijo(g: Omit<GastoFijo, 'id' | 'fechaCreacion' | 'activo'>) {
-    const gasto: GastoFijo = { ...g, id: generateId(), activo: true, fechaCreacion: today() }
-    update(d => {
-      const gastosFijos = [...d.gastosFijos, gasto]
-      const now = new Date()
-      const mes = now.getMonth() + 1
-      const anio = now.getFullYear()
-      const fechaVenc = g.diaPago ? `${anio}-${String(mes).padStart(2, '0')}-${String(g.diaPago).padStart(2, '0')}` : undefined
-      const instancia: InstanciaGasto = {
-        id: generateId(), gastoFijoId: gasto.id,
-        mes, anio, monto: g.monto, fechaVencimiento: fechaVenc, pagado: false, fechaCreacion: today()
-      }
-      return { ...d, gastosFijos, instanciasGasto: [...d.instanciasGasto, instancia] }
-    })
-  }
-  function updateGastoFijo(id: string, g: Partial<GastoFijo>) {
-    update(d => ({ ...d, gastosFijos: d.gastosFijos.map(x => x.id === id ? { ...x, ...g } : x) }))
-  }
-  function deleteGastoFijo(id: string) {
-    update(d => ({ ...d, gastosFijos: d.gastosFijos.map(x => x.id === id ? { ...x, activo: false } : x) }))
-  }
-  function generarInstanciasMensuales(mes: number, anio: number) {
-    update(d => {
-      const mensuales = d.gastosFijos.filter(g => g.tipo === 'mensual' && g.activo)
-      const nuevas: InstanciaGasto[] = []
-      for (const gasto of mensuales) {
-        const exists = d.instanciasGasto.some(i => i.gastoFijoId === gasto.id && i.mes === mes && i.anio === anio)
-        if (!exists) {
-          const fechaVenc = gasto.diaPago ? `${anio}-${String(mes).padStart(2, '0')}-${String(gasto.diaPago).padStart(2, '0')}` : undefined
-          nuevas.push({ id: generateId(), gastoFijoId: gasto.id, mes, anio, monto: gasto.monto, fechaVencimiento: fechaVenc, pagado: false, fechaCreacion: today() })
-        }
-      }
-      if (nuevas.length === 0) return d
-      return { ...d, instanciasGasto: [...d.instanciasGasto, ...nuevas] }
-    })
-  }
-  function pagarInstanciaGasto(id: string) {
-    update(d => ({ ...d, instanciasGasto: d.instanciasGasto.map(x => x.id === id ? { ...x, pagado: true, fechaPago: today() } : x) }))
-  }
-  function updateInstanciaGasto(id: string, g: Partial<InstanciaGasto>) {
-    update(d => ({ ...d, instanciasGasto: d.instanciasGasto.map(x => x.id === id ? { ...x, ...g } : x) }))
-  }
-
-  // --- Stock ---
-  function addMovimientoStock(m: Omit<MovimientoStock, 'id' | 'fechaCreacion'>) {
-    const movimiento: MovimientoStock = { ...m, id: generateId(), fechaCreacion: today() }
-    update(d => {
-      // Crear o actualizar StockPorProducto
-      let stockPorProducto = [...d.stockPorProducto]
-      const stock = stockPorProducto.find(s => s.productoId === m.productoId)
-      if (!stock) {
-        stockPorProducto.push({
-          id: generateId(),
-          productoId: m.productoId,
-          cantidad: m.tipo === 'entrada' ? m.cantidad : -m.cantidad,
-          stockMinimo: 0,
-          fechaActualizacion: today()
-        })
-      } else {
-        stockPorProducto = stockPorProducto.map(s =>
-          s.productoId === m.productoId
-            ? { ...s, cantidad: s.cantidad + (m.tipo === 'entrada' ? m.cantidad : -m.cantidad), fechaActualizacion: today() }
-            : s
-        )
-      }
-      return { ...d, movimientosStock: [...d.movimientosStock, movimiento], stockPorProducto }
-    })
+  // ── Stock ─────────────────────────────────────────────────────────────────────
+  async function addMovimientoStock(m: Omit<MovimientoStock, 'id' | 'fechaCreacion'>) {
+    if (m.tipo === 'entrada') {
+      await api.post('/api/stock/entrada', {
+        productoId: m.productoId,
+        cantidad: m.cantidad,
+        proveedorId: m.proveedorId ?? null,
+        fecha: m.fecha,
+        observaciones: m.observaciones ?? null,
+      })
+    } else {
+      await api.post('/api/stock/salida', {
+        productoId: m.productoId,
+        cantidad: m.cantidad,
+        motivo: m.motivo,
+        fecha: m.fecha,
+        observaciones: m.observaciones ?? null,
+      })
+    }
+    await Promise.all([rStock(), rMovimientos()])
   }
 
   function updateMovimientoStock(id: string, m: Partial<MovimientoStock>) {
-    update(d => {
-      const movimiento = d.movimientosStock.find(x => x.id === id)
-      if (!movimiento) return d
-      const cantidadAnterior = movimiento.tipo === 'entrada' ? movimiento.cantidad : -movimiento.cantidad
-      const cantidadNueva = (m.tipo || movimiento.tipo) === 'entrada' ? (m.cantidad ?? movimiento.cantidad) : -(m.cantidad ?? movimiento.cantidad)
-      const diferencia = cantidadNueva - cantidadAnterior
-      
-      let stockPorProducto = [...d.stockPorProducto]
-      const stock = stockPorProducto.find(s => s.productoId === movimiento.productoId)
-      if (stock) {
-        stockPorProducto = stockPorProducto.map(s =>
-          s.productoId === movimiento.productoId
-            ? { ...s, cantidad: s.cantidad + diferencia, fechaActualizacion: today() }
-            : s
-        )
-      }
-      
-      return {
-        ...d,
-        movimientosStock: d.movimientosStock.map(x => x.id === id ? { ...x, ...m } : x),
-        stockPorProducto
-      }
-    })
+    setData(prev => ({
+      ...prev,
+      movimientosStock: prev.movimientosStock.map(x => x.id === id ? { ...x, ...m } : x),
+    }))
   }
 
   function deleteMovimientoStock(id: string) {
-    update(d => {
-      const movimiento = d.movimientosStock.find(x => x.id === id)
-      if (!movimiento) return d
-      const cantidad = movimiento.tipo === 'entrada' ? movimiento.cantidad : -movimiento.cantidad
-      
-      let stockPorProducto = [...d.stockPorProducto]
-      stockPorProducto = stockPorProducto.map(s =>
-        s.productoId === movimiento.productoId
-          ? { ...s, cantidad: s.cantidad - cantidad, fechaActualizacion: today() }
-          : s
-      )
-      
-      return {
-        ...d,
-        movimientosStock: d.movimientosStock.filter(x => x.id !== id),
-        stockPorProducto
-      }
-    })
+    setData(prev => ({
+      ...prev,
+      movimientosStock: prev.movimientosStock.filter(x => x.id !== id),
+    }))
   }
 
   function getStockActual(productoId: string): number {
@@ -372,52 +470,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     return stock ? stock.cantidad : 0
   }
 
-  function addProductoProveedor(pp: Omit<ProductoProveedor, 'id'>) {
-    update(d => ({
-      ...d,
-      productosProveedores: [...d.productosProveedores, { ...pp, id: generateId() }]
-    }))
-  }
-
-  function updateProductoProveedor(id: string, pp: Partial<ProductoProveedor>) {
-    update(d => ({
-      ...d,
-      productosProveedores: d.productosProveedores.map(x => x.id === id ? { ...x, ...pp } : x)
-    }))
-  }
-
-  function deleteProductoProveedor(id: string) {
-    update(d => ({
-      ...d,
-      productosProveedores: d.productosProveedores.filter(x => x.id !== id)
-    }))
-  }
-
-  function getProveedoresDelProducto(productoId: string): ProductoProveedor[] {
-    return data.productosProveedores.filter(pp => pp.productoId === productoId && pp.activo)
-  }
-
-  function updateStockMinimo(productoId: string, minimo: number) {
-    update(d => {
-      let stockPorProducto = [...d.stockPorProducto]
-      const stock = stockPorProducto.find(s => s.productoId === productoId)
-      if (stock) {
-        stockPorProducto = stockPorProducto.map(s =>
-          s.productoId === productoId
-            ? { ...s, stockMinimo: minimo }
-            : s
-        )
-      } else {
-        stockPorProducto.push({
-          id: generateId(),
-          productoId,
-          cantidad: 0,
-          stockMinimo: minimo,
-          fechaActualizacion: today()
-        })
-      }
-      return { ...d, stockPorProducto }
-    })
+  async function updateStockMinimo(productoId: string, minimo: number) {
+    await api.put(`/api/stock/${productoId}/minimo`, { stockMinimo: minimo })
+    await rStock()
   }
 
   function isStockBajo(productoId: string): boolean {
@@ -425,22 +480,35 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     return stock ? stock.cantidad < stock.stockMinimo : false
   }
 
-  function addStockRealRegistrado(srr: Omit<StockRealRegistrado, 'id'>) {
-    update(d => ({
-      ...d,
-      stockRealRegistrado: [...d.stockRealRegistrado, { ...srr, id: generateId() }]
-    }))
+  function addProductoProveedor(pp: Omit<ProductoProveedor, 'id'>) {
+    setData(prev => ({ ...prev, productosProveedores: [...prev.productosProveedores, { ...pp, id: generateId() }] }))
+  }
+
+  function updateProductoProveedor(id: string, pp: Partial<ProductoProveedor>) {
+    setData(prev => ({ ...prev, productosProveedores: prev.productosProveedores.map(x => x.id === id ? { ...x, ...pp } : x) }))
+  }
+
+  function deleteProductoProveedor(id: string) {
+    setData(prev => ({ ...prev, productosProveedores: prev.productosProveedores.filter(x => x.id !== id) }))
+  }
+
+  function getProveedoresDelProducto(productoId: string): ProductoProveedor[] {
+    return data.productosProveedores.filter(pp => pp.productoId === productoId && pp.activo)
+  }
+
+  async function addStockRealRegistrado(srr: Omit<StockRealRegistrado, 'id'>) {
+    await api.post('/api/stock/real', srr)
+    setData(prev => ({ ...prev, stockRealRegistrado: [...prev.stockRealRegistrado, { ...srr, id: generateId() }] }))
   }
 
   function getStockRealPorProducto(productoId: string): StockRealRegistrado | null {
-    // Retorna el registro más reciente
     const registros = data.stockRealRegistrado.filter(sr => sr.productoId === productoId)
     return registros.length > 0 ? registros[registros.length - 1] : null
   }
 
   return (
     <DataContext.Provider value={{
-      data, refresh,
+      data, isLoading, refresh: loadAll,
       addCliente, updateCliente, deleteCliente,
       updateProductoPrecio, updateProducto, addProducto,
       addPedido, updatePedido,

@@ -15,24 +15,22 @@ export default function AccesoPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
     setLoading(true)
-    setTimeout(() => {
-      const rol = login(email.trim(), password)
-      if (rol) {
-        const destino = rol === 'admin'
-          ? '/interno/dashboard'
-          : rol === 'gestor'
-          ? '/interno/cuenta-corriente'
-          : '/interno/pedidos'
-        router.push(destino)
-      } else {
-        setError('Email o contraseña incorrectos.')
-        setLoading(false)
-      }
-    }, 400)
+    const rol = await login(email.trim(), password)
+    if (rol) {
+      const destino = rol === 'admin'
+        ? '/interno/dashboard'
+        : rol === 'gestor'
+        ? '/interno/cuenta-corriente'
+        : '/interno/pedidos'
+      router.push(destino)
+    } else {
+      setError('Email o contraseña incorrectos.')
+      setLoading(false)
+    }
   }
 
   return (

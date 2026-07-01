@@ -39,6 +39,13 @@ public record AjusteStockRequest(
 
 public record UpdateStockMinimoRequest(decimal StockMinimo);
 
+public record RegistrarSalidaRequest(
+    Guid ProductoId,
+    decimal Cantidad,
+    string Motivo,
+    DateOnly Fecha,
+    string? Observaciones);
+
 public record RegistrarStockRealRequest(
     Guid ProductoId,
     decimal Cantidad,

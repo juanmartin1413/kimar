@@ -19,7 +19,7 @@ type CobranzaDraft = {
 }
 
 export default function NuevaVentaPage() {
-  const { data, addVenta, getStockActual, addMovimientoStock } = useData()
+  const { data, addVenta, getStockActual } = useData()
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -113,16 +113,15 @@ export default function NuevaVentaPage() {
     setCobranzas(prev => prev.filter(c => c.id !== id))
   }
 
-  function doSave() {
+  async function doSave() {
     const cobsInput: Omit<Cobranza, 'id' | 'fechaCreacion' | 'clienteId' | 'ventaId'>[] = cobranzas.map(c => ({
       fecha: c.fecha,
       monto: c.tipo === 'total' ? total : c.monto,
       formaPago: c.formaPago,
       estado: 'pendiente' as const,
     }))
-    
-    const ventaId = generateId()
-    addVenta(
+
+    await addVenta(
       {
         clienteId,
         vendedorId,
@@ -136,21 +135,7 @@ export default function NuevaVentaPage() {
       },
       cobsInput
     )
-    
-    // Registrar movimientos de stock automáticamente (salidas por venta)
-    items.forEach(item => {
-      addMovimientoStock({
-        productoId: item.productoId,
-        tipo: 'salida',
-        cantidad: item.cantidad,
-        motivo: 'venta',
-        usuarioId: 'system', // Placeholder, se debería obtener del usuario actual
-        ventaId,
-        fecha: fechaEntrega,
-        observaciones: `Venta confirmada - ${selectedCliente?.nombre}`,
-      })
-    })
-    
+
     router.push('/interno/ventas')
   }
 

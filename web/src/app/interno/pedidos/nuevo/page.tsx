@@ -62,10 +62,10 @@ export default function NuevoPedidoPage() {
     setPrecio('')
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!clienteId || items.length === 0) return
-    addPedido({ clienteId, vendedorId, fecha, items, observaciones: observaciones || undefined })
+    await addPedido({ clienteId, vendedorId, fecha, items, observaciones: observaciones || undefined })
     router.push('/interno/pedidos')
   }
 
