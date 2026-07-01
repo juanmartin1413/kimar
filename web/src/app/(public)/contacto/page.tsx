@@ -1,14 +1,21 @@
 'use client'
 
 import { useState } from 'react'
-import { Mail, Phone, MapPin, Clock, CheckCircle } from 'lucide-react'
+import { Mail, Phone, MapPin, Clock, CheckCircle, MessageCircle } from 'lucide-react'
 import { useTheme } from '@/contexts/ThemeContext'
+
+const WA_ADMIN = 'https://wa.me/5491125727299'
+const WA_VENTAS = 'https://wa.me/5491130123555'
 
 export default function ContactoPage() {
   const [sent, setSent] = useState(false)
   const [form, setForm] = useState({ nombre: '', email: '', telefono: '', mensaje: '' })
   const { palette } = useTheme()
   const k = palette === 'kimar'
+  const gold = k ? '#C7A35A' : 'oklch(0.42 0.14 240)'
+  const muted = k ? '#6F8C87' : 'oklch(0.55 0.04 240)'
+  const dark = k ? '#2B2B2B' : 'oklch(0.25 0.08 240)'
+  const iconBg = k ? '#E6E8E5' : 'oklch(0.92 0.04 240)'
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -29,26 +36,71 @@ export default function ContactoPage() {
         <div className="space-y-8">
           <div>
             <h2 className="text-xl font-bold mb-6" style={{ color: k ? '#0F2B2E' : 'oklch(0.3 0.08 240)' }}>Información de contacto</h2>
-            <div className="space-y-5">
-              {[
-                { icon: Phone, label: 'Teléfono', value: '+54 9 11 XXXX-XXXX' },
-                { icon: Mail, label: 'Email', value: 'ventas@kimar.com' },
-                { icon: MapPin, label: 'Zona de cobertura', value: 'Gran Buenos Aires y alrededores' },
-                { icon: Clock, label: 'Horario de atención', value: 'Lunes a Sábados, 7:00 – 16:00 hs' },
-              ].map(({ icon: Icon, label, value }) => (
-                <div key={label} className="flex gap-4">
-                  <div
-                    className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
-                    style={{ backgroundColor: k ? '#E6E8E5' : 'oklch(0.92 0.04 240)' }}
-                  >
-                    <Icon className="w-5 h-5" style={{ color: k ? '#C7A35A' : 'oklch(0.42 0.14 240)' }} />
-                  </div>
-                  <div>
-                    <p className="text-xs" style={{ color: k ? '#6F8C87' : 'oklch(0.55 0.04 240)' }}>{label}</p>
-                    <p className="font-semibold" style={{ color: k ? '#2B2B2B' : 'oklch(0.25 0.08 240)' }}>{value}</p>
-                  </div>
+            <div className="space-y-6">
+              {/* Teléfonos */}
+              <div className="flex gap-4">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: iconBg }}>
+                  <Phone className="w-5 h-5" style={{ color: gold }} />
                 </div>
-              ))}
+                <div className="space-y-3">
+                  <p className="text-xs" style={{ color: muted }}>Teléfonos</p>
+                  {[
+                    { label: 'Administración', number: '+54 9 11 2572-7299', wa: WA_ADMIN },
+                    { label: 'Ventas', number: '+54 9 11 3012-3555', wa: WA_VENTAS },
+                  ].map(({ label, number, wa }) => (
+                    <div key={label} className="flex items-center gap-3">
+                      <div>
+                        <p className="text-xs" style={{ color: muted }}>{label}</p>
+                        <p className="font-semibold" style={{ color: dark }}>{number}</p>
+                      </div>
+                      <a
+                        href={wa}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full shrink-0"
+                        style={{ backgroundColor: '#25D366', color: 'white' }}
+                      >
+                        <MessageCircle className="w-3.5 h-3.5" />
+                        WhatsApp
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Emails */}
+              <div className="flex gap-4">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: iconBg }}>
+                  <Mail className="w-5 h-5" style={{ color: gold }} />
+                </div>
+                <div>
+                  <p className="text-xs" style={{ color: muted }}>Email</p>
+                  <p className="font-semibold" style={{ color: dark }}>ventas@kimarcompany.com</p>
+                  <p className="font-semibold" style={{ color: dark }}>administracion@kimarcompany.com</p>
+                </div>
+              </div>
+
+              {/* Zona */}
+              <div className="flex gap-4">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: iconBg }}>
+                  <MapPin className="w-5 h-5" style={{ color: gold }} />
+                </div>
+                <div>
+                  <p className="text-xs" style={{ color: muted }}>Zona de cobertura</p>
+                  <p className="font-semibold" style={{ color: dark }}>Toda la Argentina</p>
+                </div>
+              </div>
+
+              {/* Horario */}
+              <div className="flex gap-4">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: iconBg }}>
+                  <Clock className="w-5 h-5" style={{ color: gold }} />
+                </div>
+                <div>
+                  <p className="text-xs" style={{ color: muted }}>Horario de atención</p>
+                  <p className="font-semibold" style={{ color: dark }}>Lunes a Sábados, 7:00 – 20:00 hs</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>

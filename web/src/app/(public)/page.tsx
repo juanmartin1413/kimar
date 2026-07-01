@@ -117,17 +117,28 @@ export default function HomePage() {
       {/* Contact strip */}
       <section className="py-16 px-6 text-white" style={{ backgroundColor: k ? '#0F2B2E' : 'oklch(0.28 0.10 240)' }}>
         <div className="max-w-4xl mx-auto grid sm:grid-cols-3 gap-8 text-center">
-          {[
-            { icon: Phone, label: 'Teléfono', value: '+54 9 11 XXXX-XXXX' },
-            { icon: Mail, label: 'Email', value: 'ventas@kimar.com' },
-            { icon: MapPin, label: 'Zona de cobertura', value: 'Gran Buenos Aires' },
-          ].map(({ icon: Icon, label, value }) => (
-            <div key={label} className="space-y-2">
-              <Icon className="w-6 h-6 mx-auto" style={{ color: k ? '#C7A35A' : 'oklch(0.75 0.12 240)' }} />
-              <p className="text-xs" style={{ color: k ? '#6F8C87' : 'oklch(0.75 0.08 240)' }}>{label}</p>
-              <p className="font-semibold">{value}</p>
+          <div className="space-y-2">
+            <Phone className="w-6 h-6 mx-auto" style={{ color: k ? '#C7A35A' : 'oklch(0.75 0.12 240)' }} />
+            <p className="text-xs" style={{ color: k ? '#6F8C87' : 'oklch(0.75 0.08 240)' }}>Teléfonos</p>
+            <div className="space-y-1">
+              <a href="https://wa.me/5491125727299" target="_blank" rel="noopener noreferrer" className="block font-semibold hover:underline">
+                +54 9 11 2572-7299 (Adm.)
+              </a>
+              <a href="https://wa.me/5491130123555" target="_blank" rel="noopener noreferrer" className="block font-semibold hover:underline">
+                +54 9 11 3012-3555 (Ventas)
+              </a>
             </div>
-          ))}
+          </div>
+          <div className="space-y-2">
+            <Mail className="w-6 h-6 mx-auto" style={{ color: k ? '#C7A35A' : 'oklch(0.75 0.12 240)' }} />
+            <p className="text-xs" style={{ color: k ? '#6F8C87' : 'oklch(0.75 0.08 240)' }}>Email</p>
+            <p className="font-semibold">ventas@kimarcompany.com</p>
+          </div>
+          <div className="space-y-2">
+            <MapPin className="w-6 h-6 mx-auto" style={{ color: k ? '#C7A35A' : 'oklch(0.75 0.12 240)' }} />
+            <p className="text-xs" style={{ color: k ? '#6F8C87' : 'oklch(0.75 0.08 240)' }}>Zona de cobertura</p>
+            <p className="font-semibold">Toda la Argentina</p>
+          </div>
         </div>
       </section>
     </div>
