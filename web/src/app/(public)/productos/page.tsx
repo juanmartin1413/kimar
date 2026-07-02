@@ -145,7 +145,10 @@ export default function ProductosPage() {
   })
 
   function handleDownload() {
-    const allProducts = order.flatMap(cat => productsByCategory[cat] ?? []).filter(p => p.activo)
+    const allProducts = order
+      .flatMap(cat => productsByCategory[cat] ?? [])
+      .filter(p => p.activo)
+      .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
     const now = new Date()
     const dateStr = now.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
     const logoUrl = `${window.location.origin}/logoLangoBackground.png`
