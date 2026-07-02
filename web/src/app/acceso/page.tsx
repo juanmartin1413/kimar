@@ -37,8 +37,8 @@ export default function AccesoPage() {
     <div className="min-h-screen bg-[oklch(0.97_0.01_240)] flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8 space-y-2">
-          <div className="w-14 h-14 bg-[oklch(0.18_0.06_240)] rounded-2xl flex items-center justify-center mx-auto shadow-lg overflow-hidden">
-            <img src="/logoCamaronTransp.png" alt="KIMAR" className="w-10 h-10" />
+          <div className="rounded-full overflow-hidden mx-auto shadow-lg" style={{ width: 88, height: 88 }}>
+            <img src="/logoLangoBackground.png" alt="KIMAR" className="w-full h-full object-cover" />
           </div>
           <h1 className="text-2xl font-bold text-[oklch(0.2_0.06_240)]">KIMAR</h1>
           <p className="text-sm text-[oklch(0.5_0.04_240)]">Acceso al sistema interno</p>

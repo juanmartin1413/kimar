@@ -1,7 +1,6 @@
 'use client'
 
 import Link from 'next/link'
-import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { Menu, X } from 'lucide-react'
 import { useState } from 'react'
@@ -26,7 +25,6 @@ export default function PublicNav() {
     >
       <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2 font-bold text-xl tracking-wide">
-          <Image src="/logoCamaronTransp.png" alt="KIMAR" width={28} height={28} />
           <span>KIMAR</span>
           <span
             className="hidden sm:inline font-normal text-sm"

@@ -13,6 +13,7 @@ namespace KimarApi.Controllers;
 public class ProductosController(KimarDbContext db) : ControllerBase
 {
     [HttpGet]
+    [AllowAnonymous]
     public async Task<IActionResult> GetAll([FromQuery] bool? activo)
     {
         var query = db.Productos.AsQueryable();

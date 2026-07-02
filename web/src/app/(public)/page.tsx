@@ -14,9 +14,12 @@ export default function HomePage() {
       <section
         className="text-white py-24 px-6"
         style={{
-          background: k
-            ? 'linear-gradient(135deg, #0F2B2E, #1a3d40, #6F8C87)'
-            : 'linear-gradient(135deg, oklch(0.18 0.06 240), oklch(0.28 0.10 240), oklch(0.38 0.14 240))',
+          backgroundImage: k
+            ? 'linear-gradient(rgba(15,43,46,0.72), rgba(15,43,46,0.72)), url(/homeBackground.webp)'
+            : 'linear-gradient(rgba(18,25,48,0.72), rgba(18,25,48,0.72)), url(/homeBackground.webp)',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundAttachment: 'fixed',
         }}
       >
         <div className="max-w-4xl mx-auto text-center space-y-6">
