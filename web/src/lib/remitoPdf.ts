@@ -1,6 +1,7 @@
 import { Cliente, Producto, Vendedor, Venta } from './types'
 import { formatFecha } from './format'
 import { brandPdf } from './brandPdf'
+import { kimarContact } from './contact'
 
 function direccionCliente(cliente: Cliente): string {
   const partes = [
@@ -102,6 +103,9 @@ function buildRemitoHTML(
   <div style="margin:24px 24px 0;padding:10px 0;border-top:2px solid ${brandPdf.gold};text-align:center">
     <span style="color:${brandPdf.navy};font-size:9.5px;letter-spacing:2px;font-weight:700;font-family:${brandPdf.fontBody}">KIMAR</span>
     <span style="color:${brandPdf.gold};font-size:9.5px;letter-spacing:2px;font-family:${brandPdf.fontBody}">&nbsp;|&nbsp; EXCELENCIA EN CADA PROCESO</span>
+    <div style="font-size:9px;color:${brandPdf.sea};margin-top:8px;font-family:${brandPdf.fontBody}">
+      ${kimarContact.telefonoVentas} (Ventas) &nbsp;·&nbsp; ${kimarContact.telefonoAdmin} (Adm.) &nbsp;·&nbsp; ${kimarContact.emailVentas}
+    </div>
     <div style="font-size:8.5px;color:#999;margin-top:6px;font-family:${brandPdf.fontBody}">Documento no válido como factura. Mercadería entregada según detalle.</div>
   </div>
 

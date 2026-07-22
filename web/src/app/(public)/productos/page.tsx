@@ -5,6 +5,7 @@ import { seedData } from '@/lib/seed'
 import { CategoriaProducto } from '@/lib/types'
 import { formatPeso } from '@/lib/format'
 import { brandPdf } from '@/lib/brandPdf'
+import { kimarContact } from '@/lib/contact'
 import { useTheme } from '@/contexts/ThemeContext'
 import { Download } from 'lucide-react'
 
@@ -66,8 +67,8 @@ function buildFlyerHTML(
       <div style="color:${brandPdf.gold};font-size:12px;margin-top:5px">&#9670;</div>
     </div>
     <div style="border-left:1px solid #d0ccc0;padding-left:20px;font-size:10.5px;color:#333;line-height:2.2;font-family:${brandPdf.fontBody}">
-      <div>&#9993;&nbsp; ventas@kimarcompany.com</div>
-      <div>&#9993;&nbsp; administracion@kimarcompany.com</div>
+      <div>&#9993;&nbsp; ${kimarContact.emailVentas}</div>
+      <div>&#9993;&nbsp; ${kimarContact.emailAdmin}</div>
     </div>
   </div>
 
