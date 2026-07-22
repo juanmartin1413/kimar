@@ -32,4 +32,15 @@ public class VentaService(KimarDbContext db)
             : cobrado > 0 ? "cobrado_parcial"
             : "debe";
     }
+
+    // Serie "00002" identifica al remito digital (00001 fue la serie del talonario físico).
+    // El UPDATE ... RETURNING de Postgres toma un lock de fila e incrementa de forma atómica,
+    // evitando números duplicados si dos ventas se crean al mismo tiempo.
+    public async Task<string> SiguienteNumeroRemitoAsync()
+    {
+        var ultimo = await db.Database
+            .SqlQueryRaw<long>(@"UPDATE ""ContadoresRemito"" SET ""Ultimo"" = ""Ultimo"" + 1 WHERE ""Id"" = 1 RETURNING ""Ultimo""")
+            .SingleAsync();
+        return $"00002-{ultimo:D8}";
+    }
 }

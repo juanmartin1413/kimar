@@ -93,7 +93,7 @@ public class VentasController(KimarDbContext db, StockService stockSvc, VentaSer
             ClienteId = req.ClienteId,
             VendedorId = req.VendedorId,
             FechaEntrega = req.FechaEntrega,
-            NroRemito = req.NroRemito,
+            NroRemito = await ventaSvc.SiguienteNumeroRemitoAsync(),
             NroFactura = req.NroFactura,
             Total = total,
             Observaciones = req.Observaciones,

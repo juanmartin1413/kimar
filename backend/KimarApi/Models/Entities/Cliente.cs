@@ -32,6 +32,9 @@ public class Cliente
     [MaxLength(200)]
     public string? Email { get; set; }
 
+    [MaxLength(20)]
+    public string? Cuit { get; set; }
+
     public Guid? VendedorId { get; set; }
 
     public bool Activo { get; set; } = true;

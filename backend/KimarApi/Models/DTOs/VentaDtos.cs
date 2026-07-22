@@ -58,7 +58,6 @@ public record CreateVentaRequest(
     Guid ClienteId,
     Guid VendedorId,
     DateOnly FechaEntrega,
-    string? NroRemito,
     string? NroFactura,
     string? Observaciones,
     IList<ItemVentaRequest> Items,

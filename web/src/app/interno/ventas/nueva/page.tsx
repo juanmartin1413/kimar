@@ -27,7 +27,6 @@ export default function NuevaVentaPage() {
   const [vendedorId, setVendedorId] = useState(data.vendedores[0]?.id ?? '')
   const [pedidoId, setPedidoId] = useState('')
   const [fechaEntrega, setFechaEntrega] = useState(today())
-  const [nroRemito, setNroRemito] = useState('')
   const [nroFactura, setNroFactura] = useState('')
   const [observaciones, setObservaciones] = useState('')
   const [items, setItems] = useState<ItemVenta[]>([])
@@ -160,7 +159,6 @@ export default function NuevaVentaPage() {
         vendedorId,
         pedidoId: pedidoId || undefined,
         fechaEntrega,
-        nroRemito: nroRemito || undefined,
         nroFactura: nroFactura || undefined,
         items,
         total,
@@ -246,20 +244,19 @@ export default function NuevaVentaPage() {
             </div>
           )}
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-[oklch(0.35_0.06_240)] mb-1">Fecha entrega</label>
               <input type="date" value={fechaEntrega} onChange={e => setFechaEntrega(e.target.value)} className={fieldClass} />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-[oklch(0.35_0.06_240)] mb-1">N° Remito</label>
-              <input value={nroRemito} onChange={e => setNroRemito(e.target.value)} className={fieldClass} placeholder="Ej: 3520" />
             </div>
             <div>
               <label className="block text-xs font-medium text-[oklch(0.35_0.06_240)] mb-1">N° Factura</label>
               <input value={nroFactura} onChange={e => setNroFactura(e.target.value)} className={fieldClass} placeholder="Ej: 245" />
             </div>
           </div>
+          <p className="text-xs text-[oklch(0.55_0.04_240)] -mt-2">
+            El N° de remito se asigna automáticamente al guardar la venta.
+          </p>
         </div>
 
         {/* Productos */}

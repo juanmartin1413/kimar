@@ -10,6 +10,7 @@ public record ClienteDto(
     string? Telefono1,
     string? Telefono2,
     string? Email,
+    string? Cuit,
     Guid? VendedorId,
     string? VendedorNombre,
     bool Activo,
@@ -24,6 +25,7 @@ public record CreateClienteRequest(
     string? Telefono1,
     string? Telefono2,
     string? Email,
+    string? Cuit,
     Guid? VendedorId);
 
 public record UpdateClienteRequest(
@@ -35,5 +37,6 @@ public record UpdateClienteRequest(
     string? Telefono1,
     string? Telefono2,
     string? Email,
+    string? Cuit,
     Guid? VendedorId,
     bool? Activo);

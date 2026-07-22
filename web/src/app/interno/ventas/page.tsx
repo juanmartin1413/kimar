@@ -2,7 +2,8 @@
 
 import { useData } from '@/contexts/DataContext'
 import { formatPeso, formatFecha } from '@/lib/format'
-import { Plus, ArrowRight, Pencil, Package } from 'lucide-react'
+import { downloadRemito } from '@/lib/remitoPdf'
+import { Plus, ArrowRight, Pencil, Package, Download } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
 
@@ -93,6 +94,7 @@ export default function VentasPage() {
                 const cliente = data.clientes.find(c => c.id === v.clienteId)
                 const vendedor = data.vendedores.find(x => x.id === v.vendedorId)
                 const cfg = estadoConfig[v.estado]
+                const puedeDescargarRemito = !!v.nroRemito && !!cliente && !!vendedor
                 return (
                   <tr key={v.id} className={cn('border-b border-[oklch(0.93_0.01_240)] hover:bg-[oklch(0.98_0.005_240)]', v.estado === 'debe' && 'bg-red-50/30')}>
                     <td className="py-3 px-4 text-[oklch(0.45_0.04_240)]">{formatFecha(v.fechaEntrega)}</td>
@@ -105,13 +107,24 @@ export default function VentasPage() {
                       <span className={cn('text-xs font-semibold px-2.5 py-1 rounded-full', cfg.className)}>{cfg.label}</span>
                     </td>
                     <td className="py-3 px-4">
-                      <Link
-                        href={`/interno/ventas/${v.id}`}
-                        className="text-[oklch(0.55_0.04_240)] hover:text-[oklch(0.42_0.14_240)] transition-colors"
-                        title="Editar venta"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </Link>
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => puedeDescargarRemito && downloadRemito(v, cliente!, vendedor!, data.productos)}
+                          disabled={!puedeDescargarRemito}
+                          className="text-[oklch(0.55_0.04_240)] hover:text-[oklch(0.42_0.14_240)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                          title={puedeDescargarRemito ? 'Descargar remito' : 'Sin N° de remito asignado'}
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
+                        <Link
+                          href={`/interno/ventas/${v.id}`}
+                          className="text-[oklch(0.55_0.04_240)] hover:text-[oklch(0.42_0.14_240)] transition-colors"
+                          title="Editar venta"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 )

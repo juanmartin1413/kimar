@@ -50,6 +50,7 @@ export default function ClienteForm({ initial, vendedores, onSave, onCancel }: P
     telefono1: initial?.telefono1 ?? '',
     telefono2: initial?.telefono2 ?? '',
     email: initial?.email ?? '',
+    cuit: initial?.cuit ?? '',
     vendedorId: initial?.vendedorId ?? '',
   })
 
@@ -115,9 +116,15 @@ export default function ClienteForm({ initial, vendedores, onSave, onCancel }: P
         </div>
       </div>
 
-      <div>
-        <label className={labelClass}>Email</label>
-        <input name="email" type="email" value={form.email} onChange={handleChange} className={fieldClass} placeholder="contacto@ejemplo.com" />
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={labelClass}>Email</label>
+          <input name="email" type="email" value={form.email} onChange={handleChange} className={fieldClass} placeholder="contacto@ejemplo.com" />
+        </div>
+        <div>
+          <label className={labelClass}>CUIT</label>
+          <input name="cuit" value={form.cuit} onChange={handleChange} className={fieldClass} placeholder="20-12345678-9" />
+        </div>
       </div>
 
       <div>

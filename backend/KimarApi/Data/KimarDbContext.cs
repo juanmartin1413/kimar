@@ -24,6 +24,7 @@ public class KimarDbContext(DbContextOptions<KimarDbContext> options) : DbContex
     public DbSet<Calidad> Calidades => Set<Calidad>();
     public DbSet<GastoFijo> GastosFijos => Set<GastoFijo>();
     public DbSet<InstanciaGasto> InstanciasGasto => Set<InstanciaGasto>();
+    public DbSet<ContadorRemito> ContadoresRemito => Set<ContadorRemito>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -51,6 +52,9 @@ public class KimarDbContext(DbContextOptions<KimarDbContext> options) : DbContex
 
         model.Entity<Calidad>().HasIndex(c => new { c.ProductoId, c.Nombre }).IsUnique();
         model.Entity<Calidad>().HasIndex(c => c.ProductoId);
+
+        // Fila única (Id = 1) que lleva el correlativo del remito digital
+        model.Entity<ContadorRemito>().HasData(new ContadorRemito { Id = 1, Ultimo = 0 });
 
         // Performance indexes
         model.Entity<Cliente>().HasIndex(c => c.VendedorId);

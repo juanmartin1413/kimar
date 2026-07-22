@@ -39,7 +39,7 @@ public class ClientesController(KimarDbContext db) : ControllerBase
             .OrderBy(c => c.Nombre)
             .Select(c => new ClienteDto(
                 c.Id, c.Nombre, c.Calle, c.Altura, c.Localidad, c.Provincia,
-                c.Telefono1, c.Telefono2, c.Email,
+                c.Telefono1, c.Telefono2, c.Email, c.Cuit,
                 c.VendedorId, c.Vendedor != null ? c.Vendedor.Nombre : null,
                 c.Activo, c.FechaCreacion))
             .ToListAsync();
@@ -53,7 +53,7 @@ public class ClientesController(KimarDbContext db) : ControllerBase
         var c = await db.Clientes.Include(x => x.Vendedor).FirstOrDefaultAsync(x => x.Id == id);
         if (c is null) return NotFound();
         return Ok(new ClienteDto(c.Id, c.Nombre, c.Calle, c.Altura, c.Localidad, c.Provincia,
-            c.Telefono1, c.Telefono2, c.Email,
+            c.Telefono1, c.Telefono2, c.Email, c.Cuit,
             c.VendedorId, c.Vendedor?.Nombre, c.Activo, c.FechaCreacion));
     }
 
@@ -71,13 +71,14 @@ public class ClientesController(KimarDbContext db) : ControllerBase
             Telefono1 = req.Telefono1,
             Telefono2 = req.Telefono2,
             Email = req.Email,
+            Cuit = req.Cuit,
             VendedorId = req.VendedorId
         };
         db.Clientes.Add(cliente);
         await db.SaveChangesAsync();
         return CreatedAtAction(nameof(GetById), new { id = cliente.Id },
             new ClienteDto(cliente.Id, cliente.Nombre, cliente.Calle, cliente.Altura, cliente.Localidad,
-                cliente.Provincia, cliente.Telefono1, cliente.Telefono2, cliente.Email,
+                cliente.Provincia, cliente.Telefono1, cliente.Telefono2, cliente.Email, cliente.Cuit,
                 cliente.VendedorId, null, cliente.Activo, cliente.FechaCreacion));
     }
 
@@ -96,12 +97,13 @@ public class ClientesController(KimarDbContext db) : ControllerBase
         if (req.Telefono1 is not null) c.Telefono1 = req.Telefono1;
         if (req.Telefono2 is not null) c.Telefono2 = req.Telefono2;
         if (req.Email is not null) c.Email = req.Email;
+        if (req.Cuit is not null) c.Cuit = req.Cuit;
         if (req.VendedorId.HasValue) c.VendedorId = req.VendedorId;
         if (req.Activo.HasValue) c.Activo = req.Activo.Value;
 
         await db.SaveChangesAsync();
         return Ok(new ClienteDto(c.Id, c.Nombre, c.Calle, c.Altura, c.Localidad, c.Provincia,
-            c.Telefono1, c.Telefono2, c.Email, c.VendedorId, null, c.Activo, c.FechaCreacion));
+            c.Telefono1, c.Telefono2, c.Email, c.Cuit, c.VendedorId, null, c.Activo, c.FechaCreacion));
     }
 
     [HttpDelete("{id}")]

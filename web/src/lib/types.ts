@@ -26,6 +26,7 @@ export interface Cliente {
   telefono1?: string
   telefono2?: string
   email?: string
+  cuit?: string
   vendedorId?: string
   activo: boolean
   fechaCreacion: string
