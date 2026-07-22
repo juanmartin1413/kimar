@@ -1,6 +1,8 @@
 using KimarApi.Data;
 using KimarApi.Models.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
+using Npgsql;
 
 namespace KimarApi.Services;
 
@@ -36,11 +38,20 @@ public class VentaService(KimarDbContext db)
     // Serie "00002" identifica al remito digital (00001 fue la serie del talonario físico).
     // El UPDATE ... RETURNING de Postgres toma un lock de fila e incrementa de forma atómica,
     // evitando números duplicados si dos ventas se crean al mismo tiempo.
+    // Se ejecuta con ADO.NET directo (no LINQ de EF) porque EF intenta envolver el SQL en un
+    // SELECT para darle forma al resultado, y un UPDATE ... RETURNING no es "componible" así.
     public async Task<string> SiguienteNumeroRemitoAsync()
     {
-        var ultimo = await db.Database
-            .SqlQueryRaw<long>(@"UPDATE ""ContadoresRemito"" SET ""Ultimo"" = ""Ultimo"" + 1 WHERE ""Id"" = 1 RETURNING ""Ultimo""")
-            .SingleAsync();
+        var conn = (NpgsqlConnection)db.Database.GetDbConnection();
+        if (conn.State != System.Data.ConnectionState.Open)
+            await conn.OpenAsync();
+
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = @"UPDATE ""ContadoresRemito"" SET ""Ultimo"" = ""Ultimo"" + 1 WHERE ""Id"" = 1 RETURNING ""Ultimo""";
+        if (db.Database.CurrentTransaction is not null)
+            cmd.Transaction = (NpgsqlTransaction)db.Database.CurrentTransaction.GetDbTransaction();
+
+        var ultimo = (long)(await cmd.ExecuteScalarAsync())!;
         return $"00002-{ultimo:D8}";
     }
 }
