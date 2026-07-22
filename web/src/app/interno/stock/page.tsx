@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useData } from '@/contexts/DataContext'
 import { useAuth } from '@/contexts/AuthContext'
+import { api } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -13,15 +14,38 @@ import { AjusteManualModal } from '@/components/interno/AjusteManualModal'
 import { StockMinimForm } from '@/components/interno/StockMinimForm'
 import { AlertTriangle, Plus } from 'lucide-react'
 
+interface AuditoriaRow {
+  productoId: string
+  nombre: string
+  calidadId?: string
+  calidadNombre?: string
+  stockTeorico: number
+  stockFisico?: number
+  discrepancia?: number
+  estado: 'SIN_CONTEO' | 'OK' | 'SOBRANTE' | 'FALTANTE'
+  ultimoConteo?: string
+}
+
 export default function StockPage() {
   const { canManageData: canManage } = useAuth()
-  const { data: appData, getStockTotal, getStockRealPorProducto, addStockRealRegistrado } = useData()
+  const { data: appData, addStockRealRegistrado } = useData()
   const { usuario } = useAuth()
   const [registrarEntradaOpen, setRegistrarEntradaOpen] = useState(false)
   const [ajusteManualOpen, setAjusteManualOpen] = useState(false)
   const [stockRealModalOpen, setStockRealModalOpen] = useState(false)
   const [productoSeleccionado, setProductoSeleccionado] = useState('')
+  const [calidadSeleccionada, setCalidadSeleccionada] = useState<string | undefined>(undefined)
   const [cantidadReal, setCantidadReal] = useState('')
+  const [auditoria, setAuditoria] = useState<AuditoriaRow[]>([])
+
+  const cargarAuditoria = useCallback(async () => {
+    const rows = await api.get<AuditoriaRow[]>('/api/stock/auditoria').catch(() => null)
+    if (rows) setAuditoria(rows)
+  }, [])
+
+  useEffect(() => {
+    if (canManage) cargarAuditoria()
+  }, [canManage, cargarAuditoria])
 
   if (!canManage) {
     return (
@@ -35,18 +59,21 @@ export default function StockPage() {
     )
   }
 
-  const handleRegistrarStockReal = () => {
+  const handleRegistrarStockReal = async () => {
     if (!productoSeleccionado || !cantidadReal || !usuario?.id) return
-    
-    addStockRealRegistrado({
+
+    await addStockRealRegistrado({
       productoId: productoSeleccionado,
+      calidadId: calidadSeleccionada,
       cantidad: parseFloat(cantidadReal),
       fecha: new Date().toISOString().split('T')[0],
       usuarioId: usuario.id,
       observaciones: 'Conteo físico',
     })
-    
+    await cargarAuditoria()
+
     setProductoSeleccionado('')
+    setCalidadSeleccionada(undefined)
     setCantidadReal('')
     setStockRealModalOpen(false)
   }
@@ -203,46 +230,43 @@ export default function StockPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {appData.productos.filter(p => p.activo).map(producto => {
-                  const stockTeorico = getStockTotal(producto.id)
-                  const stockReal = getStockRealPorProducto(producto.id)
-                  // Real − Teórico: positivo = sobrante, negativo = faltante
-                  const desajuste = stockReal ? stockReal.cantidad - stockTeorico : null
-                  const esSobrante = desajuste !== null && desajuste > 0
-                  const esFaltante = desajuste !== null && desajuste < 0
-
-                  return (
-                    <TableRow key={producto.id}>
-                      <TableCell className="font-medium">{producto.nombre}</TableCell>
-                      <TableCell className="text-right">{stockTeorico.toFixed(2)} kg</TableCell>
-                      <TableCell className="text-right">
-                        {stockReal ? `${stockReal.cantidad.toFixed(2)} kg` : '-'}
-                      </TableCell>
-                      <TableCell className={`text-right font-semibold ${esSobrante ? 'text-amber-600' : esFaltante ? 'text-red-600' : 'text-green-600'}`}>
-                        {desajuste !== null ? `${desajuste > 0 ? '+' : ''}${desajuste.toFixed(2)} kg` : '-'}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {!stockReal && <Badge variant="outline" className="bg-yellow-100 text-yellow-800">SIN CONTEO</Badge>}
-                        {stockReal && desajuste === 0 && <Badge variant="outline" className="bg-green-100 text-green-800">OK</Badge>}
-                        {esSobrante && <Badge variant="outline" className="bg-amber-100 text-amber-800">SOBRANTE</Badge>}
-                        {esFaltante && <Badge variant="destructive">FALTANTE</Badge>}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setProductoSeleccionado(producto.id)
-                            setCantidadReal(stockReal?.cantidad.toString() ?? '')
-                            setStockRealModalOpen(true)
-                          }}
-                        >
-                          Registrar
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
+                {auditoria.map(row => (
+                  <TableRow key={`${row.productoId}:${row.calidadId ?? 'base'}`}>
+                    <TableCell className="font-medium">
+                      {row.nombre}
+                      {row.calidadNombre && (
+                        <span className="block text-xs font-normal text-gray-500">{row.calidadNombre}</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">{row.stockTeorico.toFixed(2)} kg</TableCell>
+                    <TableCell className="text-right">
+                      {row.stockFisico != null ? `${row.stockFisico.toFixed(2)} kg` : '-'}
+                    </TableCell>
+                    <TableCell className={`text-right font-semibold ${row.estado === 'SOBRANTE' ? 'text-amber-600' : row.estado === 'FALTANTE' ? 'text-red-600' : 'text-green-600'}`}>
+                      {row.discrepancia != null ? `${row.discrepancia > 0 ? '+' : ''}${row.discrepancia.toFixed(2)} kg` : '-'}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {row.estado === 'SIN_CONTEO' && <Badge variant="outline" className="bg-yellow-100 text-yellow-800">SIN CONTEO</Badge>}
+                      {row.estado === 'OK' && <Badge variant="outline" className="bg-green-100 text-green-800">OK</Badge>}
+                      {row.estado === 'SOBRANTE' && <Badge variant="outline" className="bg-amber-100 text-amber-800">SOBRANTE</Badge>}
+                      {row.estado === 'FALTANTE' && <Badge variant="destructive">FALTANTE</Badge>}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setProductoSeleccionado(row.productoId)
+                          setCalidadSeleccionada(row.calidadId)
+                          setCantidadReal(row.stockFisico?.toString() ?? '')
+                          setStockRealModalOpen(true)
+                        }}
+                      >
+                        Registrar
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
               </TableBody>
             </Table>
           </Card>
@@ -256,7 +280,15 @@ export default function StockPage() {
       {stockRealModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <Card className="w-full max-w-md p-6">
-            <h2 className="text-lg font-semibold mb-4">Registrar Stock Real</h2>
+            <h2 className="text-lg font-semibold mb-1">Registrar Stock Real</h2>
+            {(() => {
+              const row = auditoria.find(r => r.productoId === productoSeleccionado && r.calidadId === calidadSeleccionada)
+              return row ? (
+                <p className="text-sm text-gray-500 mb-4">
+                  {row.nombre}{row.calidadNombre ? ` — ${row.calidadNombre}` : ''}
+                </p>
+              ) : <div className="mb-4" />
+            })()}
             <div className="space-y-4">
               <div>
                 <label className="text-sm font-medium">

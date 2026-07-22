@@ -57,4 +57,16 @@ public record RegistrarStockRealRequest(
     Guid ProductoId,
     decimal Cantidad,
     DateOnly Fecha,
-    string? Observaciones);
+    string? Observaciones,
+    Guid? CalidadId = null);
+
+public record AuditoriaDto(
+    Guid ProductoId,
+    string Nombre,
+    Guid? CalidadId,
+    string? CalidadNombre,
+    decimal StockTeorico,
+    decimal? StockFisico,
+    decimal? Discrepancia,
+    string Estado, // SIN_CONTEO | OK | SOBRANTE | FALTANTE
+    DateOnly? UltimoConteo);

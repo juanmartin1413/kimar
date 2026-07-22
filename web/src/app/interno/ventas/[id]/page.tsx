@@ -121,6 +121,14 @@ function EditVentaForm({ ventaId }: { ventaId: string }) {
     setCalidadId('')
   }
 
+  function setItemCalidad(itemId: string, calidadIdElegida: string) {
+    setItems(prev => prev.map(it => {
+      if (it.id !== itemId) return it
+      const calidad = getCalidadesDelProducto(it.productoId).find(c => c.id === calidadIdElegida)
+      return { ...it, calidadId: calidadIdElegida || undefined, calidadNombre: calidad?.nombre }
+    }))
+  }
+
   function addCobranza() {
     setCobranzas(prev => [
       ...prev,
@@ -273,12 +281,22 @@ function EditVentaForm({ ventaId }: { ventaId: string }) {
                       pendienteCalidad ? 'bg-orange-100' : 'bg-[oklch(0.97_0.01_240)]'
                     )}
                   >
-                    <span>
+                    <span className="flex-1">
                       {item.cantidad} × {item.descripcion}{item.calidadNombre ? ` (${item.calidadNombre})` : ''}
                       {pendienteCalidad && (
-                        <span className="block text-xs text-orange-700 font-medium">
-                          ⚠️ Falta elegir calidad — quitalo y volvé a agregarlo eligiendo una
-                        </span>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-xs text-orange-700 font-medium whitespace-nowrap">⚠️ Elegí la calidad:</span>
+                          <select
+                            value=""
+                            onChange={e => setItemCalidad(item.id, e.target.value)}
+                            className="text-xs border border-orange-300 rounded px-2 py-1 bg-white"
+                          >
+                            <option value="">Calidad…</option>
+                            {getCalidadesDelProducto(item.productoId).filter(c => c.activo).map(c => (
+                              <option key={c.id} value={c.id}>{c.nombre}</option>
+                            ))}
+                          </select>
+                        </div>
                       )}
                     </span>
                     <div className="flex items-center gap-3">

@@ -166,6 +166,7 @@ public class StockController(KimarDbContext db, StockService stockSvc) : Control
         var registro = new StockRealRegistrado
         {
             ProductoId = req.ProductoId,
+            CalidadId = req.CalidadId,
             Cantidad = req.Cantidad,
             Fecha = req.Fecha,
             UsuarioId = userId,
@@ -180,40 +181,55 @@ public class StockController(KimarDbContext db, StockService stockSvc) : Control
     public async Task<IActionResult> GetAuditoria()
     {
         var productos = await db.Productos.Where(p => p.Activo).ToListAsync();
+        var calidades = await db.Calidades.ToListAsync();
         var stocks = await db.StockPorProducto.ToListAsync();
-        // Un producto puede tener varias filas de stock (una por calidad); el "teórico" para
-        // la auditoría es la suma agregada a nivel de producto (el conteo físico también lo es).
-        var stockTotalPorProducto = stocks
-            .GroupBy(s => s.ProductoId)
-            .ToDictionary(g => g.Key, g => g.Sum(s => s.Cantidad));
+        // El último conteo físico se registra por (producto, calidad) igual que el stock teórico,
+        // para poder auditar cada variante por separado.
         var reales = await db.StockRealRegistrado
-            .GroupBy(r => r.ProductoId)
-            .Select(g => new { ProductoId = g.Key, Ultimo = g.OrderByDescending(r => r.Fecha).First() })
+            .GroupBy(r => new { r.ProductoId, r.CalidadId })
+            .Select(g => new { g.Key.ProductoId, g.Key.CalidadId, Ultimo = g.OrderByDescending(r => r.Fecha).First() })
             .ToListAsync();
-        var realMap = reales.ToDictionary(r => r.ProductoId, r => r.Ultimo);
+        var realMap = reales.ToDictionary(r => (r.ProductoId, r.CalidadId), r => r.Ultimo);
 
-        var result = productos.Select(p =>
+        var result = new List<AuditoriaDto>();
+        foreach (var p in productos)
         {
-            realMap.TryGetValue(p.Id, out var r);
-            var teorico = stockTotalPorProducto.GetValueOrDefault(p.Id, 0);
-            var fisico = r?.Cantidad;
-            var discrepancia = fisico.HasValue ? fisico.Value - teorico : (decimal?)null;
-            return new
+            var calidadesProducto = calidades.Where(c => c.ProductoId == p.Id).ToList();
+            var stocksProducto = stocks.Where(s => s.ProductoId == p.Id).ToList();
+
+            if (calidadesProducto.Count == 0)
             {
-                ProductoId = p.Id,
-                p.Nombre,
-                StockTeorico = teorico,
-                StockFisico = fisico,
-                Discrepancia = discrepancia,
-                Estado = fisico is null ? "SIN_CONTEO"
-                    : discrepancia == 0 ? "OK"
-                    : discrepancia > 0 ? "SOBRANTE"
-                    : "FALTANTE",
-                UltimoConteo = r?.Fecha
-            };
-        });
+                var s = stocksProducto.FirstOrDefault(x => x.CalidadId == null);
+                result.Add(BuildAuditoriaDto(p, null, null, s?.Cantidad ?? 0, realMap.GetValueOrDefault((p.Id, (Guid?)null))));
+                continue;
+            }
+
+            foreach (var c in calidadesProducto.Where(c => c.Activo))
+            {
+                var s = stocksProducto.FirstOrDefault(x => x.CalidadId == c.Id);
+                result.Add(BuildAuditoriaDto(p, c.Id, c.Nombre, s?.Cantidad ?? 0, realMap.GetValueOrDefault((p.Id, (Guid?)c.Id))));
+            }
+
+            foreach (var c in calidadesProducto.Where(c => !c.Activo))
+            {
+                var s = stocksProducto.FirstOrDefault(x => x.CalidadId == c.Id);
+                if (s is not null && s.Cantidad != 0)
+                    result.Add(BuildAuditoriaDto(p, c.Id, $"{c.Nombre} (inactiva)", s.Cantidad, realMap.GetValueOrDefault((p.Id, (Guid?)c.Id))));
+            }
+        }
 
         return Ok(result);
+    }
+
+    private static AuditoriaDto BuildAuditoriaDto(Producto p, Guid? calidadId, string? calidadNombre, decimal teorico, StockRealRegistrado? r)
+    {
+        var fisico = r?.Cantidad;
+        var discrepancia = fisico.HasValue ? fisico.Value - teorico : (decimal?)null;
+        var estado = fisico is null ? "SIN_CONTEO"
+            : discrepancia == 0 ? "OK"
+            : discrepancia > 0 ? "SOBRANTE"
+            : "FALTANTE";
+        return new AuditoriaDto(p.Id, p.Nombre, calidadId, calidadNombre, teorico, fisico, discrepancia, estado, r?.Fecha);
     }
 
     private static MovimientoStockDto Map(MovimientoStock m) => new(

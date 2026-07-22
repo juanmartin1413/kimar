@@ -60,7 +60,7 @@ interface DataContextValue {
   getProveedoresDelProducto: (productoId: string) => ProductoProveedor[]
   updateStockMinimo: (productoId: string, minimo: number, calidadId?: string) => void
   isStockBajo: (productoId: string) => boolean
-  addStockRealRegistrado: (srr: Omit<StockRealRegistrado, 'id'>) => void
+  addStockRealRegistrado: (srr: Omit<StockRealRegistrado, 'id'>) => Promise<void>
   getStockRealPorProducto: (productoId: string) => StockRealRegistrado | null
   getCalidadesDelProducto: (productoId: string) => Calidad[]
   addCalidad: (productoId: string, nombre: string) => Promise<void>

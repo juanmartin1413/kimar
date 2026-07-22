@@ -10,6 +10,8 @@ public class StockRealRegistrado
 
     public Guid ProductoId { get; set; }
 
+    public Guid? CalidadId { get; set; }
+
     public decimal Cantidad { get; set; }
 
     public DateOnly Fecha { get; set; }
@@ -25,4 +27,7 @@ public class StockRealRegistrado
 
     [ForeignKey(nameof(UsuarioId))]
     public Usuario Usuario { get; set; } = null!;
+
+    [ForeignKey(nameof(CalidadId))]
+    public Calidad? Calidad { get; set; }
 }

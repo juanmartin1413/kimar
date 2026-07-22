@@ -169,6 +169,7 @@ export interface StockPorProducto {
 export interface StockRealRegistrado {
   id: string
   productoId: string
+  calidadId?: string
   cantidad: number // cantidad física registrada
   fecha: string
   usuarioId: string // quién hizo el conteo

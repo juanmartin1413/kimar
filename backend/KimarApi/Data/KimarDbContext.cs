@@ -111,5 +111,11 @@ public class KimarDbContext(DbContextOptions<KimarDbContext> options) : DbContex
             .WithMany(c => c.ItemsVenta)
             .HasForeignKey(i => i.CalidadId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        model.Entity<StockRealRegistrado>()
+            .HasOne(s => s.Calidad)
+            .WithMany()
+            .HasForeignKey(s => s.CalidadId)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }
