@@ -14,6 +14,7 @@ interface LoginApiResponse {
 
 interface AuthContextValue {
   usuario: Usuario | null
+  isInitializing: boolean
   login: (email: string, password: string) => Promise<Rol | null>
   logout: () => void
   isAdmin: boolean
@@ -27,12 +28,14 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [usuario, setUsuario] = useState<Usuario | null>(null)
+  const [isInitializing, setIsInitializing] = useState(true)
 
   useEffect(() => {
     const raw = localStorage.getItem('kimar_user')
     if (raw) {
       try { setUsuario(JSON.parse(raw)) } catch { /* ignore */ }
     }
+    setIsInitializing(false)
   }, [])
 
   async function login(email: string, password: string): Promise<Rol | null> {
@@ -69,7 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const canManageData = isAdmin || isGestor
 
   return (
-    <AuthContext.Provider value={{ usuario, login, logout, isAdmin, isGestor, isVendedor, canSeeReportes, canManageData }}>
+    <AuthContext.Provider value={{ usuario, isInitializing, login, logout, isAdmin, isGestor, isVendedor, canSeeReportes, canManageData }}>
       {children}
     </AuthContext.Provider>
   )

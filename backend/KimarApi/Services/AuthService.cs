@@ -28,7 +28,7 @@ public class AuthService(KimarDbContext db, IConfiguration config)
             ?? config["Jwt:Secret"]!;
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-        var expHours = int.TryParse(config["Jwt:ExpirationHours"], out var h) ? h : 8;
+        var expHours = int.TryParse(config["Jwt:ExpirationHours"], out var h) ? h : 48;
 
         var claims = new[]
         {

@@ -7,14 +7,14 @@ import InternalSidebar from '@/components/interno/InternalSidebar'
 import InternalTopBar from '@/components/interno/InternalTopBar'
 
 export default function InternoLayout({ children }: { children: React.ReactNode }) {
-  const { usuario } = useAuth()
+  const { usuario, isInitializing } = useAuth()
   const router = useRouter()
 
   useEffect(() => {
-    if (!usuario) router.replace('/acceso')
-  }, [usuario, router])
+    if (!isInitializing && !usuario) router.replace('/acceso')
+  }, [usuario, isInitializing, router])
 
-  if (!usuario) return null
+  if (isInitializing || !usuario) return null
 
   return (
     <div className="flex h-screen bg-[oklch(0.97_0.01_240)]">
