@@ -45,7 +45,7 @@ function buildRemitoHTML(
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
     @page{size:A4 portrait;margin:0}
-    body{width:210mm;min-height:297mm;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    body{width:210mm;min-height:297mm;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;display:flex;flex-direction:column}
     table{width:100%;border-collapse:collapse}
   </style>
 </head>
@@ -92,6 +92,10 @@ function buildRemitoHTML(
   <div style="margin:0 24px;border:1px solid ${brandPdf.light};border-top:none">
     <table><tbody>${rows}</tbody></table>
   </div>
+
+  <!-- Spacer: empuja firma + footer al pie de la hoja cuando el detalle es corto;
+       se achica a 0 si el contenido ya ocupa toda la hoja, sin recortar nada -->
+  <div style="flex:1"></div>
 
   <!-- Firma -->
   <div style="margin:40px 24px 0;display:flex;gap:24px">
