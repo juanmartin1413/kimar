@@ -17,14 +17,18 @@ interface RegistrarEntradaModalProps {
 }
 
 export function RegistrarEntradaModal({ open, onOpenChange }: RegistrarEntradaModalProps) {
-  const { data, addMovimientoStock } = useData()
+  const { data, addMovimientoStock, getCalidadesDelProducto } = useData()
   const { usuario } = useAuth()
   const [productoId, setProductoId] = useState('')
+  const [calidadId, setCalidadId] = useState('')
   const [cantidad, setCantidad] = useState('')
   const [proveedorId, setProveedorId] = useState('')
   const [fecha, setFecha] = useState(today())
   const [observaciones, setObservaciones] = useState('')
   const [loading, setLoading] = useState(false)
+
+  const calidadesActivas = productoId ? getCalidadesDelProducto(productoId).filter(c => c.activo) : []
+  const requiereCalidad = calidadesActivas.length > 1
 
   useEffect(() => {
     if (!fecha) {
@@ -32,13 +36,21 @@ export function RegistrarEntradaModal({ open, onOpenChange }: RegistrarEntradaMo
     }
   }, [fecha])
 
+  useEffect(() => {
+    if (calidadesActivas.length === 1) setCalidadId(calidadesActivas[0].id)
+    else setCalidadId('')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productoId])
+
   const handleSave = () => {
     if (!productoId || !cantidad || !usuario?.id) return
+    if (requiereCalidad && !calidadId) return
 
     setLoading(true)
     try {
       addMovimientoStock({
         productoId,
+        calidadId: calidadId || undefined,
         tipo: 'entrada',
         cantidad: parseFloat(cantidad),
         motivo: 'compra',
@@ -50,6 +62,7 @@ export function RegistrarEntradaModal({ open, onOpenChange }: RegistrarEntradaMo
 
       // Reset form
       setProductoId('')
+      setCalidadId('')
       setCantidad('')
       setProveedorId('')
       setFecha(today())
@@ -61,6 +74,7 @@ export function RegistrarEntradaModal({ open, onOpenChange }: RegistrarEntradaMo
   }
 
   const productosItems = data.productos.filter(p => p.activo).map(p => ({ value: p.id, label: p.nombre }))
+  const calidadesItems = calidadesActivas.map(c => ({ value: c.id, label: c.nombre }))
   const proveedoresItems = data.proveedores.filter(p => p.activo).map(p => ({ value: p.id, label: p.nombre }))
 
   return (
@@ -84,6 +98,22 @@ export function RegistrarEntradaModal({ open, onOpenChange }: RegistrarEntradaMo
               </SelectContent>
             </Select>
           </div>
+
+          {requiereCalidad && (
+            <div>
+              <Label htmlFor="calidad">Calidad * (uso interno)</Label>
+              <Select value={calidadId} onValueChange={(value) => setCalidadId(value ?? '')} items={calidadesItems}>
+                <SelectTrigger id="calidad" className="w-full">
+                  <SelectValue placeholder="Seleccionar calidad" />
+                </SelectTrigger>
+                <SelectContent>
+                  {calidadesItems.map(c => (
+                    <SelectItem key={c.value} value={c.value} label={c.label}>{c.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div>
             <Label htmlFor="cantidad">Cantidad (kg) *</Label>
@@ -137,7 +167,7 @@ export function RegistrarEntradaModal({ open, onOpenChange }: RegistrarEntradaMo
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
           <Button
             onClick={handleSave}
-            disabled={!productoId || !cantidad || loading}
+            disabled={!productoId || !cantidad || loading || (requiereCalidad && !calidadId)}
           >
             {loading ? 'Guardando...' : 'Guardar'}
           </Button>

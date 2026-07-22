@@ -18,27 +18,54 @@ public class StockController(KimarDbContext db, StockService stockSvc) : Control
     public async Task<IActionResult> GetActual()
     {
         var productos = await db.Productos.Where(p => p.Activo).ToListAsync();
+        var calidades = await db.Calidades.ToListAsync();
         var stocks = await db.StockPorProducto.ToListAsync();
-        var stockMap = stocks.ToDictionary(s => s.ProductoId);
 
-        var result = productos.Select(p =>
+        var result = new List<StockActualDto>();
+        foreach (var p in productos)
         {
-            stockMap.TryGetValue(p.Id, out var s);
-            var cantidad = s?.Cantidad ?? 0;
-            var minimo = s?.StockMinimo ?? 0;
-            var estado = cantidad == 0 ? "SIN_STOCK" : cantidad < minimo ? "BAJO" : "NORMAL";
-            return new StockActualDto(p.Id, p.Nombre, p.Categoria, cantidad, minimo, estado,
-                s?.FechaActualizacion ?? DateTime.MinValue);
-        });
+            var calidadesProducto = calidades.Where(c => c.ProductoId == p.Id).ToList();
+            var stocksProducto = stocks.Where(s => s.ProductoId == p.Id).ToList();
+
+            if (calidadesProducto.Count == 0)
+            {
+                var s = stocksProducto.FirstOrDefault(x => x.CalidadId == null);
+                result.Add(BuildStockDto(p, null, null, s));
+                continue;
+            }
+
+            foreach (var c in calidadesProducto.Where(c => c.Activo))
+            {
+                var s = stocksProducto.FirstOrDefault(x => x.CalidadId == c.Id);
+                result.Add(BuildStockDto(p, c.Id, c.Nombre, s));
+            }
+
+            // Calidades desactivadas que aún tienen stock remanente: se muestran para no ocultar existencias
+            foreach (var c in calidadesProducto.Where(c => !c.Activo))
+            {
+                var s = stocksProducto.FirstOrDefault(x => x.CalidadId == c.Id);
+                if (s is not null && s.Cantidad != 0)
+                    result.Add(BuildStockDto(p, c.Id, $"{c.Nombre} (inactiva)", s));
+            }
+        }
 
         return Ok(result);
+    }
+
+    private static StockActualDto BuildStockDto(Producto p, Guid? calidadId, string? calidadNombre, StockPorProducto? s)
+    {
+        var cantidad = s?.Cantidad ?? 0;
+        var minimo = s?.StockMinimo ?? 0;
+        var estado = cantidad == 0 ? "SIN_STOCK" : cantidad < minimo ? "BAJO" : "NORMAL";
+        return new StockActualDto(p.Id, p.Nombre, p.Categoria, calidadId, calidadNombre, cantidad, minimo, estado,
+            s?.FechaActualizacion ?? DateTime.MinValue);
     }
 
     [HttpGet("movimientos")]
     public async Task<IActionResult> GetMovimientos([FromQuery] Guid? productoId, [FromQuery] int pagina = 1)
     {
         var query = db.MovimientosStock
-            .Include(m => m.Producto).Include(m => m.Usuario).Include(m => m.Proveedor)
+            .Include(m => m.Producto).Include(m => m.Usuario).Include(m => m.Proveedor).Include(m => m.Calidad)
             .AsQueryable();
 
         if (productoId.HasValue) query = query.Where(m => m.ProductoId == productoId);
@@ -58,6 +85,7 @@ public class StockController(KimarDbContext db, StockService stockSvc) : Control
         var mov = new MovimientoStock
         {
             ProductoId = req.ProductoId,
+            CalidadId = req.CalidadId,
             Tipo = "entrada",
             Cantidad = req.Cantidad,
             Motivo = "compra",
@@ -77,6 +105,7 @@ public class StockController(KimarDbContext db, StockService stockSvc) : Control
         var mov = new MovimientoStock
         {
             ProductoId = req.ProductoId,
+            CalidadId = req.CalidadId,
             Tipo = "salida",
             Cantidad = req.Cantidad,
             Motivo = req.Motivo,
@@ -92,7 +121,7 @@ public class StockController(KimarDbContext db, StockService stockSvc) : Control
     public async Task<IActionResult> AjusteManual([FromBody] AjusteStockRequest req)
     {
         var userId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value!);
-        var actual = await stockSvc.GetStockActualAsync(req.ProductoId);
+        var actual = await stockSvc.GetStockActualAsync(req.ProductoId, req.CalidadId);
         var diferencia = req.CantidadNueva - actual;
 
         if (diferencia == 0) return Ok(new { mensaje = "Sin cambios" });
@@ -100,6 +129,7 @@ public class StockController(KimarDbContext db, StockService stockSvc) : Control
         var mov = new MovimientoStock
         {
             ProductoId = req.ProductoId,
+            CalidadId = req.CalidadId,
             Tipo = diferencia > 0 ? "entrada" : "salida",
             Cantidad = Math.Abs(diferencia),
             Motivo = "ajuste",
@@ -114,10 +144,11 @@ public class StockController(KimarDbContext db, StockService stockSvc) : Control
     [HttpPut("{productoId}/minimo")]
     public async Task<IActionResult> UpdateMinimo(Guid productoId, [FromBody] UpdateStockMinimoRequest req)
     {
-        var stock = await db.StockPorProducto.FirstOrDefaultAsync(s => s.ProductoId == productoId);
+        var stock = await db.StockPorProducto
+            .FirstOrDefaultAsync(s => s.ProductoId == productoId && s.CalidadId == req.CalidadId);
         if (stock is null)
         {
-            stock = new StockPorProducto { ProductoId = productoId, StockMinimo = req.StockMinimo };
+            stock = new StockPorProducto { ProductoId = productoId, CalidadId = req.CalidadId, StockMinimo = req.StockMinimo };
             db.StockPorProducto.Add(stock);
         }
         else
@@ -125,7 +156,7 @@ public class StockController(KimarDbContext db, StockService stockSvc) : Control
             stock.StockMinimo = req.StockMinimo;
         }
         await db.SaveChangesAsync();
-        return Ok(new { productoId, stockMinimo = req.StockMinimo });
+        return Ok(new { productoId, calidadId = req.CalidadId, stockMinimo = req.StockMinimo });
     }
 
     [HttpPost("real")]
@@ -149,7 +180,12 @@ public class StockController(KimarDbContext db, StockService stockSvc) : Control
     public async Task<IActionResult> GetAuditoria()
     {
         var productos = await db.Productos.Where(p => p.Activo).ToListAsync();
-        var stocks = await db.StockPorProducto.ToDictionaryAsync(s => s.ProductoId);
+        var stocks = await db.StockPorProducto.ToListAsync();
+        // Un producto puede tener varias filas de stock (una por calidad); el "teórico" para
+        // la auditoría es la suma agregada a nivel de producto (el conteo físico también lo es).
+        var stockTotalPorProducto = stocks
+            .GroupBy(s => s.ProductoId)
+            .ToDictionary(g => g.Key, g => g.Sum(s => s.Cantidad));
         var reales = await db.StockRealRegistrado
             .GroupBy(r => r.ProductoId)
             .Select(g => new { ProductoId = g.Key, Ultimo = g.OrderByDescending(r => r.Fecha).First() })
@@ -158,9 +194,8 @@ public class StockController(KimarDbContext db, StockService stockSvc) : Control
 
         var result = productos.Select(p =>
         {
-            stocks.TryGetValue(p.Id, out var s);
             realMap.TryGetValue(p.Id, out var r);
-            var teorico = s?.Cantidad ?? 0;
+            var teorico = stockTotalPorProducto.GetValueOrDefault(p.Id, 0);
             var fisico = r?.Cantidad;
             var discrepancia = fisico.HasValue ? fisico.Value - teorico : (decimal?)null;
             return new
@@ -182,7 +217,7 @@ public class StockController(KimarDbContext db, StockService stockSvc) : Control
     }
 
     private static MovimientoStockDto Map(MovimientoStock m) => new(
-        m.Id, m.ProductoId, m.Producto?.Nombre ?? "", m.Tipo, m.Cantidad, m.Motivo,
+        m.Id, m.ProductoId, m.Producto?.Nombre ?? "", m.CalidadId, m.Calidad?.Nombre, m.Tipo, m.Cantidad, m.Motivo,
         m.UsuarioId, m.Usuario?.Nombre ?? "", m.VentaId, m.ProveedorId,
         m.Proveedor?.Nombre, m.Fecha, m.Observaciones, m.FechaCreacion);
 }

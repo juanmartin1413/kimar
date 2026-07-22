@@ -10,6 +10,9 @@ public class StockPorProducto
 
     public Guid ProductoId { get; set; }
 
+    // Variante interna de calidad (ej. "Glaseado 20%"). Null = producto sin variantes internas (comportamiento de siempre).
+    public Guid? CalidadId { get; set; }
+
     public decimal Cantidad { get; set; } = 0;
 
     public decimal StockMinimo { get; set; } = 0;
@@ -19,4 +22,7 @@ public class StockPorProducto
     // Navigation
     [ForeignKey(nameof(ProductoId))]
     public Producto Producto { get; set; } = null!;
+
+    [ForeignKey(nameof(CalidadId))]
+    public Calidad? Calidad { get; set; }
 }

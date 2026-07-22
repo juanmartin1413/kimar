@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { useData } from '@/contexts/DataContext'
 import { Cobranza, FormaPago, ItemVenta } from '@/lib/types'
@@ -37,7 +37,7 @@ export default function EditarVentaPage() {
 }
 
 function EditVentaForm({ ventaId }: { ventaId: string }) {
-  const { data, updateVentaCompleta } = useData()
+  const { data, updateVentaCompleta, getCalidadesDelProducto } = useData()
   const router = useRouter()
   const venta = data.ventas.find(v => v.id === ventaId)!
 
@@ -63,6 +63,7 @@ function EditVentaForm({ ventaId }: { ventaId: string }) {
   const [productoId, setProductoId] = useState('')
   const [cantidad, setCantidad] = useState('')
   const [precio, setPrecio] = useState('')
+  const [calidadId, setCalidadId] = useState('')
   const [showWarning, setShowWarning] = useState(false)
 
   const total = items.reduce((s, i) => s + i.subtotal, 0)
@@ -70,6 +71,20 @@ function EditVentaForm({ ventaId }: { ventaId: string }) {
   const totalPlanCompleto = totalCobrado + totalNewCobranzas
   const selectedProduct = data.productos.find(p => p.id === productoId)
   const unidadLabel = selectedProduct?.unidad === 'unidad' ? 'Unidades' : 'Kg'
+  const calidadesActivas = selectedProduct ? getCalidadesDelProducto(selectedProduct.id).filter(c => c.activo) : []
+  const requiereCalidad = calidadesActivas.length > 1
+
+  const itemsPendientesCalidad = items.filter(it => {
+    if (it.calidadId) return false
+    const activasProd = getCalidadesDelProducto(it.productoId).filter(c => c.activo)
+    return activasProd.length > 1
+  })
+
+  useEffect(() => {
+    if (calidadesActivas.length === 1) setCalidadId(calidadesActivas[0].id)
+    else setCalidadId('')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productoId])
 
   function onClienteChange(id: string) {
     setClienteId(id)
@@ -86,11 +101,15 @@ function EditVentaForm({ ventaId }: { ventaId: string }) {
   function addItem() {
     const prod = data.productos.find(p => p.id === productoId)
     if (!prod || !cantidad || !precio) return
+    if (requiereCalidad && !calidadId) return
     const qty = parseFloat(cantidad)
     const pr = parseFloat(precio)
+    const calidad = calidadesActivas.find(c => c.id === calidadId)
     setItems(prev => [...prev, {
       id: generateId(),
       productoId: prod.id,
+      calidadId: calidadId || undefined,
+      calidadNombre: calidad?.nombre,
       descripcion: prod.nombre,
       cantidad: qty,
       precioUnitario: pr,
@@ -99,6 +118,7 @@ function EditVentaForm({ ventaId }: { ventaId: string }) {
     setProductoId('')
     setCantidad('')
     setPrecio('')
+    setCalidadId('')
   }
 
   function addCobranza() {
@@ -144,6 +164,7 @@ function EditVentaForm({ ventaId }: { ventaId: string }) {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!clienteId || items.length === 0) return
+    if (itemsPendientesCalidad.length > 0) return
 
     if (cobranzas.length === 0 && totalCobrado < total) {
       setShowWarning(true)
@@ -227,24 +248,48 @@ function EditVentaForm({ ventaId }: { ventaId: string }) {
               <input type="number" value={cantidad} onChange={e => setCantidad(e.target.value)} placeholder={unidadLabel} min="0" step="0.5" className={fieldClass} />
               <input type="number" value={precio} onChange={e => setPrecio(e.target.value)} placeholder="$/unidad" min="0" className={fieldClass} />
             </div>
-            <button type="button" onClick={addItem} disabled={!productoId || !cantidad || !precio} className="text-sm bg-[oklch(0.92_0.04_240)] hover:bg-[oklch(0.85_0.05_240)] disabled:opacity-50 text-[oklch(0.35_0.10_240)] px-4 py-1.5 rounded-lg font-medium transition-colors">
+            {requiereCalidad && (
+              <select value={calidadId} onChange={e => setCalidadId(e.target.value)} required className={fieldClass}>
+                <option value="">Calidad… (uso interno)</option>
+                {calidadesActivas.map(c => (
+                  <option key={c.id} value={c.id}>{c.nombre}</option>
+                ))}
+              </select>
+            )}
+            <button type="button" onClick={addItem} disabled={!productoId || !cantidad || !precio || (requiereCalidad && !calidadId)} className="text-sm bg-[oklch(0.92_0.04_240)] hover:bg-[oklch(0.85_0.05_240)] disabled:opacity-50 text-[oklch(0.35_0.10_240)] px-4 py-1.5 rounded-lg font-medium transition-colors">
               + Agregar
             </button>
           </div>
 
           {items.length > 0 ? (
             <div className="space-y-1.5">
-              {items.map((item, idx) => (
-                <div key={item.id} className="flex items-center justify-between bg-[oklch(0.97_0.01_240)] rounded-lg px-4 py-2 text-sm">
-                  <span>{item.cantidad} × {item.descripcion}</span>
-                  <div className="flex items-center gap-3">
-                    <span className="font-semibold tabular-nums">{formatPeso(item.subtotal)}</span>
-                    <button type="button" onClick={() => setItems(p => p.filter((_, i) => i !== idx))}>
-                      <Trash2 className="w-3.5 h-3.5 text-red-400 hover:text-red-600" />
-                    </button>
+              {items.map((item, idx) => {
+                const pendienteCalidad = itemsPendientesCalidad.some(p => p.id === item.id)
+                return (
+                  <div
+                    key={item.id}
+                    className={cn(
+                      'flex items-center justify-between rounded-lg px-4 py-2 text-sm',
+                      pendienteCalidad ? 'bg-orange-100' : 'bg-[oklch(0.97_0.01_240)]'
+                    )}
+                  >
+                    <span>
+                      {item.cantidad} × {item.descripcion}{item.calidadNombre ? ` (${item.calidadNombre})` : ''}
+                      {pendienteCalidad && (
+                        <span className="block text-xs text-orange-700 font-medium">
+                          ⚠️ Falta elegir calidad — quitalo y volvé a agregarlo eligiendo una
+                        </span>
+                      )}
+                    </span>
+                    <div className="flex items-center gap-3">
+                      <span className="font-semibold tabular-nums">{formatPeso(item.subtotal)}</span>
+                      <button type="button" onClick={() => setItems(p => p.filter((_, i) => i !== idx))}>
+                        <Trash2 className="w-3.5 h-3.5 text-red-400 hover:text-red-600" />
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
               <div className="text-right font-bold text-[oklch(0.25_0.06_240)] pr-4 pt-1">
                 Total: {formatPeso(total)}
               </div>
@@ -365,7 +410,12 @@ function EditVentaForm({ ventaId }: { ventaId: string }) {
             <Link href="/interno/ventas" className="flex-1 text-center border border-[oklch(0.88_0.02_240)] text-[oklch(0.4_0.04_240)] py-3 rounded-lg text-sm font-medium hover:bg-[oklch(0.96_0.01_240)] transition-colors">
               Cancelar
             </Link>
-            <button type="submit" disabled={!clienteId || items.length === 0} className="flex-1 bg-[oklch(0.42_0.14_240)] hover:bg-[oklch(0.52_0.14_240)] disabled:opacity-50 text-white py-3 rounded-lg text-sm font-semibold transition-colors">
+            <button
+              type="submit"
+              disabled={!clienteId || items.length === 0 || itemsPendientesCalidad.length > 0}
+              title={itemsPendientesCalidad.length > 0 ? 'Hay ítems que requieren elegir una calidad' : undefined}
+              className="flex-1 bg-[oklch(0.42_0.14_240)] hover:bg-[oklch(0.52_0.14_240)] disabled:opacity-50 text-white py-3 rounded-lg text-sm font-semibold transition-colors"
+            >
               Guardar cambios
             </button>
           </div>

@@ -21,6 +21,7 @@ public class KimarDbContext(DbContextOptions<KimarDbContext> options) : DbContex
     public DbSet<MovimientoStock> MovimientosStock => Set<MovimientoStock>();
     public DbSet<StockPorProducto> StockPorProducto => Set<StockPorProducto>();
     public DbSet<StockRealRegistrado> StockRealRegistrado => Set<StockRealRegistrado>();
+    public DbSet<Calidad> Calidades => Set<Calidad>();
     public DbSet<GastoFijo> GastosFijos => Set<GastoFijo>();
     public DbSet<InstanciaGasto> InstanciasGasto => Set<InstanciaGasto>();
 
@@ -30,7 +31,26 @@ public class KimarDbContext(DbContextOptions<KimarDbContext> options) : DbContex
 
         // Unique constraints
         model.Entity<Usuario>().HasIndex(u => u.Email).IsUnique();
-        model.Entity<StockPorProducto>().HasIndex(s => s.ProductoId).IsUnique();
+
+        // StockPorProducto: antes 1 fila por producto (unique en ProductoId). Ahora puede haber
+        // varias filas por producto cuando tiene variantes de Calidad. Postgres no colapsa NULLs
+        // en un índice único compuesto, así que se modela con dos índices únicos parciales:
+        // - a lo sumo 1 fila "sin calidad" (CalidadId IS NULL) por producto (comportamiento de siempre)
+        // - a lo sumo 1 fila por (producto, calidad) cuando CalidadId no es null
+        model.Entity<StockPorProducto>()
+            .HasIndex(s => s.ProductoId)
+            .HasDatabaseName("IX_StockPorProducto_ProductoId_SinCalidad")
+            .HasFilter("\"CalidadId\" IS NULL")
+            .IsUnique();
+
+        model.Entity<StockPorProducto>()
+            .HasIndex(s => new { s.ProductoId, s.CalidadId })
+            .HasDatabaseName("IX_StockPorProducto_ProductoId_CalidadId")
+            .HasFilter("\"CalidadId\" IS NOT NULL")
+            .IsUnique();
+
+        model.Entity<Calidad>().HasIndex(c => new { c.ProductoId, c.Nombre }).IsUnique();
+        model.Entity<Calidad>().HasIndex(c => c.ProductoId);
 
         // Performance indexes
         model.Entity<Cliente>().HasIndex(c => c.VendedorId);
@@ -72,6 +92,24 @@ public class KimarDbContext(DbContextOptions<KimarDbContext> options) : DbContex
             .HasOne(c => c.Venta)
             .WithMany(v => v.Cobranzas)
             .HasForeignKey(c => c.VentaId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        model.Entity<StockPorProducto>()
+            .HasOne(s => s.Calidad)
+            .WithMany(c => c.Stocks)
+            .HasForeignKey(s => s.CalidadId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        model.Entity<MovimientoStock>()
+            .HasOne(m => m.Calidad)
+            .WithMany(c => c.Movimientos)
+            .HasForeignKey(m => m.CalidadId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        model.Entity<ItemVenta>()
+            .HasOne(i => i.Calidad)
+            .WithMany(c => c.ItemsVenta)
+            .HasForeignKey(i => i.CalidadId)
             .OnDelete(DeleteBehavior.SetNull);
     }
 }

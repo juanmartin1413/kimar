@@ -7,10 +7,11 @@ import { Button } from '@/components/ui/button'
 
 interface StockMinimFormProps {
   productoId: string
+  calidadId?: string
   initialValue: number
 }
 
-export function StockMinimForm({ productoId, initialValue }: StockMinimFormProps) {
+export function StockMinimForm({ productoId, calidadId, initialValue }: StockMinimFormProps) {
   const { updateStockMinimo } = useData()
   const [value, setValue] = useState(initialValue.toString())
   const [editing, setEditing] = useState(false)
@@ -19,7 +20,7 @@ export function StockMinimForm({ productoId, initialValue }: StockMinimFormProps
   const handleSave = async () => {
     setLoading(true)
     try {
-      updateStockMinimo(productoId, parseFloat(value) || 0)
+      updateStockMinimo(productoId, parseFloat(value) || 0, calidadId)
       setEditing(false)
     } finally {
       setLoading(false)

@@ -15,7 +15,7 @@ import { AlertTriangle, Plus } from 'lucide-react'
 
 export default function StockPage() {
   const { canManageData: canManage } = useAuth()
-  const { data: appData, getStockActual, getStockRealPorProducto, addStockRealRegistrado } = useData()
+  const { data: appData, getStockTotal, getStockRealPorProducto, addStockRealRegistrado } = useData()
   const { usuario } = useAuth()
   const [registrarEntradaOpen, setRegistrarEntradaOpen] = useState(false)
   const [ajusteManualOpen, setAjusteManualOpen] = useState(false)
@@ -90,23 +90,29 @@ export default function StockPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {appData.productos.filter(p => p.activo).map(producto => {
-                  const stock = appData.stockPorProducto.find(s => s.productoId === producto.id)
-                  const stockActual = stock?.cantidad ?? 0
-                  const stockMinimo = stock?.stockMinimo ?? 0
+                {appData.stockPorProducto.map(stock => {
+                  const producto = appData.productos.find(p => p.id === stock.productoId)
+                  if (!producto?.activo) return null
+                  const stockActual = stock.cantidad
+                  const stockMinimo = stock.stockMinimo
                   const bajo = stockActual < stockMinimo
                   const vacio = stockActual === 0
 
                   return (
-                    <TableRow key={producto.id}>
-                      <TableCell className="font-medium">{producto.nombre}</TableCell>
+                    <TableRow key={stock.id}>
+                      <TableCell className="font-medium">
+                        {producto.nombre}
+                        {stock.calidadNombre && (
+                          <span className="block text-xs font-normal text-gray-500">{stock.calidadNombre}</span>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right">
                         <span className={vacio ? 'text-red-600 font-bold' : bajo ? 'text-orange-600 font-bold' : ''}>
                           {stockActual.toFixed(2)} kg
                         </span>
                       </TableCell>
                       <TableCell className="text-right">
-                        <StockMinimForm productoId={producto.id} initialValue={stockMinimo} />
+                        <StockMinimForm productoId={stock.productoId} calidadId={stock.calidadId} initialValue={stockMinimo} />
                       </TableCell>
                       <TableCell className="text-center">
                         {vacio && <Badge variant="destructive">SIN STOCK</Badge>}
@@ -129,6 +135,7 @@ export default function StockPage() {
                 <TableRow>
                   <TableHead>Fecha</TableHead>
                   <TableHead>Producto</TableHead>
+                  <TableHead>Calidad</TableHead>
                   <TableHead className="text-center">Tipo</TableHead>
                   <TableHead className="text-right">Cantidad</TableHead>
                   <TableHead>Motivo</TableHead>
@@ -140,7 +147,7 @@ export default function StockPage() {
               <TableBody>
                 {appData.movimientosStock.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-gray-500">
+                    <TableCell colSpan={9} className="text-center py-8 text-gray-500">
                       No hay movimientos registrados
                     </TableCell>
                   </TableRow>
@@ -154,6 +161,7 @@ export default function StockPage() {
                       <TableRow key={mov.id}>
                         <TableCell className="text-sm">{mov.fecha}</TableCell>
                         <TableCell className="font-medium text-sm">{producto?.nombre}</TableCell>
+                        <TableCell className="text-sm text-gray-600">{mov.calidadNombre ?? '-'}</TableCell>
                         <TableCell className="text-center">
                           <Badge variant={mov.tipo === 'entrada' ? 'default' : 'destructive'}>
                             {mov.tipo === 'entrada' ? 'ENTRADA' : 'SALIDA'}
@@ -196,7 +204,7 @@ export default function StockPage() {
               </TableHeader>
               <TableBody>
                 {appData.productos.filter(p => p.activo).map(producto => {
-                  const stockTeorico = getStockActual(producto.id)
+                  const stockTeorico = getStockTotal(producto.id)
                   const stockReal = getStockRealPorProducto(producto.id)
                   // Real − Teórico: positivo = sobrante, negativo = faltante
                   const desajuste = stockReal ? stockReal.cantidad - stockTeorico : null

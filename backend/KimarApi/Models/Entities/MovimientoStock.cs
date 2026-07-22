@@ -10,6 +10,8 @@ public class MovimientoStock
 
     public Guid ProductoId { get; set; }
 
+    public Guid? CalidadId { get; set; }
+
     [Required, MaxLength(20)]
     public string Tipo { get; set; } = "entrada"; // entrada | salida
 
@@ -43,4 +45,7 @@ public class MovimientoStock
 
     [ForeignKey(nameof(ProveedorId))]
     public Proveedor? Proveedor { get; set; }
+
+    [ForeignKey(nameof(CalidadId))]
+    public Calidad? Calidad { get; set; }
 }

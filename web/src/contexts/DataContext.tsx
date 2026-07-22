@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useState, useCallback } from 'rea
 import { useAuth } from '@/contexts/AuthContext'
 import { api } from '@/lib/api'
 import {
-  AppData, Cliente, Cobranza, CompromisoProveedor,
+  AppData, Calidad, Cliente, Cobranza, CompromisoProveedor,
   GastoFijo, InstanciaGasto, MovimientoStock, Pedido,
   Producto, ProductoProveedor, Proveedor, StockPorProducto, StockRealRegistrado,
   Vendedor, Venta,
@@ -16,7 +16,7 @@ const EMPTY: AppData = {
   usuarios: [], vendedores: [], clientes: [], productos: [], pedidos: [],
   ventas: [], cobranzas: [], proveedores: [], compromisosProveedor: [],
   productosProveedores: [], movimientosStock: [], stockPorProducto: [],
-  stockRealRegistrado: [], gastosFijos: [], instanciasGasto: [],
+  stockRealRegistrado: [], gastosFijos: [], instanciasGasto: [], calidades: [],
 }
 
 interface DataContextValue {
@@ -52,23 +52,29 @@ interface DataContextValue {
   addMovimientoStock: (m: Omit<MovimientoStock, 'id' | 'fechaCreacion'>) => void
   updateMovimientoStock: (id: string, m: Partial<MovimientoStock>) => void
   deleteMovimientoStock: (id: string) => void
-  getStockActual: (productoId: string) => number
+  getStockActual: (productoId: string, calidadId?: string) => number
+  getStockTotal: (productoId: string) => number
   addProductoProveedor: (pp: Omit<ProductoProveedor, 'id'>) => void
   updateProductoProveedor: (id: string, pp: Partial<ProductoProveedor>) => void
   deleteProductoProveedor: (id: string) => void
   getProveedoresDelProducto: (productoId: string) => ProductoProveedor[]
-  updateStockMinimo: (productoId: string, minimo: number) => void
+  updateStockMinimo: (productoId: string, minimo: number, calidadId?: string) => void
   isStockBajo: (productoId: string) => boolean
   addStockRealRegistrado: (srr: Omit<StockRealRegistrado, 'id'>) => void
   getStockRealPorProducto: (productoId: string) => StockRealRegistrado | null
+  getCalidadesDelProducto: (productoId: string) => Calidad[]
+  addCalidad: (productoId: string, nombre: string) => Promise<void>
+  updateCalidad: (id: string, c: Partial<Pick<Calidad, 'nombre' | 'activo'>>) => Promise<void>
 }
 
 const DataContext = createContext<DataContextValue | null>(null)
 
 function mapStock(raw: any[]): StockPorProducto[] {
   return raw.map(d => ({
-    id: String(d.productoId),
+    id: `${d.productoId}:${d.calidadId ?? 'base'}`,
     productoId: String(d.productoId),
+    calidadId: d.calidadId ?? undefined,
+    calidadNombre: d.calidadNombre ?? undefined,
     cantidad: d.cantidad,
     stockMinimo: d.stockMinimo,
     fechaActualizacion: d.fechaActualizacion
@@ -103,11 +109,18 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         api.get<InstanciaGasto[]>('/api/gastos/instancias').catch(() => [] as InstanciaGasto[]),
       ])
 
-      const compromisosPorProv = await Promise.all(
-        proveedores.map(p =>
-          api.get<CompromisoProveedor[]>(`/api/proveedores/${p.id}/compromisos`).catch(() => [] as CompromisoProveedor[])
-        )
-      )
+      const [compromisosPorProv, calidadesPorProducto] = await Promise.all([
+        Promise.all(
+          proveedores.map(p =>
+            api.get<CompromisoProveedor[]>(`/api/proveedores/${p.id}/compromisos`).catch(() => [] as CompromisoProveedor[])
+          )
+        ),
+        Promise.all(
+          productos.map(p =>
+            api.get<Calidad[]>(`/api/productos/${p.id}/calidades`).catch(() => [] as Calidad[])
+          )
+        ),
+      ])
 
       setData({
         usuarios: [],
@@ -125,6 +138,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         stockRealRegistrado: [],
         gastosFijos,
         instanciasGasto,
+        calidades: calidadesPorProducto.flat(),
       })
     } finally {
       setIsLoading(false)
@@ -281,6 +295,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       observaciones: v.observaciones ?? null,
       items: v.items.map(i => ({
         productoId: i.productoId,
+        calidadId: i.calidadId ?? null,
         descripcion: i.descripcion,
         cantidad: i.cantidad,
         precioUnitario: i.precioUnitario,
@@ -434,6 +449,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     if (m.tipo === 'entrada') {
       await api.post('/api/stock/entrada', {
         productoId: m.productoId,
+        calidadId: m.calidadId ?? null,
         cantidad: m.cantidad,
         proveedorId: m.proveedorId ?? null,
         fecha: m.fecha,
@@ -442,6 +458,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     } else {
       await api.post('/api/stock/salida', {
         productoId: m.productoId,
+        calidadId: m.calidadId ?? null,
         cantidad: m.cantidad,
         motivo: m.motivo,
         fecha: m.fecha,
@@ -465,13 +482,19 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }))
   }
 
-  function getStockActual(productoId: string): number {
-    const stock = data.stockPorProducto.find(s => s.productoId === productoId)
+  function getStockActual(productoId: string, calidadId?: string): number {
+    const stock = data.stockPorProducto.find(s => s.productoId === productoId && s.calidadId === calidadId)
     return stock ? stock.cantidad : 0
   }
 
-  async function updateStockMinimo(productoId: string, minimo: number) {
-    await api.put(`/api/stock/${productoId}/minimo`, { stockMinimo: minimo })
+  function getStockTotal(productoId: string): number {
+    return data.stockPorProducto
+      .filter(s => s.productoId === productoId)
+      .reduce((sum, s) => sum + s.cantidad, 0)
+  }
+
+  async function updateStockMinimo(productoId: string, minimo: number, calidadId?: string) {
+    await api.put(`/api/stock/${productoId}/minimo`, { stockMinimo: minimo, calidadId: calidadId ?? null })
     await rStock()
   }
 
@@ -506,6 +529,21 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     return registros.length > 0 ? registros[registros.length - 1] : null
   }
 
+  // ── Calidades (variantes internas de stock, nunca visibles al cliente) ────────
+  function getCalidadesDelProducto(productoId: string): Calidad[] {
+    return data.calidades.filter(c => c.productoId === productoId)
+  }
+
+  async function addCalidad(productoId: string, nombre: string) {
+    const dto = await api.post<Calidad>('/api/productos/calidades', { productoId, nombre })
+    setData(prev => ({ ...prev, calidades: [...prev.calidades, dto] }))
+  }
+
+  async function updateCalidad(id: string, c: Partial<Pick<Calidad, 'nombre' | 'activo'>>) {
+    const dto = await api.put<Calidad>(`/api/productos/calidades/${id}`, c)
+    setData(prev => ({ ...prev, calidades: prev.calidades.map(x => x.id === id ? dto : x) }))
+  }
+
   return (
     <DataContext.Provider value={{
       data, isLoading, refresh: loadAll,
@@ -518,8 +556,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       addProveedor, updateProveedor, addCompromisoProveedor, updateCompromisoProveedor, pagarCuotaProveedor,
       addGastoFijo, updateGastoFijo, deleteGastoFijo, generarInstanciasMensuales, pagarInstanciaGasto, updateInstanciaGasto,
       addMovimientoStock, updateMovimientoStock, deleteMovimientoStock,
-      getStockActual, addProductoProveedor, updateProductoProveedor, deleteProductoProveedor, getProveedoresDelProducto,
+      getStockActual, getStockTotal, addProductoProveedor, updateProductoProveedor, deleteProductoProveedor, getProveedoresDelProducto,
       updateStockMinimo, isStockBajo, addStockRealRegistrado, getStockRealPorProducto,
+      getCalidadesDelProducto, addCalidad, updateCalidad,
     }}>
       {children}
     </DataContext.Provider>

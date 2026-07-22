@@ -67,4 +67,49 @@ public class ProductosController(KimarDbContext db) : ControllerBase
         await db.SaveChangesAsync();
         return Ok(new ProductoDto(p.Id, p.Nombre, p.Categoria, p.PrecioKg, p.Unidad, p.Activo));
     }
+
+    // Calidades: variantes internas de stock (ej. "Glaseado 20%"). Nunca se exponen en GetAll/GetById
+    // (los endpoints públicos de lista de precios), solo bajo estas rutas protegidas.
+
+    [HttpGet("{productoId}/calidades")]
+    [Authorize(Roles = "admin,gestor")]
+    public async Task<IActionResult> GetCalidades(Guid productoId)
+    {
+        var list = await db.Calidades
+            .Where(c => c.ProductoId == productoId)
+            .OrderBy(c => c.Nombre)
+            .Select(c => new CalidadDto(c.Id, c.ProductoId, c.Nombre, c.Activo))
+            .ToListAsync();
+        return Ok(list);
+    }
+
+    [HttpPost("calidades")]
+    [Authorize(Roles = "admin,gestor")]
+    public async Task<IActionResult> CreateCalidad([FromBody] CreateCalidadRequest req)
+    {
+        var producto = await db.Productos.FindAsync(req.ProductoId);
+        if (producto is null) return NotFound(new { error = "Producto no encontrado" });
+
+        var existe = await db.Calidades.AnyAsync(c => c.ProductoId == req.ProductoId && c.Nombre == req.Nombre);
+        if (existe) return BadRequest(new { error = "Ya existe una calidad con ese nombre para este producto" });
+
+        var cal = new Calidad { ProductoId = req.ProductoId, Nombre = req.Nombre };
+        db.Calidades.Add(cal);
+        await db.SaveChangesAsync();
+        return Ok(new CalidadDto(cal.Id, cal.ProductoId, cal.Nombre, cal.Activo));
+    }
+
+    [HttpPut("calidades/{id}")]
+    [Authorize(Roles = "admin,gestor")]
+    public async Task<IActionResult> UpdateCalidad(Guid id, [FromBody] UpdateCalidadRequest req)
+    {
+        var cal = await db.Calidades.FindAsync(id);
+        if (cal is null) return NotFound();
+
+        if (req.Nombre is not null) cal.Nombre = req.Nombre;
+        if (req.Activo.HasValue) cal.Activo = req.Activo.Value;
+
+        await db.SaveChangesAsync();
+        return Ok(new CalidadDto(cal.Id, cal.ProductoId, cal.Nombre, cal.Activo));
+    }
 }

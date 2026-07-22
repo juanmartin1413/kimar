@@ -3,6 +3,8 @@ namespace KimarApi.Models.DTOs;
 public record ItemVentaDto(
     Guid Id,
     Guid ProductoId,
+    Guid? CalidadId,
+    string? CalidadNombre,
     string Descripcion,
     decimal Cantidad,
     decimal PrecioUnitario,
@@ -41,7 +43,8 @@ public record ItemVentaRequest(
     Guid ProductoId,
     string Descripcion,
     decimal Cantidad,
-    decimal PrecioUnitario);
+    decimal PrecioUnitario,
+    Guid? CalidadId = null);
 
 public record CobranzaRequest(
     DateOnly Fecha,

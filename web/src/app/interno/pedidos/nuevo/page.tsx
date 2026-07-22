@@ -11,7 +11,7 @@ import { Trash2, ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 
 export default function NuevoPedidoPage() {
-  const { data, addPedido, getStockActual } = useData()
+  const { data, addPedido, getStockTotal } = useData()
   const { usuario } = useAuth()
   const router = useRouter()
 
@@ -28,7 +28,7 @@ export default function NuevoPedidoPage() {
 
   const selectedProduct = data.productos.find(p => p.id === productoId)
   const unidadLabel = selectedProduct?.unidad === 'unidad' ? 'Unidades' : 'Kg'
-  const stockActual = selectedProduct ? getStockActual(selectedProduct.id) : 0
+  const stockActual = selectedProduct ? getStockTotal(selectedProduct.id) : 0
   const cantidadNum = cantidad ? parseFloat(cantidad) : 0
   const stockInsuficiente = cantidadNum > stockActual && stockActual > 0
 

@@ -69,6 +69,8 @@ export interface Pedido {
 export interface ItemVenta {
   id: string
   productoId: string
+  calidadId?: string // variante interna de stock (nunca se muestra al cliente)
+  calidadNombre?: string
   descripcion: string
   cantidad: number
   precioUnitario: number
@@ -145,9 +147,20 @@ export interface ProductoProveedor {
   activo: boolean
 }
 
+// Variante interna de calidad de un producto (ej. "Glaseado 20%"), usada solo para saber
+// de qué lote de stock se descuenta. El cliente final nunca la ve.
+export interface Calidad {
+  id: string
+  productoId: string
+  nombre: string
+  activo: boolean
+}
+
 export interface StockPorProducto {
   id: string
   productoId: string
+  calidadId?: string
+  calidadNombre?: string
   cantidad: number // en kg
   stockMinimo: number // en kg, para alertas
   fechaActualizacion: string
@@ -168,6 +181,8 @@ export type MotivoStock = 'compra' | 'venta' | 'ajuste' | 'merma' | 'devolución
 export interface MovimientoStock {
   id: string
   productoId: string
+  calidadId?: string
+  calidadNombre?: string
   tipo: TipoMovimientoStock
   cantidad: number
   motivo: MotivoStock
@@ -215,6 +230,7 @@ export interface AppData {
   proveedores: Proveedor[]
   compromisosProveedor: CompromisoProveedor[]
   productosProveedores: ProductoProveedor[] // relación 1:N producto -> proveedor
+  calidades: Calidad[] // variantes internas de stock por producto
   movimientosStock: MovimientoStock[] // historial completo con auditoría
   stockPorProducto: StockPorProducto[] // stock actual + mínimo por producto
   stockRealRegistrado: StockRealRegistrado[] // registros de auditoría física

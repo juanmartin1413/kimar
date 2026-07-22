@@ -22,7 +22,8 @@ public class VentasController(KimarDbContext db, StockService stockSvc, VentaSer
 
         var query = db.Ventas
             .Include(v => v.Cliente).Include(v => v.Vendedor)
-            .Include(v => v.Items).Include(v => v.Cobranzas).ThenInclude(c => c.Cliente)
+            .Include(v => v.Items).ThenInclude(i => i.Calidad)
+            .Include(v => v.Cobranzas).ThenInclude(c => c.Cliente)
             .AsQueryable();
 
         if (rol == "vendedor")
@@ -43,7 +44,8 @@ public class VentasController(KimarDbContext db, StockService stockSvc, VentaSer
     {
         var v = await db.Ventas
             .Include(x => x.Cliente).Include(x => x.Vendedor)
-            .Include(x => x.Items).Include(x => x.Cobranzas).ThenInclude(c => c.Cliente)
+            .Include(x => x.Items).ThenInclude(i => i.Calidad)
+            .Include(x => x.Cobranzas).ThenInclude(c => c.Cliente)
             .FirstOrDefaultAsync(x => x.Id == id);
         if (v is null) return NotFound();
         return Ok(Map(v));
@@ -55,14 +57,23 @@ public class VentasController(KimarDbContext db, StockService stockSvc, VentaSer
     {
         var userId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value!);
 
-        var items = req.Items.Select(i => new ItemVenta
+        var items = new List<ItemVenta>();
+        foreach (var i in req.Items)
         {
-            ProductoId = i.ProductoId,
-            Descripcion = i.Descripcion,
-            Cantidad = i.Cantidad,
-            PrecioUnitario = i.PrecioUnitario,
-            Subtotal = i.Cantidad * i.PrecioUnitario
-        }).ToList();
+            var resolucion = await stockSvc.ResolverCalidadVentaAsync(i.ProductoId, i.CalidadId);
+            if (!resolucion.Ok)
+                return BadRequest(new { error = resolucion.Error, productoId = i.ProductoId });
+
+            items.Add(new ItemVenta
+            {
+                ProductoId = i.ProductoId,
+                CalidadId = resolucion.CalidadId,
+                Descripcion = i.Descripcion,
+                Cantidad = i.Cantidad,
+                PrecioUnitario = i.PrecioUnitario,
+                Subtotal = i.Cantidad * i.PrecioUnitario
+            });
+        }
 
         var total = items.Sum(i => i.Subtotal);
 
@@ -125,6 +136,6 @@ public class VentasController(KimarDbContext db, StockService stockSvc, VentaSer
     private static VentaDto Map(Venta v) => new(
         v.Id, v.PedidoId, v.ClienteId, v.Cliente?.Nombre ?? "", v.VendedorId, v.Vendedor?.Nombre ?? "",
         v.FechaEntrega, v.NroRemito, v.NroFactura, v.Total, v.Estado, v.Observaciones, v.FechaCreacion,
-        v.Items.Select(i => new ItemVentaDto(i.Id, i.ProductoId, i.Descripcion, i.Cantidad, i.PrecioUnitario, i.Subtotal)).ToList(),
+        v.Items.Select(i => new ItemVentaDto(i.Id, i.ProductoId, i.CalidadId, i.Calidad?.Nombre, i.Descripcion, i.Cantidad, i.PrecioUnitario, i.Subtotal)).ToList(),
         v.Cobranzas.Select(c => new CobranzaDto(c.Id, c.VentaId, c.ClienteId, c.Cliente?.Nombre ?? "", c.Fecha, c.Monto, c.FormaPago, c.Estado, c.Observaciones, c.FechaCreacion)).ToList());
 }

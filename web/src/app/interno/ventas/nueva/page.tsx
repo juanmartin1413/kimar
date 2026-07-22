@@ -19,7 +19,7 @@ type CobranzaDraft = {
 }
 
 export default function NuevaVentaPage() {
-  const { data, addVenta, getStockActual } = useData()
+  const { data, addVenta, getStockActual, getStockTotal, getCalidadesDelProducto } = useData()
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -37,6 +37,7 @@ export default function NuevaVentaPage() {
   const [productoId, setProductoId] = useState('')
   const [cantidad, setCantidad] = useState('')
   const [precio, setPrecio] = useState('')
+  const [calidadId, setCalidadId] = useState('')
   const [showWarning, setShowWarning] = useState(false)
 
   // Auto-select pedido from URL query param
@@ -55,9 +56,28 @@ export default function NuevaVentaPage() {
   const unidadLabel = selectedProduct?.unidad === 'unidad' ? 'Unidades' : 'Kg'
   const selectedCliente = data.clientes.find(c => c.id === clienteId)
   const selectedVendedor = data.vendedores.find(v => v.id === vendedorId)
-  const stockActual = selectedProduct ? getStockActual(selectedProduct.id) : 0
+  const calidadesActivas = selectedProduct ? getCalidadesDelProducto(selectedProduct.id).filter(c => c.activo) : []
+  const requiereCalidad = calidadesActivas.length > 1
+  const stockActual = selectedProduct
+    ? (calidadId ? getStockActual(selectedProduct.id, calidadId) : getStockTotal(selectedProduct.id))
+    : 0
   const cantidadNum = cantidad ? parseFloat(cantidad) : 0
   const stockInsuficiente = cantidadNum > stockActual && stockActual > 0
+
+  // Ítems importados de un pedido cuyo producto exige elegir calidad y todavía no la tienen:
+  // no se pueden guardar así, hay que quitarlos y volver a agregarlos eligiendo la calidad.
+  const itemsPendientesCalidad = items.filter(it => {
+    if (it.calidadId) return false
+    const activasProd = getCalidadesDelProducto(it.productoId).filter(c => c.activo)
+    return activasProd.length > 1
+  })
+
+  // Autoselección silenciosa cuando el producto elegido tiene exactamente 1 calidad activa
+  useEffect(() => {
+    if (calidadesActivas.length === 1) setCalidadId(calidadesActivas[0].id)
+    else setCalidadId('')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productoId])
 
   function onClienteChange(id: string) {
     setClienteId(id)
@@ -83,11 +103,15 @@ export default function NuevaVentaPage() {
   function addItem() {
     const prod = data.productos.find(p => p.id === productoId)
     if (!prod || !cantidad || !precio) return
+    if (requiereCalidad && !calidadId) return
     const qty = parseFloat(cantidad)
     const pr = parseFloat(precio)
+    const calidad = calidadesActivas.find(c => c.id === calidadId)
     setItems(prev => [...prev, {
       id: generateId(),
       productoId: prod.id,
+      calidadId: calidadId || undefined,
+      calidadNombre: calidad?.nombre,
       descripcion: prod.nombre,
       cantidad: qty,
       precioUnitario: pr,
@@ -96,6 +120,7 @@ export default function NuevaVentaPage() {
     setProductoId('')
     setCantidad('')
     setPrecio('')
+    setCalidadId('')
   }
 
   function addCobranza() {
@@ -142,6 +167,7 @@ export default function NuevaVentaPage() {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!clienteId || items.length === 0) return
+    if (itemsPendientesCalidad.length > 0) return
 
     const planTotal = cobranzas.reduce((s, c) => s + (c.tipo === 'total' ? total : c.monto), 0)
     if (cobranzas.length === 0 || planTotal < total) {
@@ -259,9 +285,17 @@ export default function NuevaVentaPage() {
                 className={fieldClass}
               />
             </div>
+            {requiereCalidad && (
+              <select value={calidadId} onChange={e => setCalidadId(e.target.value)} required className={fieldClass}>
+                <option value="">Calidad… (uso interno)</option>
+                {calidadesActivas.map(c => (
+                  <option key={c.id} value={c.id}>{c.nombre}</option>
+                ))}
+              </select>
+            )}
             {selectedProduct && (
               <div className={`text-xs px-3 py-2 rounded ${stockActual === 0 ? 'bg-red-100 text-red-800' : stockInsuficiente ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'}`}>
-                <span className="font-semibold">Stock actual: {stockActual.toFixed(2)} {unidadLabel.toLowerCase()}</span>
+                <span className="font-semibold">Stock {calidadId ? 'de esta calidad' : 'actual'}: {stockActual.toFixed(2)} {unidadLabel.toLowerCase()}</span>
                 {stockActual === 0 && <span> — ⚠️ SIN STOCK DISPONIBLE</span>}
                 {stockInsuficiente && <span> — ⚠️ Stock insuficiente: solicitadas {cantidadNum.toFixed(2)}, disponibles {stockActual.toFixed(2)}</span>}
               </div>
@@ -269,7 +303,7 @@ export default function NuevaVentaPage() {
             <button
               type="button"
               onClick={addItem}
-              disabled={!productoId || !cantidad || !precio}
+              disabled={!productoId || !cantidad || !precio || (requiereCalidad && !calidadId)}
               className="text-sm bg-[oklch(0.92_0.04_240)] hover:bg-[oklch(0.85_0.05_240)] disabled:opacity-50 text-[oklch(0.35_0.10_240)] px-4 py-1.5 rounded-lg font-medium transition-colors"
             >
               + Agregar
@@ -278,17 +312,33 @@ export default function NuevaVentaPage() {
 
           {items.length > 0 ? (
             <div className="space-y-1.5">
-              {items.map((item, idx) => (
-                <div key={item.id} className="flex items-center justify-between bg-[oklch(0.97_0.01_240)] rounded-lg px-4 py-2 text-sm">
-                  <span>{item.cantidad} × {item.descripcion}</span>
-                  <div className="flex items-center gap-3">
-                    <span className="font-semibold tabular-nums">{formatPeso(item.subtotal)}</span>
-                    <button type="button" onClick={() => setItems(p => p.filter((_, i) => i !== idx))}>
-                      <Trash2 className="w-3.5 h-3.5 text-red-400 hover:text-red-600" />
-                    </button>
+              {items.map((item, idx) => {
+                const pendienteCalidad = itemsPendientesCalidad.some(p => p.id === item.id)
+                return (
+                  <div
+                    key={item.id}
+                    className={cn(
+                      'flex items-center justify-between rounded-lg px-4 py-2 text-sm',
+                      pendienteCalidad ? 'bg-orange-100' : 'bg-[oklch(0.97_0.01_240)]'
+                    )}
+                  >
+                    <span>
+                      {item.cantidad} × {item.descripcion}{item.calidadNombre ? ` (${item.calidadNombre})` : ''}
+                      {pendienteCalidad && (
+                        <span className="block text-xs text-orange-700 font-medium">
+                          ⚠️ Falta elegir calidad — quitalo y volvé a agregarlo eligiendo una
+                        </span>
+                      )}
+                    </span>
+                    <div className="flex items-center gap-3">
+                      <span className="font-semibold tabular-nums">{formatPeso(item.subtotal)}</span>
+                      <button type="button" onClick={() => setItems(p => p.filter((_, i) => i !== idx))}>
+                        <Trash2 className="w-3.5 h-3.5 text-red-400 hover:text-red-600" />
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
               <div className="text-right font-bold text-[oklch(0.25_0.06_240)] pr-4 pt-1">
                 Total: {formatPeso(total)}
               </div>
@@ -450,7 +500,8 @@ export default function NuevaVentaPage() {
             </Link>
             <button
               type="submit"
-              disabled={!clienteId || items.length === 0}
+              disabled={!clienteId || items.length === 0 || itemsPendientesCalidad.length > 0}
+              title={itemsPendientesCalidad.length > 0 ? 'Hay ítems que requieren elegir una calidad' : undefined}
               className="flex-1 bg-[oklch(0.42_0.14_240)] hover:bg-[oklch(0.52_0.14_240)] disabled:opacity-50 text-white py-3 rounded-lg text-sm font-semibold transition-colors"
             >
               Registrar venta

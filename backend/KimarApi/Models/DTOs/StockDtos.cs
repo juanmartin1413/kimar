@@ -4,6 +4,8 @@ public record StockActualDto(
     Guid ProductoId,
     string ProductoNombre,
     string Categoria,
+    Guid? CalidadId,
+    string? CalidadNombre,
     decimal Cantidad,
     decimal StockMinimo,
     string Estado, // SIN_STOCK | BAJO | NORMAL
@@ -13,6 +15,8 @@ public record MovimientoStockDto(
     Guid Id,
     Guid ProductoId,
     string ProductoNombre,
+    Guid? CalidadId,
+    string? CalidadNombre,
     string Tipo,
     decimal Cantidad,
     string Motivo,
@@ -30,21 +34,24 @@ public record RegistrarEntradaRequest(
     decimal Cantidad,
     Guid? ProveedorId,
     DateOnly Fecha,
-    string? Observaciones);
+    string? Observaciones,
+    Guid? CalidadId = null);
 
 public record AjusteStockRequest(
     Guid ProductoId,
     decimal CantidadNueva,
-    string? Observaciones);
+    string? Observaciones,
+    Guid? CalidadId = null);
 
-public record UpdateStockMinimoRequest(decimal StockMinimo);
+public record UpdateStockMinimoRequest(decimal StockMinimo, Guid? CalidadId = null);
 
 public record RegistrarSalidaRequest(
     Guid ProductoId,
     decimal Cantidad,
     string Motivo,
     DateOnly Fecha,
-    string? Observaciones);
+    string? Observaciones,
+    Guid? CalidadId = null);
 
 public record RegistrarStockRealRequest(
     Guid ProductoId,

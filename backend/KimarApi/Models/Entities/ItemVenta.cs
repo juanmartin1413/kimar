@@ -12,6 +12,9 @@ public class ItemVenta
 
     public Guid ProductoId { get; set; }
 
+    // Variante interna de calidad usada para descontar stock. Nunca se expone al cliente.
+    public Guid? CalidadId { get; set; }
+
     [Required, MaxLength(200)]
     public string Descripcion { get; set; } = string.Empty;
 
@@ -27,4 +30,7 @@ public class ItemVenta
 
     [ForeignKey(nameof(ProductoId))]
     public Producto Producto { get; set; } = null!;
+
+    [ForeignKey(nameof(CalidadId))]
+    public Calidad? Calidad { get; set; }
 }

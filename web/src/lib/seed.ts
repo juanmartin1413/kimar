@@ -128,4 +128,5 @@ export const seedData: AppData = {
   stockRealRegistrado: [],
   gastosFijos: [],
   instanciasGasto: [],
+  calidades: [],
 }

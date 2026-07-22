@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useData } from '@/contexts/DataContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -17,16 +17,27 @@ interface AjusteManualModalProps {
 }
 
 export function AjusteManualModal({ open, onOpenChange }: AjusteManualModalProps) {
-  const { data, addMovimientoStock } = useData()
+  const { data, addMovimientoStock, getCalidadesDelProducto } = useData()
   const { usuario } = useAuth()
   const [productoId, setProductoId] = useState('')
+  const [calidadId, setCalidadId] = useState('')
   const [cantidad, setCantidad] = useState('')
   const [motivo, setMotivo] = useState<'ajuste' | 'merma' | 'devolución'>('ajuste')
   const [observaciones, setObservaciones] = useState('')
   const [loading, setLoading] = useState(false)
 
+  const calidadesActivas = productoId ? getCalidadesDelProducto(productoId).filter(c => c.activo) : []
+  const requiereCalidad = calidadesActivas.length > 1
+
+  useEffect(() => {
+    if (calidadesActivas.length === 1) setCalidadId(calidadesActivas[0].id)
+    else setCalidadId('')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productoId])
+
   const handleSave = () => {
     if (!productoId || !cantidad || !usuario?.id) return
+    if (requiereCalidad && !calidadId) return
 
     const cantidadNum = parseFloat(cantidad)
     const tipo = cantidadNum >= 0 ? 'entrada' : 'salida'
@@ -36,6 +47,7 @@ export function AjusteManualModal({ open, onOpenChange }: AjusteManualModalProps
     try {
       addMovimientoStock({
         productoId,
+        calidadId: calidadId || undefined,
         tipo: tipo as 'entrada' | 'salida',
         cantidad: cantidadAbs,
         motivo,
@@ -46,6 +58,7 @@ export function AjusteManualModal({ open, onOpenChange }: AjusteManualModalProps
 
       // Reset form
       setProductoId('')
+      setCalidadId('')
       setCantidad('')
       setMotivo('ajuste')
       setObservaciones('')
@@ -56,6 +69,7 @@ export function AjusteManualModal({ open, onOpenChange }: AjusteManualModalProps
   }
 
   const productosItems = data.productos.filter(p => p.activo).map(p => ({ value: p.id, label: p.nombre }))
+  const calidadesItems = calidadesActivas.map(c => ({ value: c.id, label: c.nombre }))
   const motivoItems = [
     { value: 'ajuste', label: 'Ajuste de inventario' },
     { value: 'merma', label: 'Merma/Pérdida' },
@@ -87,6 +101,22 @@ export function AjusteManualModal({ open, onOpenChange }: AjusteManualModalProps
               </SelectContent>
             </Select>
           </div>
+
+          {requiereCalidad && (
+            <div>
+              <Label htmlFor="calidad">Calidad * (uso interno)</Label>
+              <Select value={calidadId} onValueChange={(value) => setCalidadId(value ?? '')} items={calidadesItems}>
+                <SelectTrigger id="calidad" className="w-full">
+                  <SelectValue placeholder="Seleccionar calidad" />
+                </SelectTrigger>
+                <SelectContent>
+                  {calidadesItems.map(c => (
+                    <SelectItem key={c.value} value={c.value} label={c.label}>{c.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div>
             <Label htmlFor="cantidad">Cantidad (kg) * (puede ser negativa)</Label>
@@ -129,7 +159,7 @@ export function AjusteManualModal({ open, onOpenChange }: AjusteManualModalProps
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
           <Button
             onClick={handleSave}
-            disabled={!productoId || !cantidad || loading}
+            disabled={!productoId || !cantidad || loading || (requiereCalidad && !calidadId)}
           >
             {loading ? 'Guardando...' : 'Guardar'}
           </Button>
