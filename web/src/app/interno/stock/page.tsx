@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import Link from 'next/link'
 import { useData } from '@/contexts/DataContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { api } from '@/lib/api'
@@ -167,6 +168,7 @@ export default function StockPage() {
                   <TableHead className="text-right">Cantidad</TableHead>
                   <TableHead>Motivo</TableHead>
                   <TableHead>Proveedor</TableHead>
+                  <TableHead>Compra</TableHead>
                   <TableHead>Usuario</TableHead>
                   <TableHead>Observaciones</TableHead>
                 </TableRow>
@@ -174,7 +176,7 @@ export default function StockPage() {
               <TableBody>
                 {appData.movimientosStock.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8 text-gray-500">
+                    <TableCell colSpan={10} className="text-center py-8 text-gray-500">
                       No hay movimientos registrados
                     </TableCell>
                   </TableRow>
@@ -183,6 +185,7 @@ export default function StockPage() {
                     const producto = appData.productos.find(p => p.id === mov.productoId)
                     const proveedor = mov.proveedorId ? appData.proveedores.find(p => p.id === mov.proveedorId) : null
                     const usuario = appData.usuarios.find(u => u.id === mov.usuarioId)
+                    const compra = mov.compraId ? appData.compras.find(c => c.id === mov.compraId) : null
 
                     return (
                       <TableRow key={mov.id}>
@@ -197,6 +200,13 @@ export default function StockPage() {
                         <TableCell className="text-right font-medium">{mov.cantidad.toFixed(2)} kg</TableCell>
                         <TableCell className="text-sm">{mov.motivo}</TableCell>
                         <TableCell className="text-sm">{proveedor?.nombre ?? '-'}</TableCell>
+                        <TableCell className="text-sm">
+                          {compra ? (
+                            <Link href="/interno/compras" className="text-blue-600 hover:underline">
+                              {compra.nroRemito}
+                            </Link>
+                          ) : '-'}
+                        </TableCell>
                         <TableCell className="text-sm">{usuario?.nombre ?? '-'}</TableCell>
                         <TableCell className="text-sm text-gray-600">{mov.observaciones ?? '-'}</TableCell>
                       </TableRow>

@@ -26,6 +26,10 @@ public class MovimientoStock
 
     public Guid? ProveedorId { get; set; }
 
+    // Presente cuando el movimiento vino de una Compra formal (con remito/factura); null para
+    // entradas manuales sueltas o movimientos de otro origen (venta, ajuste, merma, devolución).
+    public Guid? CompraId { get; set; }
+
     public DateOnly Fecha { get; set; } = DateOnly.FromDateTime(DateTime.UtcNow);
 
     [MaxLength(500)]
@@ -45,6 +49,9 @@ public class MovimientoStock
 
     [ForeignKey(nameof(ProveedorId))]
     public Proveedor? Proveedor { get; set; }
+
+    [ForeignKey(nameof(CompraId))]
+    public Compra? Compra { get; set; }
 
     [ForeignKey(nameof(CalidadId))]
     public Calidad? Calidad { get; set; }

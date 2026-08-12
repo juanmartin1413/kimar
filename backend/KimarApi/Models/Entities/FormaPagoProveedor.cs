@@ -3,19 +3,17 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace KimarApi.Models.Entities;
 
-public class CompromisoProv
+public class FormaPagoProveedor
 {
     [Key]
     public Guid Id { get; set; } = Guid.NewGuid();
 
     public Guid ProveedorId { get; set; }
 
-    // Presente cuando el compromiso se generó automáticamente al registrar una Compra;
-    // null para compromisos manuales (deudas que no vienen de una compra formal).
-    public Guid? CompraId { get; set; }
+    public DateOnly FechaDesde { get; set; }
 
-    [Required, MaxLength(300)]
-    public string Concepto { get; set; } = string.Empty;
+    // null = vigente; se completa cuando se crea una versión nueva que la reemplaza
+    public DateOnly? FechaHasta { get; set; }
 
     [MaxLength(500)]
     public string? Observaciones { get; set; }
@@ -26,8 +24,6 @@ public class CompromisoProv
     [ForeignKey(nameof(ProveedorId))]
     public Proveedor Proveedor { get; set; } = null!;
 
-    [ForeignKey(nameof(CompraId))]
-    public Compra? Compra { get; set; }
-
-    public ICollection<CuotaProv> Cuotas { get; set; } = [];
+    public ICollection<TramoPago> Tramos { get; set; } = [];
+    public ICollection<Compra> Compras { get; set; } = [];
 }

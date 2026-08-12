@@ -51,6 +51,9 @@ builder.Services.AddAuthorization();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<StockService>();
 builder.Services.AddScoped<VentaService>();
+builder.Services.AddScoped<FormaPagoProveedorService>();
+builder.Services.AddScoped<CompraService>();
+builder.Services.AddScoped<AdjuntoService>();
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
 var allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>()

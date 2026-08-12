@@ -1,6 +1,7 @@
 using KimarApi.Data;
 using KimarApi.Models.DTOs;
 using KimarApi.Models.Entities;
+using KimarApi.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -10,7 +11,7 @@ namespace KimarApi.Controllers;
 [ApiController]
 [Route("api/proveedores")]
 [Authorize(Roles = "admin,gestor")]
-public class ProveedoresController(KimarDbContext db) : ControllerBase
+public class ProveedoresController(KimarDbContext db, FormaPagoProveedorService formaPagoSvc) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> GetAll()
@@ -88,17 +89,41 @@ public class ProveedoresController(KimarDbContext db) : ControllerBase
     }
 
     [HttpPost("cuotas/{id}/pagar")]
-    public async Task<IActionResult> PagarCuota(Guid id)
+    public async Task<IActionResult> PagarCuota(Guid id, [FromBody] PagarCuotaRequest? req = null)
     {
         var cuota = await db.CuotasProveedor.FindAsync(id);
         if (cuota is null) return NotFound();
         cuota.Estado = "pagado";
         cuota.FechaPago = DateOnly.FromDateTime(DateTime.UtcNow);
+        cuota.MontoPagado = req?.MontoPagado ?? cuota.Monto;
+        cuota.FormaPagoReal = req?.FormaPagoReal ?? cuota.FormaPago;
         await db.SaveChangesAsync();
-        return Ok(new { id = cuota.Id, estado = cuota.Estado });
+        return Ok(new { id = cuota.Id, estado = cuota.Estado, montoPagado = cuota.MontoPagado, formaPagoReal = cuota.FormaPagoReal });
+    }
+
+    // ── Forma de pago negociada ──────────────────────────────────────────────
+
+    [HttpGet("{id}/forma-pago")]
+    public async Task<IActionResult> GetFormaPago(Guid id)
+    {
+        var historial = await formaPagoSvc.GetHistorialAsync(id);
+        return Ok(historial.Select(MapFormaPago));
+    }
+
+    [HttpPost("{id}/forma-pago")]
+    public async Task<IActionResult> CreateFormaPago(Guid id, [FromBody] CreateFormaPagoRequest req)
+    {
+        var resultado = await formaPagoSvc.CrearNuevaVersionAsync(id, req);
+        if (!resultado.Ok) return BadRequest(new { error = resultado.Error });
+        return Ok(MapFormaPago(resultado.FormaPago!));
     }
 
     private static CompromisoProvDto MapCompromiso(CompromisoProv c) => new(
-        c.Id, c.ProveedorId, c.Proveedor?.Nombre ?? "", c.Concepto, c.Observaciones, c.FechaCreacion,
-        c.Cuotas.Select(q => new CuotaProvDto(q.Id, q.Fecha, q.Monto, q.FormaPago, q.Estado, q.FechaPago)).ToList());
+        c.Id, c.ProveedorId, c.Proveedor?.Nombre ?? "", c.CompraId, c.Concepto, c.Observaciones, c.FechaCreacion,
+        c.Cuotas.Select(q => new CuotaProvDto(q.Id, q.Fecha, q.Monto, q.FormaPago, q.Estado, q.FechaPago, q.MontoPagado, q.FormaPagoReal)).ToList());
+
+    private static FormaPagoProveedorDto MapFormaPago(FormaPagoProveedor f) => new(
+        f.Id, f.ProveedorId, f.FechaDesde, f.FechaHasta, f.Observaciones, f.FechaCreacion,
+        f.Tramos.OrderBy(t => t.Orden)
+            .Select(t => new TramoPagoDto(t.Id, t.Orden, t.Porcentaje, t.DiasPlazo, t.MetodoPago)).ToList());
 }

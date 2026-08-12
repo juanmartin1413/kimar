@@ -27,4 +27,6 @@ public class Proveedor
     public ICollection<CompromisoProv> Compromisos { get; set; } = [];
     public ICollection<ProductoProveedor> ProductosProveedores { get; set; } = [];
     public ICollection<MovimientoStock> MovimientosStock { get; set; } = [];
+    public ICollection<FormaPagoProveedor> FormasPago { get; set; } = [];
+    public ICollection<Compra> Compras { get; set; } = [];
 }

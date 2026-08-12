@@ -28,12 +28,46 @@ public record CuotaProvDto(
     decimal Monto,
     string FormaPago,
     string Estado,
-    DateOnly? FechaPago);
+    DateOnly? FechaPago,
+    decimal? MontoPagado,
+    string? FormaPagoReal);
+
+public record PagarCuotaRequest(
+    decimal? MontoPagado = null,
+    string? FormaPagoReal = null);
+
+public record TramoPagoDto(
+    Guid Id,
+    int Orden,
+    decimal Porcentaje,
+    int DiasPlazo,
+    string MetodoPago);
+
+public record FormaPagoProveedorDto(
+    Guid Id,
+    Guid ProveedorId,
+    DateOnly FechaDesde,
+    DateOnly? FechaHasta,
+    string? Observaciones,
+    DateTime FechaCreacion,
+    IList<TramoPagoDto> Tramos);
+
+public record TramoPagoRequest(
+    int Orden,
+    decimal Porcentaje,
+    int DiasPlazo,
+    string MetodoPago);
+
+public record CreateFormaPagoRequest(
+    DateOnly FechaDesde,
+    string? Observaciones,
+    IList<TramoPagoRequest> Tramos);
 
 public record CompromisoProvDto(
     Guid Id,
     Guid ProveedorId,
     string ProveedorNombre,
+    Guid? CompraId,
     string Concepto,
     string? Observaciones,
     DateTime FechaCreacion,

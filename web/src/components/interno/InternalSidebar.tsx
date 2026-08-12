@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 import {
   LayoutDashboard, Users, BookOpen, ShoppingCart, Package,
   CreditCard, Boxes, Truck, Wallet, BarChart3, Settings, ClipboardList,
-  ChevronLeft, ChevronRight, Store,
+  ChevronLeft, ChevronRight, Store, ReceiptText,
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -29,6 +29,7 @@ const navItems: NavItem[] = [
   { href: '/interno/vendedores', label: 'Vendedores', icon: ClipboardList, roles: ['admin', 'gestor'] },
   { href: '/interno/stock', label: 'Stock', icon: Boxes, roles: ['admin', 'gestor'] },
   { href: '/interno/proveedores', label: 'Proveedores', icon: Truck, roles: ['admin', 'gestor'] },
+  { href: '/interno/compras', label: 'Compras', icon: ReceiptText, roles: ['admin', 'gestor'] },
   { href: '/interno/gastos', label: 'Gastos Fijos', icon: Wallet, roles: ['admin', 'gestor'] },
   { href: '/interno/reportes', label: 'Reportes', icon: BarChart3, roles: ['admin'] },
   { href: '/interno/configuracion', label: 'Configuración', icon: Settings, roles: ['admin'] },

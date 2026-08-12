@@ -23,6 +23,7 @@ public class Producto
     // Navigation
     public ICollection<ItemPedido> ItemsPedido { get; set; } = [];
     public ICollection<ItemVenta> ItemsVenta { get; set; } = [];
+    public ICollection<ItemCompra> ItemsCompra { get; set; } = [];
     public ICollection<StockPorProducto> Stocks { get; set; } = [];
     public ICollection<MovimientoStock> MovimientosStock { get; set; } = [];
     public ICollection<ProductoProveedor> ProductosProveedores { get; set; } = [];

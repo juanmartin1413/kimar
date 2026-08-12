@@ -122,6 +122,8 @@ export const seedData: AppData = {
   cobranzas: [],
   proveedores: [],
   compromisosProveedor: [],
+  formasPagoProveedor: [],
+  compras: [],
   productosProveedores: [],
   movimientosStock: [],
   stockPorProducto: [],

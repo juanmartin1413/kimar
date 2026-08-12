@@ -120,21 +120,122 @@ export interface Proveedor {
   fechaCreacion: string
 }
 
+// Métodos de pago pactados con proveedores. Distinto de FormaPago (cobranzas a clientes):
+// "echeq" es un instrumento propio de pagos a proveedores, no aplica del lado cliente.
+export type MetodoPagoProveedor = 'transferencia' | 'echeq' | 'efectivo'
+
 export interface CuotaProveedor {
   id: string
   fecha: string
   monto: number
-  formaPago: FormaPago
+  formaPago: MetodoPagoProveedor
   estado: 'pendiente' | 'pagado'
   fechaPago?: string
+  montoPagado?: number // monto efectivamente pagado, puede diferir del pactado (monto)
+  formaPagoReal?: MetodoPagoProveedor
 }
 
 export interface CompromisoProveedor {
   id: string
   proveedorId: string
+  compraId?: string // presente si se generó automáticamente al registrar una Compra
   concepto: string
   cuotas: CuotaProveedor[]
   observaciones?: string
+  fechaCreacion: string
+}
+
+// Un tramo de la forma de pago negociada: qué % del total, a cuántos días de la recepción, y con qué método
+export interface TramoPago {
+  id: string
+  orden: number
+  porcentaje: number
+  diasPlazo: number
+  metodoPago: MetodoPagoProveedor
+}
+
+// Condición de pago negociada con un proveedor. Historizable: fechaHasta null = vigente.
+// Cambiar la condición crea una versión nueva y cierra la anterior, nunca se edita in-place.
+export interface FormaPagoProveedor {
+  id: string
+  proveedorId: string
+  fechaDesde: string
+  fechaHasta?: string
+  observaciones?: string
+  fechaCreacion: string
+  tramos: TramoPago[]
+}
+
+export interface ItemCompra {
+  id: string
+  productoId: string
+  productoNombre: string
+  calidadId?: string
+  calidadNombre?: string
+  cantidad: number
+  precioUnitario: number
+  subtotal: number
+}
+
+// Ingreso formal de mercadería de un proveedor: impacta stock y genera el compromiso de pago
+// automáticamente según la forma de pago vigente al momento de la compra.
+export interface Compra {
+  id: string
+  proveedorId: string
+  proveedorNombre: string
+  usuarioId: string
+  usuarioNombre: string
+  formaPagoProveedorId: string
+  fechaRecepcion: string
+  nroRemito: string
+  nroFactura?: string
+  total: number
+  estado: 'registrada' | 'anulada'
+  observaciones?: string
+  fechaCreacion: string
+  items: ItemCompra[]
+  compromiso?: CompromisoProveedor
+}
+
+export interface TramoPagoPayload {
+  orden: number
+  porcentaje: number
+  diasPlazo: number
+  metodoPago: MetodoPagoProveedor
+}
+
+export interface CreateFormaPagoPayload {
+  fechaDesde: string
+  observaciones?: string
+  tramos: TramoPagoPayload[]
+}
+
+export interface ItemCompraPayload {
+  productoId: string
+  calidadId?: string
+  cantidad: number
+  precioUnitario: number
+}
+
+export interface CreateCompraPayload {
+  proveedorId: string
+  fechaRecepcion: string
+  nroRemito: string
+  nroFactura?: string
+  observaciones?: string
+  items: ItemCompraPayload[]
+}
+
+// Documento/foto genérico (remito, factura, u otro comprobante a futuro) asociado a una entidad
+// por (entidadTipo, entidadId). El contenido vive en disco del lado del servidor.
+export interface Adjunto {
+  id: string
+  entidadTipo: string
+  entidadId: string
+  tipo: 'remito' | 'factura' | 'otro'
+  nombre: string
+  contentType: string
+  usuarioId: string
   fechaCreacion: string
 }
 
@@ -191,6 +292,7 @@ export interface MovimientoStock {
   usuarioId: string // quién registró el movimiento (auditoría)
   ventaId?: string // para salidas por venta
   proveedorId?: string // para entradas de compra
+  compraId?: string // presente si vino de una Compra formal (con remito/factura)
   fecha: string
   observaciones?: string
   fechaCreacion: string
@@ -231,6 +333,8 @@ export interface AppData {
   cobranzas: Cobranza[]
   proveedores: Proveedor[]
   compromisosProveedor: CompromisoProveedor[]
+  formasPagoProveedor: FormaPagoProveedor[] // historial completo de todos los proveedores
+  compras: Compra[]
   productosProveedores: ProductoProveedor[] // relación 1:N producto -> proveedor
   calidades: Calidad[] // variantes internas de stock por producto
   movimientosStock: MovimientoStock[] // historial completo con auditoría

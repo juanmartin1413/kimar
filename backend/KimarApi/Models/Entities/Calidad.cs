@@ -21,4 +21,5 @@ public class Calidad
     public ICollection<StockPorProducto> Stocks { get; set; } = [];
     public ICollection<MovimientoStock> Movimientos { get; set; } = [];
     public ICollection<ItemVenta> ItemsVenta { get; set; } = [];
+    public ICollection<ItemCompra> ItemsCompra { get; set; } = [];
 }

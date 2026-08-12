@@ -25,6 +25,11 @@ public class KimarDbContext(DbContextOptions<KimarDbContext> options) : DbContex
     public DbSet<GastoFijo> GastosFijos => Set<GastoFijo>();
     public DbSet<InstanciaGasto> InstanciasGasto => Set<InstanciaGasto>();
     public DbSet<ContadorRemito> ContadoresRemito => Set<ContadorRemito>();
+    public DbSet<FormaPagoProveedor> FormasPagoProveedor => Set<FormaPagoProveedor>();
+    public DbSet<TramoPago> TramosPago => Set<TramoPago>();
+    public DbSet<Compra> Compras => Set<Compra>();
+    public DbSet<ItemCompra> ItemsCompra => Set<ItemCompra>();
+    public DbSet<Adjunto> Adjuntos => Set<Adjunto>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -52,6 +57,22 @@ public class KimarDbContext(DbContextOptions<KimarDbContext> options) : DbContex
 
         model.Entity<Calidad>().HasIndex(c => new { c.ProductoId, c.Nombre }).IsUnique();
         model.Entity<Calidad>().HasIndex(c => c.ProductoId);
+
+        // FormaPagoProveedor: a lo sumo una versión vigente (FechaHasta IS NULL) por proveedor.
+        // Cambiar la condición pactada es siempre "cerrar la vigente + crear una nueva", nunca un
+        // update in-place, para que las Compras viejas sigan apuntando a la versión que usaron.
+        model.Entity<FormaPagoProveedor>()
+            .HasIndex(f => f.ProveedorId)
+            .HasDatabaseName("IX_FormaPagoProveedor_ProveedorId_Vigente")
+            .HasFilter("\"FechaHasta\" IS NULL")
+            .IsUnique();
+
+        // A lo sumo un compromiso de pago por compra (los compromisos manuales, sin Compra, no tienen este límite)
+        model.Entity<CompromisoProv>().HasIndex(c => c.CompraId).IsUnique();
+
+        model.Entity<Compra>().HasIndex(c => new { c.ProveedorId, c.FechaRecepcion });
+
+        model.Entity<Adjunto>().HasIndex(a => new { a.EntidadTipo, a.EntidadId });
 
         // Fila única (Id = 1) que lleva el correlativo del remito digital
         model.Entity<ContadorRemito>().HasData(new ContadorRemito { Id = 1, Ultimo = 0 });
@@ -92,6 +113,18 @@ public class KimarDbContext(DbContextOptions<KimarDbContext> options) : DbContex
             .HasForeignKey(m => m.ProveedorId)
             .OnDelete(DeleteBehavior.SetNull);
 
+        model.Entity<MovimientoStock>()
+            .HasOne(m => m.Compra)
+            .WithMany(c => c.MovimientosStock)
+            .HasForeignKey(m => m.CompraId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        model.Entity<CompromisoProv>()
+            .HasOne(c => c.Compra)
+            .WithOne(c => c.Compromiso)
+            .HasForeignKey<CompromisoProv>(c => c.CompraId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         model.Entity<Cobranza>()
             .HasOne(c => c.Venta)
             .WithMany(v => v.Cobranzas)
@@ -113,6 +146,12 @@ public class KimarDbContext(DbContextOptions<KimarDbContext> options) : DbContex
         model.Entity<ItemVenta>()
             .HasOne(i => i.Calidad)
             .WithMany(c => c.ItemsVenta)
+            .HasForeignKey(i => i.CalidadId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        model.Entity<ItemCompra>()
+            .HasOne(i => i.Calidad)
+            .WithMany(c => c.ItemsCompra)
             .HasForeignKey(i => i.CalidadId)
             .OnDelete(DeleteBehavior.SetNull);
 

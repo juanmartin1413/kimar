@@ -22,6 +22,12 @@ public class CuotaProv
 
     public DateOnly? FechaPago { get; set; }
 
+    // Monto y forma de pago efectivamente usados al pagar, para comparar contra lo pactado (Monto/FormaPago)
+    public decimal? MontoPagado { get; set; }
+
+    [MaxLength(20)]
+    public string? FormaPagoReal { get; set; }
+
     // Navigation
     [ForeignKey(nameof(CompromisoId))]
     public CompromisoProv Compromiso { get; set; } = null!;

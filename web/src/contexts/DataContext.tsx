@@ -4,7 +4,8 @@ import { createContext, useContext, useEffect, useState, useCallback } from 'rea
 import { useAuth } from '@/contexts/AuthContext'
 import { api } from '@/lib/api'
 import {
-  AppData, Calidad, Cliente, Cobranza, CompromisoProveedor,
+  Adjunto, AppData, Calidad, Cliente, Cobranza, Compra, CompromisoProveedor,
+  CreateCompraPayload, CreateFormaPagoPayload, FormaPagoProveedor,
   GastoFijo, InstanciaGasto, MovimientoStock, Pedido,
   Producto, ProductoProveedor, Proveedor, StockPorProducto, StockRealRegistrado,
   Vendedor, Venta,
@@ -15,6 +16,7 @@ import { generateId } from '@/lib/storage'
 const EMPTY: AppData = {
   usuarios: [], vendedores: [], clientes: [], productos: [], pedidos: [],
   ventas: [], cobranzas: [], proveedores: [], compromisosProveedor: [],
+  formasPagoProveedor: [], compras: [],
   productosProveedores: [], movimientosStock: [], stockPorProducto: [],
   stockRealRegistrado: [], gastosFijos: [], instanciasGasto: [], calidades: [],
 }
@@ -42,7 +44,15 @@ interface DataContextValue {
   updateProveedor: (id: string, p: Partial<Proveedor>) => void
   addCompromisoProveedor: (c: Omit<CompromisoProveedor, 'id' | 'fechaCreacion'>) => void
   updateCompromisoProveedor: (id: string, c: Partial<CompromisoProveedor>) => void
-  pagarCuotaProveedor: (compromisoId: string, cuotaId: string) => void
+  pagarCuotaProveedor: (compromisoId: string, cuotaId: string, pago?: { montoPagado?: number; formaPagoReal?: string }) => void
+  crearFormaPagoProveedor: (proveedorId: string, req: CreateFormaPagoPayload) => Promise<void>
+  getFormaPagoVigente: (proveedorId: string) => FormaPagoProveedor | undefined
+  getHistorialFormaPago: (proveedorId: string) => FormaPagoProveedor[]
+  registrarCompra: (req: CreateCompraPayload) => Promise<Compra>
+  subirAdjunto: (entidadTipo: string, entidadId: string, tipo: string, file: File) => Promise<Adjunto>
+  getAdjuntos: (entidadTipo: string, entidadId: string) => Promise<Adjunto[]>
+  getAdjuntoContenido: (id: string) => Promise<{ nombre: string; contentType: string; contenidoBase64: string }>
+  eliminarAdjunto: (id: string) => Promise<void>
   addGastoFijo: (g: Omit<GastoFijo, 'id' | 'fechaCreacion' | 'activo'>) => void
   updateGastoFijo: (id: string, g: Partial<GastoFijo>) => void
   deleteGastoFijo: (id: string) => void
@@ -109,7 +119,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         api.get<InstanciaGasto[]>('/api/gastos/instancias').catch(() => [] as InstanciaGasto[]),
       ])
 
-      const [compromisosPorProv, calidadesPorProducto] = await Promise.all([
+      const [compromisosPorProv, calidadesPorProducto, formasPagoPorProv] = await Promise.all([
         Promise.all(
           proveedores.map(p =>
             api.get<CompromisoProveedor[]>(`/api/proveedores/${p.id}/compromisos`).catch(() => [] as CompromisoProveedor[])
@@ -120,7 +130,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             api.get<Calidad[]>(`/api/productos/${p.id}/calidades`).catch(() => [] as Calidad[])
           )
         ),
+        Promise.all(
+          proveedores.map(p =>
+            api.get<FormaPagoProveedor[]>(`/api/proveedores/${p.id}/forma-pago`).catch(() => [] as FormaPagoProveedor[])
+          )
+        ),
       ])
+
+      const compras = await api.get<Compra[]>('/api/compras').catch(() => [] as Compra[])
 
       setData({
         usuarios: [],
@@ -132,6 +149,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         cobranzas,
         proveedores,
         compromisosProveedor: compromisosPorProv.flat(),
+        formasPagoProveedor: formasPagoPorProv.flat(),
+        compras,
         productosProveedores: [],
         movimientosStock,
         stockPorProducto: mapStock(stockRaw),
@@ -211,6 +230,20 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       )
     )
     setData(p => ({ ...p, proveedores: provs, compromisosProveedor: compromisosPorProv.flat() }))
+  }
+
+  async function rFormaPago(proveedorId: string) {
+    const historial = await api.get<FormaPagoProveedor[]>(`/api/proveedores/${proveedorId}/forma-pago`).catch(() => null)
+    if (!historial) return
+    setData(p => ({
+      ...p,
+      formasPagoProveedor: [...p.formasPagoProveedor.filter(f => f.proveedorId !== proveedorId), ...historial],
+    }))
+  }
+
+  async function rCompras() {
+    const list = await api.get<Compra[]>('/api/compras').catch(() => null)
+    if (list) setData(p => ({ ...p, compras: list }))
   }
 
   async function rGastos() {
@@ -391,8 +424,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }))
   }
 
-  async function pagarCuotaProveedor(compromisoId: string, cuotaId: string) {
-    await api.post(`/api/proveedores/cuotas/${cuotaId}/pagar`)
+  async function pagarCuotaProveedor(
+    compromisoId: string, cuotaId: string,
+    pago?: { montoPagado?: number; formaPagoReal?: string }
+  ) {
+    await api.post(`/api/proveedores/cuotas/${cuotaId}/pagar`, pago ?? {})
     const compromiso = data.compromisosProveedor.find(c => c.id === compromisoId)
     if (compromiso) {
       const refreshed = await api.get<CompromisoProveedor[]>(
@@ -408,6 +444,54 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         }))
       }
     }
+  }
+
+  // ── Forma de pago negociada ──────────────────────────────────────────────────
+  async function crearFormaPagoProveedor(proveedorId: string, req: CreateFormaPagoPayload) {
+    await api.post(`/api/proveedores/${proveedorId}/forma-pago`, req)
+    await rFormaPago(proveedorId)
+  }
+
+  function getFormaPagoVigente(proveedorId: string): FormaPagoProveedor | undefined {
+    return data.formasPagoProveedor.find(f => f.proveedorId === proveedorId && !f.fechaHasta)
+  }
+
+  function getHistorialFormaPago(proveedorId: string): FormaPagoProveedor[] {
+    return data.formasPagoProveedor
+      .filter(f => f.proveedorId === proveedorId)
+      .sort((a, b) => b.fechaDesde.localeCompare(a.fechaDesde))
+  }
+
+  // ── Compras a proveedores ────────────────────────────────────────────────────
+  async function registrarCompra(req: CreateCompraPayload): Promise<Compra> {
+    const compra = await api.post<Compra>('/api/compras', req)
+    await Promise.all([rCompras(), rStock(), rMovimientos(), rProveedoresYCompromisos()])
+    return compra
+  }
+
+  // ── Adjuntos (remitos, facturas, otros comprobantes) ─────────────────────────
+  async function subirAdjunto(entidadTipo: string, entidadId: string, tipo: string, file: File): Promise<Adjunto> {
+    const contenidoBase64 = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '')
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+    return api.post<Adjunto>('/api/adjuntos', {
+      entidadTipo, entidadId, tipo, nombre: file.name, contentType: file.type, contenidoBase64,
+    })
+  }
+
+  async function getAdjuntos(entidadTipo: string, entidadId: string): Promise<Adjunto[]> {
+    return api.get<Adjunto[]>(`/api/adjuntos?entidadTipo=${entidadTipo}&entidadId=${entidadId}`).catch(() => [])
+  }
+
+  async function getAdjuntoContenido(id: string): Promise<{ nombre: string; contentType: string; contenidoBase64: string }> {
+    return api.get(`/api/adjuntos/${id}`)
+  }
+
+  async function eliminarAdjunto(id: string) {
+    await api.delete(`/api/adjuntos/${id}`)
   }
 
   // ── Gastos Fijos ─────────────────────────────────────────────────────────────
@@ -554,6 +638,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       addCobranza, updateCobranza, cobrarCobranza,
       addVendedor, updateVendedor,
       addProveedor, updateProveedor, addCompromisoProveedor, updateCompromisoProveedor, pagarCuotaProveedor,
+      crearFormaPagoProveedor, getFormaPagoVigente, getHistorialFormaPago,
+      registrarCompra, subirAdjunto, getAdjuntos, getAdjuntoContenido, eliminarAdjunto,
       addGastoFijo, updateGastoFijo, deleteGastoFijo, generarInstanciasMensuales, pagarInstanciaGasto, updateInstanciaGasto,
       addMovimientoStock, updateMovimientoStock, deleteMovimientoStock,
       getStockActual, getStockTotal, addProductoProveedor, updateProductoProveedor, deleteProductoProveedor, getProveedoresDelProducto,
