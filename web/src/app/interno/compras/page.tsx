@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { RegistrarCompraModal } from '@/components/interno/RegistrarCompraModal'
+import { AdjuntosCompra } from '@/components/interno/AdjuntosCompra'
 import { formatPeso, formatFecha } from '@/lib/format'
 import { AlertTriangle, Plus, ChevronDown, ChevronRight } from 'lucide-react'
 
@@ -122,6 +123,10 @@ export default function ComprasPage() {
                             {compra.observaciones && (
                               <p className="text-xs text-gray-500">{compra.observaciones}</p>
                             )}
+                            <div>
+                              <p className="text-xs font-medium text-gray-500 mb-1">Comprobantes</p>
+                              <AdjuntosCompra compraId={compra.id} />
+                            </div>
                           </div>
                         </TableCell>
                       </TableRow>

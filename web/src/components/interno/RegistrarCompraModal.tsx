@@ -12,7 +12,8 @@ import { formatPeso, today } from '@/lib/format'
 import { Compra } from '@/lib/types'
 import { generateId } from '@/lib/storage'
 import { cn } from '@/lib/utils'
-import { Trash2, Upload, CheckCircle } from 'lucide-react'
+import { FotoSlot, FotoState, FOTO_VACIA } from '@/components/interno/FotoSlot'
+import { Trash2 } from 'lucide-react'
 
 interface RegistrarCompraModalProps {
   open: boolean
@@ -32,7 +33,7 @@ function nuevoItem(): ItemForm {
 }
 
 export function RegistrarCompraModal({ open, onOpenChange }: RegistrarCompraModalProps) {
-  const { data, registrarCompra, getCalidadesDelProducto, getFormaPagoVigente, subirAdjunto } = useData()
+  const { data, registrarCompra, getCalidadesDelProducto, getFormaPagoVigente, subirAdjunto, eliminarAdjunto } = useData()
 
   const [proveedorId, setProveedorId] = useState('')
   const [fechaRecepcion, setFechaRecepcion] = useState(today())
@@ -45,10 +46,8 @@ export function RegistrarCompraModal({ open, onOpenChange }: RegistrarCompraModa
 
   // Tras crear la compra, se ofrece adjuntar fotos (necesitan el id ya generado)
   const [compraCreada, setCompraCreada] = useState<Compra | null>(null)
-  const [subiendoRemito, setSubiendoRemito] = useState(false)
-  const [subiendoFactura, setSubiendoFactura] = useState(false)
-  const [remitoSubido, setRemitoSubido] = useState(false)
-  const [facturaSubida, setFacturaSubida] = useState(false)
+  const [remitoFoto, setRemitoFoto] = useState<FotoState>(FOTO_VACIA)
+  const [facturaFoto, setFacturaFoto] = useState<FotoState>(FOTO_VACIA)
 
   useEffect(() => {
     if (!open) reset()
@@ -57,7 +56,9 @@ export function RegistrarCompraModal({ open, onOpenChange }: RegistrarCompraModa
   function reset() {
     setProveedorId(''); setFechaRecepcion(today()); setNroRemito(''); setNroFactura('')
     setObservaciones(''); setItems([nuevoItem()]); setError(''); setCompraCreada(null)
-    setRemitoSubido(false); setFacturaSubida(false)
+    if (remitoFoto.previewUrl) URL.revokeObjectURL(remitoFoto.previewUrl)
+    if (facturaFoto.previewUrl) URL.revokeObjectURL(facturaFoto.previewUrl)
+    setRemitoFoto(FOTO_VACIA); setFacturaFoto(FOTO_VACIA)
   }
 
   function addItem() {
@@ -112,13 +113,24 @@ export function RegistrarCompraModal({ open, onOpenChange }: RegistrarCompraModa
 
   async function handleSubirFoto(tipo: 'remito' | 'factura', file: File) {
     if (!compraCreada) return
-    if (tipo === 'remito') setSubiendoRemito(true); else setSubiendoFactura(true)
+    const setFoto = tipo === 'remito' ? setRemitoFoto : setFacturaFoto
+    const previewUrl = URL.createObjectURL(file)
+    setFoto({ adjunto: null, previewUrl, loading: false, subiendo: true })
     try {
-      await subirAdjunto('Compra', compraCreada.id, tipo, file)
-      if (tipo === 'remito') setRemitoSubido(true); else setFacturaSubida(true)
-    } finally {
-      if (tipo === 'remito') setSubiendoRemito(false); else setSubiendoFactura(false)
+      const adjunto = await subirAdjunto('Compra', compraCreada.id, tipo, file)
+      setFoto({ adjunto, previewUrl, loading: false, subiendo: false })
+    } catch {
+      URL.revokeObjectURL(previewUrl)
+      setFoto(FOTO_VACIA)
     }
+  }
+
+  async function handleQuitarFoto(tipo: 'remito' | 'factura') {
+    const foto = tipo === 'remito' ? remitoFoto : facturaFoto
+    const setFoto = tipo === 'remito' ? setRemitoFoto : setFacturaFoto
+    if (foto.previewUrl) URL.revokeObjectURL(foto.previewUrl)
+    setFoto(FOTO_VACIA)
+    if (foto.adjunto) await eliminarAdjunto(foto.adjunto.id)
   }
 
   return (
@@ -138,18 +150,18 @@ export function RegistrarCompraModal({ open, onOpenChange }: RegistrarCompraModa
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Foto de remito</Label>
-                <FotoInput
-                  disabled={subiendoRemito}
-                  subido={remitoSubido}
+                <FotoSlot
+                  foto={remitoFoto}
                   onFile={f => handleSubirFoto('remito', f)}
+                  onQuitar={() => handleQuitarFoto('remito')}
                 />
               </div>
               <div>
                 <Label>Foto de factura</Label>
-                <FotoInput
-                  disabled={subiendoFactura}
-                  subido={facturaSubida}
+                <FotoSlot
+                  foto={facturaFoto}
                   onFile={f => handleSubirFoto('factura', f)}
+                  onQuitar={() => handleQuitarFoto('factura')}
                 />
               </div>
             </div>
@@ -297,25 +309,6 @@ function ItemRow({ item, productosItems, calidades, onChange, onRemove }: {
         </button>
       </div>
     </div>
-  )
-}
-
-function FotoInput({ disabled, subido, onFile }: { disabled: boolean; subido: boolean; onFile: (f: File) => void }) {
-  if (subido) {
-    return <p className="flex items-center gap-1.5 text-sm text-green-600 font-medium h-8"><CheckCircle className="w-4 h-4" /> Subida</p>
-  }
-  return (
-    <label className="flex items-center gap-2 text-sm text-gray-600 border border-dashed border-gray-300 rounded-lg px-3 h-8 cursor-pointer hover:bg-gray-50">
-      <Upload className="w-4 h-4" />
-      {disabled ? 'Subiendo...' : 'Elegir foto'}
-      <input
-        type="file"
-        accept="image/*"
-        className="hidden"
-        disabled={disabled}
-        onChange={e => { const f = e.target.files?.[0]; if (f) onFile(f) }}
-      />
-    </label>
   )
 }
 
