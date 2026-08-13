@@ -73,7 +73,13 @@ public class CompraService(KimarDbContext db, StockService stockSvc, FormaPagoPr
 
     // Reparte el Total de la compra en cuotas según los tramos (%) de la forma de pago vigente.
     // El redondeo de cada tramo se ajusta en la última cuota para que la suma cierre exacto con el Total.
-    private static void GenerarCompromisoPago(Compra compra, FormaPagoProveedor formaPago)
+    //
+    // Se agrega explícitamente al DbSet (en vez de conectarlo solo vía compra.Compromiso = ...) porque
+    // Compra ya está guardada (Unchanged) en este punto: si un CompromisoProv nuevo se conecta únicamente
+    // por navegación a un padre que ya no está en estado Added, EF Core no puede distinguir "entidad nueva
+    // con Guid ya asignado" de "entidad existente que se reconecta", y lo marca Modified en vez de Added
+    // — generando un UPDATE sobre una fila que nunca se insertó (DbUpdateConcurrencyException: 0 rows).
+    private void GenerarCompromisoPago(Compra compra, FormaPagoProveedor formaPago)
     {
         var compromiso = new CompromisoProv
         {
@@ -81,6 +87,7 @@ public class CompraService(KimarDbContext db, StockService stockSvc, FormaPagoPr
             CompraId = compra.Id,
             Concepto = $"Compra {compra.NroRemito}"
         };
+        db.CompromisosProveedor.Add(compromiso);
 
         var tramos = formaPago.Tramos.OrderBy(t => t.Orden).ToList();
         decimal acumulado = 0;
