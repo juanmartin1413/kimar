@@ -188,7 +188,7 @@ export default function ProveedoresPage() {
 
       {/* Create proveedor */}
       <Dialog open={creating} onOpenChange={setCreating}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>Nuevo proveedor</DialogTitle></DialogHeader>
           <ProveedorForm onSave={vals => { addProveedor(vals); setCreating(false) }} onCancel={() => setCreating(false)} />
         </DialogContent>
@@ -196,7 +196,7 @@ export default function ProveedoresPage() {
 
       {/* Edit proveedor */}
       <Dialog open={!!editing} onOpenChange={open => { if (!open) setEditing(null) }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>Editar proveedor</DialogTitle></DialogHeader>
           {editing && (
             <ProveedorForm
@@ -210,7 +210,7 @@ export default function ProveedoresPage() {
 
       {/* Create compromiso */}
       <Dialog open={!!creatingCompromiso} onOpenChange={open => { if (!open) setCreatingCompromiso(null) }}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader><DialogTitle>Nuevo compromiso de pago</DialogTitle></DialogHeader>
           {creatingCompromiso && (
             <CompromisoForm
@@ -224,7 +224,7 @@ export default function ProveedoresPage() {
 
       {/* Create/cambiar forma de pago */}
       <Dialog open={!!creatingFormaPago} onOpenChange={open => { if (!open) setCreatingFormaPago(null) }}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader><DialogTitle>Forma de pago negociada</DialogTitle></DialogHeader>
           {creatingFormaPago && (
             <FormaPagoForm
@@ -237,7 +237,7 @@ export default function ProveedoresPage() {
 
       {/* Pagar cuota */}
       <Dialog open={!!pagando} onOpenChange={open => { if (!open) setPagando(null) }}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="sm:max-w-sm">
           <DialogHeader><DialogTitle>Registrar pago de cuota</DialogTitle></DialogHeader>
           {pagando && (
             <PagarCuotaForm

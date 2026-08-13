@@ -118,7 +118,15 @@ app.UseExceptionHandler(errorApp => errorApp.Run(async context =>
 
     context.Response.StatusCode = StatusCodes.Status500InternalServerError;
     context.Response.ContentType = "application/json";
-    await context.Response.WriteAsync("""{"error":"Ocurrió un error interno. Intentá nuevamente."}""");
+    // TODO: quitar el detalle una vez diagnosticado — de momento ayuda a ver la excepción real sin acceder a los logs de Railway.
+    var mensaje = error?.Message ?? "desconocido";
+    if (error is DbUpdateConcurrencyException concurrencyEx)
+    {
+        var entradas = concurrencyEx.Entries.Select(e => $"{e.Entity.GetType().Name}[{e.State}]");
+        mensaje += " | Entries: " + string.Join(", ", entradas);
+    }
+    var detalle = System.Text.Json.JsonSerializer.Serialize(mensaje);
+    await context.Response.WriteAsync($$"""{"error":"Ocurrió un error interno.","detalle":{{detalle}}}""");
 }));
 
 app.UseSwagger();

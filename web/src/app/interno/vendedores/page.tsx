@@ -78,7 +78,7 @@ export default function VendedoresPage() {
       </div>
 
       <Dialog open={creating} onOpenChange={setCreating}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="sm:max-w-sm">
           <DialogHeader><DialogTitle>Nuevo vendedor</DialogTitle></DialogHeader>
           <form onSubmit={handleCreate} className="space-y-4">
             <div>

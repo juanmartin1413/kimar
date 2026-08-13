@@ -123,7 +123,7 @@ export function RegistrarCompraModal({ open, onOpenChange }: RegistrarCompraModa
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{compraCreada ? 'Compra registrada' : 'Registrar compra'}</DialogTitle>
         </DialogHeader>

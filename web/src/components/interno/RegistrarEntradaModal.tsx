@@ -79,7 +79,7 @@ export function RegistrarEntradaModal({ open, onOpenChange }: RegistrarEntradaMo
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Registrar Entrada de Stock</DialogTitle>
         </DialogHeader>

@@ -78,7 +78,7 @@ export function AjusteManualModal({ open, onOpenChange }: AjusteManualModalProps
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Ajuste Manual de Stock</DialogTitle>
         </DialogHeader>

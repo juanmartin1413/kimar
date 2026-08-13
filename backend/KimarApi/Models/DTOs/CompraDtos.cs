@@ -29,14 +29,14 @@ public record CompraDto(
 
 public record ItemCompraRequest(
     Guid ProductoId,
-    Guid? CalidadId,
     decimal Cantidad,
-    decimal PrecioUnitario);
+    decimal PrecioUnitario,
+    Guid? CalidadId = null);
 
 public record CreateCompraRequest(
     Guid ProveedorId,
     DateOnly FechaRecepcion,
     string NroRemito,
-    string? NroFactura,
-    string? Observaciones,
-    IList<ItemCompraRequest> Items);
+    IList<ItemCompraRequest> Items,
+    string? NroFactura = null,
+    string? Observaciones = null);

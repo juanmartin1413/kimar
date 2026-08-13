@@ -180,14 +180,14 @@ export default function GastosPage() {
       )}
 
       <Dialog open={creating} onOpenChange={setCreating}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>Nuevo gasto fijo</DialogTitle></DialogHeader>
           <GastoForm onSave={vals => { addGastoFijo(vals); setCreating(false) }} onCancel={() => setCreating(false)} />
         </DialogContent>
       </Dialog>
 
       <Dialog open={!!editing} onOpenChange={open => { if (!open) setEditing(null) }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>Editar gasto fijo</DialogTitle></DialogHeader>
           {editing && (
             <GastoForm initial={editing} onSave={vals => { updateGastoFijo(editing.id, vals); setEditing(null) }} onCancel={() => setEditing(null)} />
@@ -196,7 +196,7 @@ export default function GastosPage() {
       </Dialog>
 
       <Dialog open={!!editingInst} onOpenChange={open => { if (!open) setEditingInst(null) }}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="sm:max-w-sm">
           <DialogHeader><DialogTitle>Editar instancia</DialogTitle></DialogHeader>
           {editingInst && (
             <InstanciaForm initial={editingInst} onSave={vals => { updateInstanciaGasto(editingInst.id, vals); setEditingInst(null) }} onCancel={() => setEditingInst(null)} />

@@ -60,8 +60,8 @@ public record TramoPagoRequest(
 
 public record CreateFormaPagoRequest(
     DateOnly FechaDesde,
-    string? Observaciones,
-    IList<TramoPagoRequest> Tramos);
+    IList<TramoPagoRequest> Tramos,
+    string? Observaciones = null);
 
 public record CompromisoProvDto(
     Guid Id,

@@ -171,7 +171,7 @@ export default function CobranzasPage() {
       </div>
 
       <Dialog open={creating} onOpenChange={setCreating}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>Nueva cobranza</DialogTitle></DialogHeader>
           <CobranzaForm
             data={data}
@@ -182,7 +182,7 @@ export default function CobranzasPage() {
       </Dialog>
 
       <Dialog open={!!editing} onOpenChange={open => { if (!open) setEditing(null) }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>Editar cobranza</DialogTitle></DialogHeader>
           {editing && (
             <CobranzaForm

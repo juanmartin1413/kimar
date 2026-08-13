@@ -150,7 +150,7 @@ export default function ClientesPage() {
 
       {/* Create dialog */}
       <Dialog open={creating} onOpenChange={setCreating}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Nuevo cliente</DialogTitle>
           </DialogHeader>
@@ -164,7 +164,7 @@ export default function ClientesPage() {
 
       {/* Edit dialog */}
       <Dialog open={!!editing} onOpenChange={v => { if (!v) setEditing(null) }}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Editar cliente</DialogTitle>
           </DialogHeader>
