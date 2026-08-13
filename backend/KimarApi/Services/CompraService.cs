@@ -14,6 +14,9 @@ public class CompraService(KimarDbContext db, StockService stockSvc, FormaPagoPr
         if (req.Items.Count == 0)
             return new ResultadoCompra(false, "La compra debe tener al menos un ítem.", null);
 
+        if (req.Items.Any(i => i.Cantidad <= 0))
+            return new ResultadoCompra(false, "Todos los ítems deben tener una cantidad mayor a 0.", null);
+
         var formaPago = await formaPagoSvc.GetVigenteAsync(req.ProveedorId);
         if (formaPago is null)
             return new ResultadoCompra(false,

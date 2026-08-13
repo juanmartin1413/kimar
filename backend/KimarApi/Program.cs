@@ -3,6 +3,7 @@ using KimarApi.Data;
 using KimarApi.Data.Seed;
 using KimarApi.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -102,6 +103,24 @@ using (var scope = app.Services.CreateScope())
 }
 
 // ── Middleware ────────────────────────────────────────────────────────────────
+// UseExceptionHandler clears response headers before regenerating the error response, so a plain
+// unhandled exception would otherwise strip the CORS headers UseCors already set — the browser then
+// reports a generic "Failed to fetch" instead of a readable error. Re-apply the CORS header here so
+// the real error message reaches the frontend instead of looking like a network failure.
+app.UseExceptionHandler(errorApp => errorApp.Run(async context =>
+{
+    var origin = context.Request.Headers.Origin.ToString();
+    if (!string.IsNullOrEmpty(origin) && allowedOrigins.Contains(origin))
+        context.Response.Headers["Access-Control-Allow-Origin"] = origin;
+
+    var error = context.Features.Get<IExceptionHandlerFeature>()?.Error;
+    Console.Error.WriteLine(error);
+
+    context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+    context.Response.ContentType = "application/json";
+    await context.Response.WriteAsync("""{"error":"Ocurrió un error interno. Intentá nuevamente."}""");
+}));
+
 app.UseSwagger();
 app.UseSwaggerUI();
 

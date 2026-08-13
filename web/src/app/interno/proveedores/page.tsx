@@ -224,7 +224,7 @@ export default function ProveedoresPage() {
 
       {/* Create/cambiar forma de pago */}
       <Dialog open={!!creatingFormaPago} onOpenChange={open => { if (!open) setCreatingFormaPago(null) }}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-2xl">
           <DialogHeader><DialogTitle>Forma de pago negociada</DialogTitle></DialogHeader>
           {creatingFormaPago && (
             <FormaPagoForm
@@ -460,16 +460,16 @@ function FormaPagoForm({ onSave, onCancel }: {
           <button type="button" onClick={addTramo} className="text-xs text-[oklch(0.42_0.14_240)] hover:underline font-medium">+ Agregar tramo</button>
         </div>
         {tramos.map(t => (
-          <div key={t.id} className="grid grid-cols-4 gap-2 items-end">
-            <div>
+          <div key={t.id} className="grid grid-cols-12 gap-2 items-end">
+            <div className="col-span-3">
               <label className="block text-xs text-[oklch(0.5_0.04_240)] mb-0.5">% del total</label>
               <input type="number" value={t.porcentaje} onChange={e => updateTramo(t.id, { porcentaje: e.target.value })} min="0" max="100" className={fieldClass} placeholder="0" />
             </div>
-            <div>
+            <div className="col-span-3">
               <label className="block text-xs text-[oklch(0.5_0.04_240)] mb-0.5">Días de plazo</label>
               <input type="number" value={t.diasPlazo} onChange={e => updateTramo(t.id, { diasPlazo: e.target.value })} min="0" className={fieldClass} placeholder="0" />
             </div>
-            <div>
+            <div className="col-span-4">
               <label className="block text-xs text-[oklch(0.5_0.04_240)] mb-0.5">Método</label>
               <select value={t.metodoPago} onChange={e => updateTramo(t.id, { metodoPago: e.target.value as MetodoPagoProveedor })} className={fieldClass}>
                 <option value="efectivo">Efectivo</option>
@@ -477,7 +477,7 @@ function FormaPagoForm({ onSave, onCancel }: {
                 <option value="echeq">Echeq</option>
               </select>
             </div>
-            <button type="button" onClick={() => removeTramo(t.id)} className="text-xs text-red-400 hover:text-red-600 py-2">Quitar</button>
+            <button type="button" onClick={() => removeTramo(t.id)} className="col-span-2 text-xs text-red-400 hover:text-red-600 py-2">Quitar</button>
           </div>
         ))}
       </div>

@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { formatPeso, today } from '@/lib/format'
 import { Compra } from '@/lib/types'
 import { generateId } from '@/lib/storage'
+import { cn } from '@/lib/utils'
 import { Trash2, Upload, CheckCircle } from 'lucide-react'
 
 interface RegistrarCompraModalProps {
@@ -93,7 +94,7 @@ export function RegistrarCompraModal({ open, onOpenChange }: RegistrarCompraModa
         nroFactura: nroFactura || undefined,
         observaciones: observaciones || undefined,
         items: items
-          .filter(i => i.productoId && i.cantidad)
+          .filter(i => i.productoId && parseFloat(i.cantidad) > 0)
           .map(i => ({
             productoId: i.productoId,
             calidadId: i.calidadId || undefined,
@@ -122,7 +123,7 @@ export function RegistrarCompraModal({ open, onOpenChange }: RegistrarCompraModa
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{compraCreada ? 'Compra registrada' : 'Registrar compra'}</DialogTitle>
         </DialogHeader>
@@ -229,7 +230,7 @@ export function RegistrarCompraModal({ open, onOpenChange }: RegistrarCompraModa
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
               <Button
                 type="submit"
-                disabled={saving || !proveedorId || !nroRemito || !formaPagoVigente || items.every(i => !i.productoId || !i.cantidad)}
+                disabled={saving || !proveedorId || !nroRemito || !formaPagoVigente || items.every(i => !i.productoId || !(parseFloat(i.cantidad) > 0))}
               >
                 {saving ? 'Guardando...' : 'Registrar compra'}
               </Button>
@@ -253,7 +254,7 @@ function ItemRow({ item, productosItems, calidades, onChange, onRemove }: {
 
   return (
     <div className="grid grid-cols-12 gap-2 items-end border border-gray-100 rounded-lg p-2">
-      <div className="col-span-4">
+      <div className={requiereCalidad ? 'col-span-4' : 'col-span-6'}>
         <Label className="text-xs">Producto</Label>
         <Select value={item.productoId} onValueChange={v => onChange({ productoId: v ?? '', calidadId: '' })} items={productosItems}>
           <SelectTrigger className="w-full">
@@ -267,7 +268,7 @@ function ItemRow({ item, productosItems, calidades, onChange, onRemove }: {
         </Select>
       </div>
       {requiereCalidad && (
-        <div className="col-span-2">
+        <div className="col-span-3">
           <Label className="text-xs">Calidad</Label>
           <Select value={item.calidadId} onValueChange={v => onChange({ calidadId: v ?? '' })} items={calidades.map(c => ({ value: c.id, label: c.nombre }))}>
             <SelectTrigger className="w-full">
@@ -281,18 +282,20 @@ function ItemRow({ item, productosItems, calidades, onChange, onRemove }: {
           </Select>
         </div>
       )}
-      <div className={requiereCalidad ? 'col-span-2' : 'col-span-3'}>
+      <div className="col-span-2">
         <Label className="text-xs">Cantidad (kg)</Label>
         <Input type="number" step="0.01" min="0" value={item.cantidad} onChange={e => onChange({ cantidad: e.target.value })} placeholder="0" />
       </div>
-      <div className={requiereCalidad ? 'col-span-2' : 'col-span-3'}>
+      <div className="col-span-2">
         <Label className="text-xs">Precio unit.</Label>
         <Input type="number" step="0.01" min="0" value={item.precioUnitario} onChange={e => onChange({ precioUnitario: e.target.value })} placeholder="0" />
       </div>
-      <div className="col-span-1 text-xs text-gray-500 text-right tabular-nums">{formatPeso(subtotal)}</div>
-      <button type="button" onClick={onRemove} className="col-span-1 flex justify-center text-gray-400 hover:text-red-500 pb-1.5">
-        <Trash2 className="w-4 h-4" />
-      </button>
+      <div className={cn('flex items-center justify-end gap-1.5', requiereCalidad ? 'col-span-1' : 'col-span-2')}>
+        <span className="text-xs text-gray-500 tabular-nums">{formatPeso(subtotal)}</span>
+        <button type="button" onClick={onRemove} className="text-gray-400 hover:text-red-500">
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
     </div>
   )
 }
