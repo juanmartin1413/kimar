@@ -7,12 +7,16 @@ import { useAuth } from '@/contexts/AuthContext'
 import { formatPeso, formatFecha, today } from '@/lib/format'
 import { DollarSign, TrendingUp, TrendingDown, Calendar } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { calcularPorCobrar, calcularPorPagar } from '@/lib/saludFinanciera'
+import { SaludFinancieraTab } from '@/components/interno/SaludFinancieraTab'
 
+type Nivel = 'general' | 'salud'
 type Tab = 'resumen' | 'ventas' | 'cobranzas' | 'vendedores'
 
 export default function DashboardPage() {
   const { isAdmin, usuario } = useAuth()
   const router = useRouter()
+  const [nivel, setNivel] = useState<Nivel>('general')
   const [activeTab, setActiveTab] = useState<Tab>('resumen')
 
   useEffect(() => {
@@ -22,6 +26,11 @@ export default function DashboardPage() {
   }, [usuario, isAdmin, router])
 
   if (!usuario || !isAdmin) return null
+
+  const niveles: { key: Nivel; label: string }[] = [
+    { key: 'general', label: 'General' },
+    { key: 'salud', label: 'Salud Financiera' },
+  ]
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'resumen', label: 'Resumen' },
@@ -37,28 +46,52 @@ export default function DashboardPage() {
         <p className="text-sm text-[oklch(0.5_0.04_240)]">Resumen del negocio en tiempo real</p>
       </div>
 
-      {/* Tabs */}
+      {/* Selector de nivel */}
       <div className="flex gap-1 bg-[oklch(0.95_0.01_240)] rounded-lg p-1">
-        {tabs.map(t => (
+        {niveles.map(n => (
           <button
-            key={t.key}
-            onClick={() => setActiveTab(t.key)}
+            key={n.key}
+            onClick={() => setNivel(n.key)}
             className={cn(
               'flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all',
-              activeTab === t.key
+              nivel === n.key
                 ? 'bg-white text-[oklch(0.2_0.06_240)] shadow-sm'
                 : 'text-[oklch(0.5_0.04_240)] hover:text-[oklch(0.3_0.06_240)]'
             )}
           >
-            {t.label}
+            {n.label}
           </button>
         ))}
       </div>
 
-      {activeTab === 'resumen' && <ResumenTab />}
-      {activeTab === 'ventas' && <VentasTab />}
-      {activeTab === 'cobranzas' && <CobranzasTab />}
-      {activeTab === 'vendedores' && <VendedoresTab />}
+      {nivel === 'salud' ? (
+        <SaludFinancieraTab />
+      ) : (
+        <>
+          {/* Tabs */}
+          <div className="flex gap-1 bg-[oklch(0.95_0.01_240)] rounded-lg p-1">
+            {tabs.map(t => (
+              <button
+                key={t.key}
+                onClick={() => setActiveTab(t.key)}
+                className={cn(
+                  'flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all',
+                  activeTab === t.key
+                    ? 'bg-white text-[oklch(0.2_0.06_240)] shadow-sm'
+                    : 'text-[oklch(0.5_0.04_240)] hover:text-[oklch(0.3_0.06_240)]'
+                )}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {activeTab === 'resumen' && <ResumenTab />}
+          {activeTab === 'ventas' && <VentasTab />}
+          {activeTab === 'cobranzas' && <CobranzasTab />}
+          {activeTab === 'vendedores' && <VendedoresTab />}
+        </>
+      )}
     </div>
   )
 }
@@ -68,25 +101,15 @@ function ResumenTab() {
   const { data } = useData()
   const todayStr = today()
 
-  // Por cobrar
-  const cobranzasPendientes = data.cobranzas.filter(c => c.estado === 'pendiente')
-  const totalPorCobrar = cobranzasPendientes.reduce((s, c) => s + c.monto, 0)
-
-  // Por pagar: cuotas proveedor pendientes + gastos del mes impagos
   const now = new Date()
   const mes = now.getMonth() + 1
   const anio = now.getFullYear()
-  const cuotasProvPend = data.compromisosProveedor.flatMap(c =>
-    c.cuotas.filter(cu => cu.estado === 'pendiente').map(cu => ({
-      ...cu,
-      proveedorId: c.proveedorId,
-      concepto: c.concepto,
-    }))
-  )
-  const totalCuotasProv = cuotasProvPend.reduce((s, cu) => s + cu.monto, 0)
-  const gastosImpagos = data.instanciasGasto.filter(i => i.mes === mes && i.anio === anio && !i.pagado)
-  const totalGastosImpagos = gastosImpagos.reduce((s, i) => s + i.monto, 0)
-  const totalPorPagar = totalCuotasProv + totalGastosImpagos
+
+  const { pendientes: cobranzasPendientes, total: totalPorCobrar } = calcularPorCobrar(data.cobranzas)
+  const {
+    cuotasPendientes: cuotasProvPend, totalCuotas: totalCuotasProv,
+    gastosImpagos, totalGastos: totalGastosImpagos, total: totalPorPagar,
+  } = calcularPorPagar(data.compromisosProveedor, data.instanciasGasto, mes, anio)
 
   // Balance mensual: lo que se proyecta cobrar menos lo que se proyecta pagar
   const balance = totalPorCobrar - totalPorPagar
