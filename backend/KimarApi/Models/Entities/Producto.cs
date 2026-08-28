@@ -20,6 +20,9 @@ public class Producto
 
     public bool Activo { get; set; } = true;
 
+    // Posición manual (drag&drop) en la lista de precios; menor = primero
+    public int Orden { get; set; }
+
     // Navigation
     public ICollection<ItemPedido> ItemsPedido { get; set; } = [];
     public ICollection<ItemVenta> ItemsVenta { get; set; } = [];

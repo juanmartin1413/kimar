@@ -43,6 +43,13 @@ export interface Producto {
   precioKg: number
   unidad: UnidadProducto
   activo: boolean
+  orden: number
+}
+
+export interface CreateProductoPayload {
+  nombre: string
+  precioKg: number
+  unidad: UnidadProducto
 }
 
 export interface ItemPedido {

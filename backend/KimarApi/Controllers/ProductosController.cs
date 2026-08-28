@@ -20,8 +20,8 @@ public class ProductosController(KimarDbContext db) : ControllerBase
         if (activo.HasValue) query = query.Where(p => p.Activo == activo.Value);
 
         var list = await query
-            .OrderBy(p => p.Categoria).ThenBy(p => p.Nombre)
-            .Select(p => new ProductoDto(p.Id, p.Nombre, p.Categoria, p.PrecioKg, p.Unidad, p.Activo))
+            .OrderBy(p => p.Orden).ThenBy(p => p.Nombre)
+            .Select(p => new ProductoDto(p.Id, p.Nombre, p.Categoria, p.PrecioKg, p.Unidad, p.Activo, p.Orden))
             .ToListAsync();
         return Ok(list);
     }
@@ -31,24 +31,26 @@ public class ProductosController(KimarDbContext db) : ControllerBase
     {
         var p = await db.Productos.FindAsync(id);
         if (p is null) return NotFound();
-        return Ok(new ProductoDto(p.Id, p.Nombre, p.Categoria, p.PrecioKg, p.Unidad, p.Activo));
+        return Ok(new ProductoDto(p.Id, p.Nombre, p.Categoria, p.PrecioKg, p.Unidad, p.Activo, p.Orden));
     }
 
     [HttpPost]
     [Authorize(Roles = "admin,gestor")]
     public async Task<IActionResult> Create([FromBody] CreateProductoRequest req)
     {
+        var maxOrden = await db.Productos.Select(p => (int?)p.Orden).MaxAsync() ?? -1;
         var prod = new Producto
         {
             Nombre = req.Nombre,
             Categoria = req.Categoria,
             PrecioKg = req.PrecioKg,
-            Unidad = req.Unidad
+            Unidad = req.Unidad,
+            Orden = maxOrden + 1
         };
         db.Productos.Add(prod);
         await db.SaveChangesAsync();
         return CreatedAtAction(nameof(GetById), new { id = prod.Id },
-            new ProductoDto(prod.Id, prod.Nombre, prod.Categoria, prod.PrecioKg, prod.Unidad, prod.Activo));
+            new ProductoDto(prod.Id, prod.Nombre, prod.Categoria, prod.PrecioKg, prod.Unidad, prod.Activo, prod.Orden));
     }
 
     [HttpPut("{id}")]
@@ -63,9 +65,24 @@ public class ProductosController(KimarDbContext db) : ControllerBase
         if (req.PrecioKg.HasValue) p.PrecioKg = req.PrecioKg.Value;
         if (req.Unidad is not null) p.Unidad = req.Unidad;
         if (req.Activo.HasValue) p.Activo = req.Activo.Value;
+        if (req.Orden.HasValue) p.Orden = req.Orden.Value;
 
         await db.SaveChangesAsync();
-        return Ok(new ProductoDto(p.Id, p.Nombre, p.Categoria, p.PrecioKg, p.Unidad, p.Activo));
+        return Ok(new ProductoDto(p.Id, p.Nombre, p.Categoria, p.PrecioKg, p.Unidad, p.Activo, p.Orden));
+    }
+
+    [HttpPut("reorden")]
+    [Authorize(Roles = "admin,gestor")]
+    public async Task<IActionResult> Reordenar([FromBody] List<ReordenProductoItem> items)
+    {
+        var ids = items.Select(i => i.Id).ToList();
+        var productos = await db.Productos.Where(p => ids.Contains(p.Id)).ToListAsync();
+        var ordenPorId = items.ToDictionary(i => i.Id, i => i.Orden);
+        foreach (var p in productos)
+            p.Orden = ordenPorId[p.Id];
+
+        await db.SaveChangesAsync();
+        return NoContent();
     }
 
     // Calidades: variantes internas de stock (ej. "Glaseado 20%"). Nunca se exponen en GetAll/GetById

@@ -6,12 +6,13 @@ public record ProductoDto(
     string Categoria,
     decimal PrecioKg,
     string Unidad,
-    bool Activo);
+    bool Activo,
+    int Orden);
 
 public record CreateProductoRequest(
     string Nombre,
-    string Categoria,
     decimal PrecioKg,
+    string Categoria = "otros",
     string Unidad = "kg");
 
 public record UpdateProductoRequest(
@@ -19,4 +20,7 @@ public record UpdateProductoRequest(
     string? Categoria,
     decimal? PrecioKg,
     string? Unidad,
-    bool? Activo);
+    bool? Activo,
+    int? Orden);
+
+public record ReordenProductoItem(Guid Id, int Orden);

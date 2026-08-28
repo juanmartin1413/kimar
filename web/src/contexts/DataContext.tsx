@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { api } from '@/lib/api'
 import {
   Adjunto, AppData, Calidad, Cliente, Cobranza, Compra, CompromisoProveedor,
-  CreateCompraPayload, CreateFormaPagoPayload, FormaPagoProveedor,
+  CreateCompraPayload, CreateFormaPagoPayload, CreateProductoPayload, FormaPagoProveedor,
   GastoFijo, InstanciaGasto, MovimientoStock, Pedido,
   Producto, ProductoProveedor, Proveedor, StockPorProducto, StockRealRegistrado,
   Vendedor, Venta,
@@ -30,7 +30,8 @@ interface DataContextValue {
   deleteCliente: (id: string) => void
   updateProductoPrecio: (id: string, precio: number) => void
   updateProducto: (id: string, p: Partial<Omit<Producto, 'id'>>) => void
-  addProducto: (p: Omit<Producto, 'id'>) => void
+  addProducto: (p: CreateProductoPayload) => void
+  reorderProductos: (items: { id: string; orden: number }[]) => void
   addPedido: (p: Omit<Pedido, 'id' | 'fechaCreacion' | 'estado'>) => Promise<string>
   updatePedido: (id: string, p: Partial<Pedido>) => void
   addVenta: (v: Omit<Venta, 'id' | 'fechaCreacion' | 'estado' | 'cobranzas'>, cobranzas: Omit<Cobranza, 'id' | 'fechaCreacion' | 'clienteId' | 'ventaId'>[]) => Promise<void>
@@ -285,9 +286,20 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     await rProductos()
   }
 
-  async function addProducto(p: Omit<Producto, 'id'>) {
+  async function addProducto(p: CreateProductoPayload) {
     await api.post('/api/productos', p)
     await rProductos()
+  }
+
+  async function reorderProductos(items: { id: string; orden: number }[]) {
+    setData(prev => ({
+      ...prev,
+      productos: prev.productos.map(p => {
+        const item = items.find(i => i.id === p.id)
+        return item ? { ...p, orden: item.orden } : p
+      }),
+    }))
+    await api.put('/api/productos/reorden', items)
   }
 
   // ── Pedidos ──────────────────────────────────────────────────────────────────
@@ -632,7 +644,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     <DataContext.Provider value={{
       data, isLoading, refresh: loadAll,
       addCliente, updateCliente, deleteCliente,
-      updateProductoPrecio, updateProducto, addProducto,
+      updateProductoPrecio, updateProducto, addProducto, reorderProductos,
       addPedido, updatePedido,
       addVenta, updateVentaCompleta,
       addCobranza, updateCobranza, cobrarCobranza,

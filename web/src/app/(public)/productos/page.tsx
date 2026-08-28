@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { seedData } from '@/lib/seed'
-import { CategoriaProducto } from '@/lib/types'
 import { formatPeso } from '@/lib/format'
 import { brandPdf } from '@/lib/brandPdf'
 import { kimarContact } from '@/lib/contact'
@@ -10,17 +9,6 @@ import { useTheme } from '@/contexts/ThemeContext'
 import { Download } from 'lucide-react'
 
 type Producto = (typeof seedData.productos)[number]
-
-const categoryLabels: Record<CategoriaProducto, string> = {
-  calamares: '🦑 Calamares',
-  langostinos: '🦐 Langostinos & Afines',
-  bivalvos: '🦪 Bivalvos & Moluscos',
-  pescados: '🐟 Pescados',
-  pulpos: '🐙 Pulpos',
-  otros: '⭐ Especialidades',
-}
-
-const order: CategoriaProducto[] = ['langostinos', 'calamares', 'bivalvos', 'pescados', 'pulpos', 'otros']
 
 function buildFlyerHTML(
   productos: typeof seedData.productos,
@@ -125,32 +113,19 @@ export default function ProductosPage() {
   const { palette } = useTheme()
   const k = palette === 'kimar'
 
-  const [productos, setProductos] = useState<Producto[]>(seedData.productos)
+  const [productos, setProductos] = useState<Producto[]>(
+    [...seedData.productos].sort((a, b) => a.orden - b.orden),
+  )
 
   useEffect(() => {
     fetch(`${process.env.API_URL}/api/productos?activo=true`)
       .then(r => (r.ok ? r.json() : Promise.reject()))
-      .then((data: Producto[]) => setProductos(data))
+      .then((data: Producto[]) => setProductos([...data].sort((a, b) => a.orden - b.orden)))
       .catch(() => {})
   }, [])
 
-  const productsByCategory = productos.reduce<Record<string, Producto[]>>(
-    (acc, p) => {
-      if (!acc[p.categoria]) acc[p.categoria] = []
-      acc[p.categoria].push(p)
-      return acc
-    },
-    {},
-  )
-  Object.keys(productsByCategory).forEach(cat => {
-    productsByCategory[cat].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
-  })
-
   function handleDownload() {
-    const allProducts = order
-      .flatMap(cat => productsByCategory[cat] ?? [])
-      .filter(p => p.activo)
-      .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+    const allProducts = productos.filter(p => p.activo)
     const now = new Date()
     const dateStr = now.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
     const logoUrl = `${window.location.origin}/logoLangoBackground.png`
@@ -180,39 +155,20 @@ export default function ProductosPage() {
         </button>
       </div>
 
-      <div className="space-y-10">
-        {order.map(cat => {
-          const prods = productsByCategory[cat]
-          if (!prods?.length) return null
-          return (
-            <section key={cat}>
-              <h2
-                className="text-xl font-bold mb-4 pb-2 border-b"
-                style={{
-                  color: k ? '#0F2B2E' : 'oklch(0.35 0.10 240)',
-                  borderColor: k ? '#C7A35A' : 'oklch(0.88 0.02 240)',
-                }}
-              >
-                {categoryLabels[cat]}
-              </h2>
-              <div className="grid sm:grid-cols-2 gap-2">
-                {prods.map(p => (
-                  <div
-                    key={p.id}
-                    className="flex justify-between items-center py-3 px-4 rounded-lg"
-                  >
-                    <span className="font-medium" style={{ color: k ? '#2B2B2B' : 'oklch(0.3 0.06 240)' }}>
-                      {p.nombre}
-                    </span>
-                    <span className="font-bold tabular-nums" style={{ color: k ? '#C7A35A' : 'oklch(0.42 0.14 240)' }}>
-                      {formatPeso(p.precioKg)}{p.unidad === 'unidad' ? '/u' : '/kg'}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )
-        })}
+      <div className="grid sm:grid-cols-2 gap-2">
+        {productos.map(p => (
+          <div
+            key={p.id}
+            className="flex justify-between items-center py-3 px-4 rounded-lg"
+          >
+            <span className="font-medium" style={{ color: k ? '#2B2B2B' : 'oklch(0.3 0.06 240)' }}>
+              {p.nombre}
+            </span>
+            <span className="font-bold tabular-nums" style={{ color: k ? '#C7A35A' : 'oklch(0.42 0.14 240)' }}>
+              {formatPeso(p.precioKg)}{p.unidad === 'unidad' ? '/u' : '/kg'}
+            </span>
+          </div>
+        ))}
       </div>
 
       <p className="text-center text-xs mt-12" style={{ color: k ? '#6F8C87' : 'oklch(0.55 0.04 240)' }}>
