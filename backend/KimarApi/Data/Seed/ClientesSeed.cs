@@ -9,90 +9,83 @@ public static class ClientesSeed
     private static Cliente C(string nombre, Guid vendedorId, string? tel1 = null, string? localidad = null) =>
         new() { Nombre = nombre, VendedorId = vendedorId, Telefono1 = tel1, Localidad = localidad, FechaCreacion = FechaBase };
 
-    public static IEnumerable<Cliente> GetAll(Guid vMarcosId, Guid vLucianoId, Guid vLucasId)
+    public static IEnumerable<Cliente> GetAll(Guid vMarcosId, Guid vLucianoId, Guid vManoloId)
     {
-        // ── Marcos (16 clientes) ──────────────────────────────────────────────
-        var marcos = new[]
-        {
-            C("Augusta",                       vMarcosId),
-            C("Daimus",                        vMarcosId),
-            C("La Segunda",                    vMarcosId),
-            C("Haro Sushi",                    vMarcosId),
-            C("El Viejo Cañón",                vMarcosId),
-            C("Longobucco",                    vMarcosId),
-            C("Hormiga Negra - Sucursal 1",    vMarcosId),
-            C("Hormiga Negra - Sucursal 2",    vMarcosId),
-            C("Hormiga Negra - Sucursal 3",    vMarcosId),
-            C("Sushi Kyu",                     vMarcosId),
-            C("Lili Resto",                    vMarcosId),
-            C("Pescería",                      vMarcosId),
-            C("Ercopez",                       vMarcosId),
-            C("Chirola Teresa",                vMarcosId),
-            C("Gabriel Teresa",                vMarcosId),
-            C("Kity",                          vMarcosId),
-        };
-
-        // ── Luciano (25 clientes) ─────────────────────────────────────────────
+        // ── Luciano (26 clientes) ─────────────────────────────────────────────
         var luciano = new[]
         {
-            C("Sushi Club - Sucursal 1",       vLucianoId),
-            C("Sushi Club - Sucursal 2",       vLucianoId),
-            C("Sushi Club - Sucursal 3",       vLucianoId),
-            C("Satoshi - Sucursal 1",          vLucianoId),
-            C("Satoshi - Sucursal 2",          vLucianoId),
-            C("Fabric - Local 1",              vLucianoId),
-            C("Fabric - Local 2",              vLucianoId),
-            C("Fabric - Local 3",              vLucianoId),
-            C("Fabric - Local 4",              vLucianoId),
+            C("Fabric - Olazábal",             vLucianoId),
+            C("Fabric - Beiro",                vLucianoId),
+            C("Fabric - Cachimayo",            vLucianoId),
+            C("Fabric - Vallese",              vLucianoId),
+            C("Fabric - Doblas",               vLucianoId),
+            C("Fabric - Artigas",              vLucianoId),
+            C("Fabric - Honorio",              vLucianoId),
+            C("Fabric - Asunción",             vLucianoId),
+            C("Fabric - Directorio",           vLucianoId),
+            C("Parrilla Sanabria",             vLucianoId),
             C("El Pibe Dorrego",               vLucianoId),
-            C("Polo House",                    vLucianoId),
-            C("Cochinchina",                   vLucianoId),
-            C("Polo Catering",                 vLucianoId),
-            C("Olivos Gourmet",                vLucianoId),
-            C("Cachito de Mar",                vLucianoId),
-            C("The Fish Company",              vLucianoId),
-            C("Alvasan",                       vLucianoId),
+            C("Fabric - Leloir",               vLucianoId),
+            C("Fabric - Castelar",             vLucianoId),
+            C("Fabric - Peñaloza",             vLucianoId),
+            C("Sushi Club - Maswitch",         vLucianoId),
+            C("Sushi Club - Nordelta",         vLucianoId),
+            C("Sushi Club - Lanús",            vLucianoId),
+            C("Sushi Club - Lomas",            vLucianoId),
             C("Eduardo Gazzo",                 vLucianoId),
-            C("Pescadería Tiburón",            vLucianoId),
-            C("Pescadería Esperanza",          vLucianoId),
-            C("Pescadería Biancomar",          vLucianoId),
-            C("Pescadería Luigi",              vLucianoId),
+            C("Iñaki",                         vLucianoId),
+            C("Pescadería Liniers",            vLucianoId),
             C("Pescadería Sorrento",           vLucianoId),
-            C("Pescadería Il Pesce",           vLucianoId),
-            C("Distribuidora Luciano",         vLucianoId),
+            C("Pescadería La Esperanza",       vLucianoId),
+            C("Olivos Gourmet",                vLucianoId),
+            C("Martín Bouquet",                vLucianoId),
+            C("The Fish Company",              vLucianoId),
         };
 
-        // ── Lucas (26 clientes) ───────────────────────────────────────────────
-        var lucas = new[]
+        // ── Marcos (24 clientes) ─────────────────────────────────────────────
+        var marcos = new[]
         {
-            C("Toscana",                       vLucasId),
-            C("Moby Dick",                     vLucasId),
-            C("Yunta",                         vLucasId),
-            C("Sta. Barbara - Sucursal 1",     vLucasId),
-            C("Sta. Barbara - Sucursal 2",     vLucasId),
-            C("Barbacoa",                      vLucasId),
-            C("Moncada",                       vLucasId),
-            C("El Imparcial",                  vLucasId),
-            C("El Globo",                      vLucasId),
-            C("Claudio Ramos Mejía",           vLucasId),
-            C("Florencia China",               vLucasId),
-            C("Jacinto",                       vLucasId),
-            C("Aurelia Río",                   vLucasId),
-            C("Super Chino Wu",                vLucasId),
-            C("Distribuidora Lucas 1",         vLucasId),
-            C("Distribuidora Lucas 2",         vLucasId),
-            C("Bajos del Paraná",              vLucasId),
-            C("Pescadería Tornadore",          vLucasId),
-            C("Pescadería Modelo",             vLucasId),
-            C("Pescadería Tito",               vLucasId),
-            C("Pescadería Cayetano",           vLucasId),
-            C("Pescadería Golfo",              vLucasId),
-            C("Pescadería Carbone",            vLucasId),
-            C("Pescadería Mi Puerto",          vLucasId),
-            C("Pescadería Liniers",            vLucasId),
-            C("Pescadería Chuchu",             vLucasId),
+            C("Daimus",                        vMarcosId),
+            C("La Segunda",                    vMarcosId),
+            C("La Toscana",                    vMarcosId),
+            C("El Imparcial",                  vMarcosId),
+            C("El Globo",                      vMarcosId),
+            C("Florencia China",               vMarcosId),
+            C("Ultramarino",                   vMarcosId),
+            C("Barbacoa",                      vMarcosId),
+            C("Moncada",                       vMarcosId),
+            C("Claudio - Monte Grande",        vMarcosId),
+            C("Sushi Boom",                    vMarcosId),
+            C("Augusta",                       vMarcosId),
+            C("Lucas Moya",                    vMarcosId),
+            C("Ángel Tornadore",               vMarcosId),
+            C("Chirola",                       vMarcosId),
+            C("Gabriel Teresa",                vMarcosId),
+            C("Ercopez",                       vMarcosId),
+            C("Luis Figuemar",                 vMarcosId),
+            C("Sta. Barbara - Devoto - Natalia",     vMarcosId),
+            C("Sta. Barbara - Olivos - Salvador",    vMarcosId),
+            C("Sta. Barbara - Colegiales - Diego",   vMarcosId),
+            C("Sta. Barbara - Munro - Quique",       vMarcosId),
+            C("Chuchu",                        vMarcosId),
+            C("Chino Wu",                      vMarcosId),
         };
 
-        return [.. marcos, .. luciano, .. lucas];
+        // ── Manolo (10 clientes) ──────────────────────────────────────────────
+        var manolo = new[]
+        {
+            C("Bodegón Maswitch",              vManoloId),
+            C("La Pescería",                   vManoloId),
+            C("Hormiga Negra - Olivos",        vManoloId),
+            C("Hormiga Negra - Villa Urquiza", vManoloId),
+            C("Hormiga Negra - San Fernando",  vManoloId),
+            C("Hormiga Negra - Almagro",       vManoloId),
+            C("Hormiga Negra - Caseros",       vManoloId),
+            C("El Viejo Cañón",                vManoloId),
+            C("Ana Bolena",                    vManoloId),
+            C("Lo de Carlitos - San Telmo",    vManoloId),
+        };
+
+        return [.. luciano, .. marcos, .. manolo];
     }
 }

@@ -15,18 +15,18 @@ public static class SeedData
         var uAilin   = new Usuario { Nombre = "Ailin Trigo",    Email = "ailin.trigo@kimarcompany.com.ar",    PasswordHash = AuthService.HashPassword("Lango2026*"), Rol = "gestor" };
         var uJuan    = new Usuario { Nombre = "Juan Roldan",    Email = "juan.roldan@kimarcompany.com.ar",    PasswordHash = AuthService.HashPassword("Lango2026*"), Rol = "admin" };
         var uLuciano = new Usuario { Nombre = "Luciano",        Email = "luciano@kimarcompany.com.ar",        PasswordHash = AuthService.HashPassword("Lango2026*"), Rol = "vendedor" };
-        var uLucas   = new Usuario { Nombre = "Lucas",          Email = "lucas@kimarcompany.com.ar",          PasswordHash = AuthService.HashPassword("Lango2026*"), Rol = "vendedor" };
-        var uManu    = new Usuario { Nombre = "Manu",           Email = "manu@kimarcompany.com.ar",           PasswordHash = AuthService.HashPassword("Lango2026*"), Rol = "vendedor" };
+        var uTiago   = new Usuario { Nombre = "Tiago Lopez",    Email = "tiago.lopez@kimarcompany.com.ar",    PasswordHash = AuthService.HashPassword("Lango2026*"), Rol = "vendedor" };
+        var uManuel  = new Usuario { Nombre = "Manuel Gonzalez", Email = "manuel.gonzalez@kimarcompany.com.ar", PasswordHash = AuthService.HashPassword("Lango2026*"), Rol = "vendedor" };
 
-        db.Usuarios.AddRange(uMarcos, uAilin, uJuan, uLuciano, uLucas, uManu);
+        db.Usuarios.AddRange(uMarcos, uAilin, uJuan, uLuciano, uTiago, uManuel);
 
         // ── Vendedores ────────────────────────────────────────────────────────
         var vMarcos  = new Vendedor { Nombre = "Marcos",  UsuarioId = uMarcos.Id };
         var vLuciano = new Vendedor { Nombre = "Luciano", UsuarioId = uLuciano.Id };
-        var vLucas   = new Vendedor { Nombre = "Lucas",   UsuarioId = uLucas.Id };
-        var vManu    = new Vendedor { Nombre = "Manu",    UsuarioId = uManu.Id };
+        var vTiago   = new Vendedor { Nombre = "Tiago",   UsuarioId = uTiago.Id };
+        var vManuel  = new Vendedor { Nombre = "Manolo",  UsuarioId = uManuel.Id };
 
-        db.Vendedores.AddRange(vMarcos, vLuciano, vLucas, vManu);
+        db.Vendedores.AddRange(vMarcos, vLuciano, vTiago, vManuel);
 
         // ── Productos (unión lista PDF + prototipo) ───────────────────────────
         db.Productos.AddRange(
@@ -73,16 +73,31 @@ public static class SeedData
 
         // ── Proveedores ───────────────────────────────────────────────────────
         db.Proveedores.AddRange(
-            new Proveedor { Nombre = "Fede Santos" },
-            new Proveedor { Nombre = "Moraira" },
+            new Proveedor { Nombre = "Noumar" },
             new Proveedor { Nombre = "Altamare" },
-            new Proveedor { Nombre = "Cornalito" },
+            new Proveedor { Nombre = "Moraira" },
             new Proveedor { Nombre = "Saona" },
-            new Proveedor { Nombre = "Luis Tentáculo" }
+            new Proveedor { Nombre = "Luis Figuemar" },
+            new Proveedor { Nombre = "Pesce" },
+            new Proveedor { Nombre = "Mare Pronto" },
+            new Proveedor { Nombre = "Hernán Cutti" },
+            new Proveedor { Nombre = "Baltazar" },
+            new Proveedor { Nombre = "Kitty" },
+            new Proveedor { Nombre = "Walter MDP" },
+            new Proveedor { Nombre = "Lucas MDP" },
+            new Proveedor { Nombre = "Méndez Jávea" },
+            new Proveedor { Nombre = "Lucas Moya" },
+            new Proveedor { Nombre = "Mardi" },
+            new Proveedor { Nombre = "Jorge Lucero" },
+            new Proveedor { Nombre = "Rodrigo Lango" },
+            new Proveedor { Nombre = "Martín MDP" },
+            new Proveedor { Nombre = "Juanjo Merlo" },
+            new Proveedor { Nombre = "Iñaki MDP" },
+            new Proveedor { Nombre = "Pato MDP" }
         );
 
         // ── Clientes ──────────────────────────────────────────────────────────
-        db.Clientes.AddRange(ClientesSeed.GetAll(vMarcos.Id, vLuciano.Id, vLucas.Id));
+        db.Clientes.AddRange(ClientesSeed.GetAll(vMarcos.Id, vLuciano.Id, vManuel.Id));
 
         await db.SaveChangesAsync();
     }
