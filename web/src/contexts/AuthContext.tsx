@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { Rol, Usuario } from '@/lib/types'
 import { api } from '@/lib/api'
+import * as permisos from '@/lib/permisos'
 
 interface LoginApiResponse {
   token: string
@@ -22,6 +23,11 @@ interface AuthContextValue {
   isVendedor: boolean
   canSeeReportes: boolean
   canManageData: boolean
+  isDeposito: boolean
+  canVerStock: boolean
+  canOperarStock: boolean
+  canAjustarStock: boolean
+  canVerPreparacion: boolean
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -68,11 +74,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isAdmin = rol === 'admin'
   const isGestor = rol === 'gestor'
   const isVendedor = rol === 'vendedor'
-  const canSeeReportes = isAdmin
-  const canManageData = isAdmin || isGestor
+  const isDeposito = permisos.isDeposito(rol)
+  const canSeeReportes = permisos.canSeeReportes(rol)
+  const canManageData = permisos.canManageData(rol)
+  const canVerStock = permisos.canVerStock(rol)
+  const canOperarStock = permisos.canOperarStock(rol)
+  const canAjustarStock = permisos.canAjustarStock(rol)
+  const canVerPreparacion = permisos.canVerPreparacion(rol)
 
   return (
-    <AuthContext.Provider value={{ usuario, isInitializing, login, logout, isAdmin, isGestor, isVendedor, canSeeReportes, canManageData }}>
+    <AuthContext.Provider value={{
+      usuario, isInitializing, login, logout,
+      isAdmin, isGestor, isVendedor, isDeposito,
+      canSeeReportes, canManageData, canVerStock, canOperarStock, canAjustarStock, canVerPreparacion,
+    }}>
       {children}
     </AuthContext.Provider>
   )

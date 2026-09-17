@@ -18,7 +18,9 @@ public static class SeedData
         var uTiago   = new Usuario { Nombre = "Tiago Lopez",    Email = "tiago.lopez@kimarcompany.com.ar",    PasswordHash = AuthService.HashPassword("Lango2026*"), Rol = "vendedor" };
         var uManuel  = new Usuario { Nombre = "Manuel Gonzalez", Email = "manuel.gonzalez@kimarcompany.com.ar", PasswordHash = AuthService.HashPassword("Lango2026*"), Rol = "vendedor" };
 
-        db.Usuarios.AddRange(uMarcos, uAilin, uJuan, uLuciano, uTiago, uManuel);
+        var uDeposito = new Usuario { Nombre = "Depósito",       Email = "deposito@kimarcompany.com.ar",       PasswordHash = AuthService.HashPassword("Lango2026*"), Rol = "deposito" };
+
+        db.Usuarios.AddRange(uMarcos, uAilin, uJuan, uLuciano, uTiago, uManuel, uDeposito);
 
         // ── Vendedores ────────────────────────────────────────────────────────
         var vMarcos  = new Vendedor { Nombre = "Marcos",  UsuarioId = uMarcos.Id };

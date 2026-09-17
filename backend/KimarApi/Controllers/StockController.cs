@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using KimarApi.Data;
 using KimarApi.Models.DTOs;
+using KimarApi.Models;
 using KimarApi.Models.Entities;
 using KimarApi.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -11,7 +12,7 @@ namespace KimarApi.Controllers;
 
 [ApiController]
 [Route("api/stock")]
-[Authorize(Roles = "admin,gestor")]
+[Authorize(Roles = Roles.GestionYDeposito)]
 public class StockController(KimarDbContext db, StockService stockSvc) : ControllerBase
 {
     [HttpGet("actual")]
@@ -99,6 +100,7 @@ public class StockController(KimarDbContext db, StockService stockSvc) : Control
     }
 
     [HttpPost("salida")]
+    [Authorize(Roles = Roles.Gestion)]
     public async Task<IActionResult> RegistrarSalida([FromBody] RegistrarSalidaRequest req)
     {
         var userId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value!);
@@ -118,6 +120,7 @@ public class StockController(KimarDbContext db, StockService stockSvc) : Control
     }
 
     [HttpPost("ajuste")]
+    [Authorize(Roles = Roles.Gestion)]
     public async Task<IActionResult> AjusteManual([FromBody] AjusteStockRequest req)
     {
         var userId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value!);
@@ -142,6 +145,7 @@ public class StockController(KimarDbContext db, StockService stockSvc) : Control
     }
 
     [HttpPut("{productoId}/minimo")]
+    [Authorize(Roles = Roles.Gestion)]
     public async Task<IActionResult> UpdateMinimo(Guid productoId, [FromBody] UpdateStockMinimoRequest req)
     {
         var stock = await db.StockPorProducto

@@ -1,4 +1,5 @@
 using KimarApi.Data;
+using KimarApi.Models;
 using KimarApi.Models.DTOs;
 using KimarApi.Models.Entities;
 using KimarApi.Services;
@@ -10,7 +11,7 @@ namespace KimarApi.Controllers;
 
 [ApiController]
 [Route("api/proveedores")]
-[Authorize(Roles = "admin,gestor")]
+[Authorize(Roles = Roles.GestionYDeposito)]
 public class ProveedoresController(KimarDbContext db, FormaPagoProveedorService formaPagoSvc) : ControllerBase
 {
     [HttpGet]
@@ -24,6 +25,7 @@ public class ProveedoresController(KimarDbContext db, FormaPagoProveedorService 
     }
 
     [HttpGet("{id}")]
+    [Authorize(Roles = Roles.Gestion)]
     public async Task<IActionResult> GetById(Guid id)
     {
         var p = await db.Proveedores.FindAsync(id);
@@ -32,6 +34,7 @@ public class ProveedoresController(KimarDbContext db, FormaPagoProveedorService 
     }
 
     [HttpPost]
+    [Authorize(Roles = Roles.Gestion)]
     public async Task<IActionResult> Create([FromBody] CreateProveedorRequest req)
     {
         var p = new Proveedor { Nombre = req.Nombre, Telefono = req.Telefono, Email = req.Email, Direccion = req.Direccion };
@@ -42,6 +45,7 @@ public class ProveedoresController(KimarDbContext db, FormaPagoProveedorService 
     }
 
     [HttpPut("{id}")]
+    [Authorize(Roles = Roles.Gestion)]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateProveedorRequest req)
     {
         var p = await db.Proveedores.FindAsync(id);
@@ -58,6 +62,7 @@ public class ProveedoresController(KimarDbContext db, FormaPagoProveedorService 
     // ── Compromisos ───────────────────────────────────────────────────────────
 
     [HttpGet("{id}/compromisos")]
+    [Authorize(Roles = Roles.Gestion)]
     public async Task<IActionResult> GetCompromisos(Guid id)
     {
         var list = await db.CompromisosProveedor
@@ -69,6 +74,7 @@ public class ProveedoresController(KimarDbContext db, FormaPagoProveedorService 
     }
 
     [HttpPost("compromisos")]
+    [Authorize(Roles = Roles.Gestion)]
     public async Task<IActionResult> CreateCompromiso([FromBody] CreateCompromisoRequest req)
     {
         var comp = new CompromisoProv
@@ -89,6 +95,7 @@ public class ProveedoresController(KimarDbContext db, FormaPagoProveedorService 
     }
 
     [HttpPost("cuotas/{id}/pagar")]
+    [Authorize(Roles = Roles.Gestion)]
     public async Task<IActionResult> PagarCuota(Guid id, [FromBody] PagarCuotaRequest? req = null)
     {
         var cuota = await db.CuotasProveedor.FindAsync(id);
@@ -104,6 +111,7 @@ public class ProveedoresController(KimarDbContext db, FormaPagoProveedorService 
     // ── Forma de pago negociada ──────────────────────────────────────────────
 
     [HttpGet("{id}/forma-pago")]
+    [Authorize(Roles = Roles.Gestion)]
     public async Task<IActionResult> GetFormaPago(Guid id)
     {
         var historial = await formaPagoSvc.GetHistorialAsync(id);
@@ -111,6 +119,7 @@ public class ProveedoresController(KimarDbContext db, FormaPagoProveedorService 
     }
 
     [HttpPost("{id}/forma-pago")]
+    [Authorize(Roles = Roles.Gestion)]
     public async Task<IActionResult> CreateFormaPago(Guid id, [FromBody] CreateFormaPagoRequest req)
     {
         var resultado = await formaPagoSvc.CrearNuevaVersionAsync(id, req);

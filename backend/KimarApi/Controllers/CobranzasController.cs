@@ -1,4 +1,5 @@
 using KimarApi.Data;
+using KimarApi.Models;
 using KimarApi.Models.DTOs;
 using KimarApi.Models.Entities;
 using KimarApi.Services;
@@ -14,6 +15,7 @@ namespace KimarApi.Controllers;
 public class CobranzasController(KimarDbContext db, VentaService ventaSvc) : ControllerBase
 {
     [HttpGet]
+    [Authorize(Roles = Roles.Comercial)]
     public async Task<IActionResult> GetAll([FromQuery] string? estado, [FromQuery] Guid? clienteId)
     {
         var query = db.Cobranzas.Include(c => c.Cliente).AsQueryable();
@@ -25,6 +27,7 @@ public class CobranzasController(KimarDbContext db, VentaService ventaSvc) : Con
     }
 
     [HttpGet("{id}")]
+    [Authorize(Roles = Roles.Comercial)]
     public async Task<IActionResult> GetById(Guid id)
     {
         var c = await db.Cobranzas.Include(x => x.Cliente).FirstOrDefaultAsync(x => x.Id == id);
@@ -70,6 +73,9 @@ public class CobranzasController(KimarDbContext db, VentaService ventaSvc) : Con
     {
         var c = await db.Cobranzas.FindAsync(id);
         if (c is null) return NotFound();
+        // Una cobranza cobrada es intocable; para cobrar existe POST {id}/cobrar.
+        if (c.Estado == "cobrado") return BadRequest(new { error = "No se puede modificar una cobranza ya cobrada." });
+        if (req.Estado == "cobrado") return BadRequest(new { error = "Para marcar como cobrada usá la acción Cobrar." });
         c.Fecha = req.Fecha;
         c.Monto = req.Monto;
         c.FormaPago = req.FormaPago;

@@ -18,7 +18,7 @@ public class Usuario
     public string PasswordHash { get; set; } = string.Empty;
 
     [Required, MaxLength(20)]
-    public string Rol { get; set; } = "vendedor"; // admin | gestor | vendedor
+    public string Rol { get; set; } = "vendedor"; // admin | gestor | vendedor | deposito
 
     public bool Activo { get; set; } = true;
 

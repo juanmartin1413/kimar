@@ -3,11 +3,12 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
+import { Rol } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import {
   LayoutDashboard, Users, BookOpen, ShoppingCart, Package,
   CreditCard, Boxes, Truck, Wallet, BarChart3, Settings, ClipboardList,
-  ChevronLeft, ChevronRight, Store, ReceiptText,
+  ChevronLeft, ChevronRight, Store, ReceiptText, PackageCheck,
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -15,19 +16,20 @@ interface NavItem {
   href: string
   label: string
   icon: React.ElementType
-  roles?: ('admin' | 'gestor' | 'vendedor')[]
+  roles: Rol[] // obligatorio: un item sin roles no se muestra a nadie (deny-by-default)
 }
 
 const navItems: NavItem[] = [
   { href: '/interno/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin'] },
-  { href: '/interno/clientes', label: 'Clientes', icon: Users },
+  { href: '/interno/clientes', label: 'Clientes', icon: Users, roles: ['admin', 'gestor', 'vendedor'] },
   { href: '/interno/cuenta-corriente', label: 'Cuenta Corriente', icon: BookOpen, roles: ['admin', 'gestor'] },
-  { href: '/interno/pedidos', label: 'Pedidos', icon: ShoppingCart },
+  { href: '/interno/pedidos', label: 'Pedidos', icon: ShoppingCart, roles: ['admin', 'gestor', 'vendedor'] },
   { href: '/interno/ventas', label: 'Ventas', icon: Package, roles: ['admin', 'gestor'] },
   { href: '/interno/cobranzas', label: 'Cobranzas', icon: CreditCard, roles: ['admin', 'gestor'] },
-  { href: '/interno/productos', label: 'Productos & Precios', icon: Store },
+  { href: '/interno/productos', label: 'Productos & Precios', icon: Store, roles: ['admin', 'gestor', 'vendedor'] },
   { href: '/interno/vendedores', label: 'Vendedores', icon: ClipboardList, roles: ['admin', 'gestor'] },
-  { href: '/interno/stock', label: 'Stock', icon: Boxes, roles: ['admin', 'gestor'] },
+  { href: '/interno/stock', label: 'Stock', icon: Boxes, roles: ['admin', 'gestor', 'deposito'] },
+  { href: '/interno/preparacion', label: 'Pedidos a preparar', icon: PackageCheck, roles: ['admin', 'gestor', 'deposito'] },
   { href: '/interno/proveedores', label: 'Proveedores', icon: Truck, roles: ['admin', 'gestor'] },
   { href: '/interno/compras', label: 'Compras', icon: ReceiptText, roles: ['admin', 'gestor'] },
   { href: '/interno/gastos', label: 'Gastos Fijos', icon: Wallet, roles: ['admin', 'gestor'] },
@@ -41,9 +43,7 @@ export default function InternalSidebar() {
   const [collapsed, setCollapsed] = useState(false)
   const rol = usuario?.rol
 
-  const visibleItems = navItems.filter(item =>
-    !item.roles || !rol || item.roles.includes(rol)
-  )
+  const visibleItems = navItems.filter(item => !rol || item.roles.includes(rol))
 
   return (
     <aside className={cn(

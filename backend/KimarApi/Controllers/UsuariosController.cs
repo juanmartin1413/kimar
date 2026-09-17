@@ -1,4 +1,5 @@
 using KimarApi.Data;
+using KimarApi.Models;
 using KimarApi.Models.DTOs;
 using KimarApi.Models.Entities;
 using KimarApi.Services;
@@ -33,6 +34,8 @@ public class UsuariosController(KimarDbContext db) : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateUsuarioRequest req)
     {
+        if (!Roles.EsValido(req.Rol))
+            return BadRequest(new { error = "Rol inválido" });
         if (await db.Usuarios.AnyAsync(u => u.Email == req.Email.ToLower()))
             return Conflict(new { message = "Email ya registrado" });
 
@@ -58,7 +61,11 @@ public class UsuariosController(KimarDbContext db) : ControllerBase
         if (req.Nombre is not null) user.Nombre = req.Nombre;
         if (req.Email is not null) user.Email = req.Email.ToLower();
         if (req.Password is not null) user.PasswordHash = AuthService.HashPassword(req.Password);
-        if (req.Rol is not null) user.Rol = req.Rol;
+        if (req.Rol is not null)
+        {
+            if (!Roles.EsValido(req.Rol)) return BadRequest(new { error = "Rol inválido" });
+            user.Rol = req.Rol;
+        }
         if (req.Activo.HasValue) user.Activo = req.Activo.Value;
 
         await db.SaveChangesAsync();

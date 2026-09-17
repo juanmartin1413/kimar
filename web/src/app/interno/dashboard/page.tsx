@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { useData } from '@/contexts/DataContext'
 import { useAuth } from '@/contexts/AuthContext'
+import { homePorRol } from '@/lib/permisos'
 import { formatPeso, formatFecha, today } from '@/lib/format'
 import { DollarSign, TrendingUp, TrendingDown, Calendar } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -21,7 +22,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (usuario && !isAdmin) {
-      router.replace(usuario.rol === 'gestor' ? '/interno/cuenta-corriente' : '/interno/pedidos')
+      router.replace(homePorRol(usuario.rol))
     }
   }, [usuario, isAdmin, router])
 

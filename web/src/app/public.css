@@ -1,0 +1,151 @@
+/* ============================================================================
+   Tokens del sitio público (todo lo que no es /interno ni /acceso).
+   - Paleta:  :root[data-palette="default" | "kimar"]  → colores --pub-*
+   - Estilo:  :root[data-style="clasico" | "editorial" | "moderno"] → fuentes y radios
+   Ambos atributos los setea el script inline del root layout antes del primer
+   paint y los mantiene ThemeContext. Los tokens se exponen a Tailwind en el
+   bloque @theme inline de globals.css (bg-pub-accent, font-pub-display, ...).
+   ========================================================================== */
+
+/* ---------- Paleta "default" (azul actual) ---------- */
+:root,
+:root[data-palette="default"] {
+  --pub-bg: oklch(1 0 0);
+  --pub-bg-alt: oklch(0.97 0.01 240);
+  --pub-surface: oklch(1 0 0);
+  --pub-soft: oklch(0.92 0.04 240);
+  --pub-line: oklch(0.9 0.01 240);
+  --pub-line-input: oklch(0.88 0.02 240);
+  --pub-heading: oklch(0.25 0.08 240);
+  --pub-heading-2: oklch(0.3 0.08 240);
+  --pub-text: oklch(0.3 0.06 240);
+  --pub-muted: oklch(0.45 0.04 240);
+  --pub-muted-2: oklch(0.55 0.04 240);
+  --pub-accent: oklch(0.42 0.14 240);
+  --pub-accent-fg: oklch(1 0 0);
+  --pub-deep: oklch(0.18 0.06 240);
+  --pub-deep-2: oklch(0.22 0.07 240);
+  --pub-deep-3: oklch(0.28 0.10 240);
+  --pub-deep-line: oklch(0.28 0.06 240);
+  --pub-on-deep: oklch(0.85 0.03 240);
+  --pub-on-deep-muted: oklch(0.65 0.04 240);
+  --pub-on-deep-label: oklch(0.75 0.08 240);
+  --pub-accent-on-dark: oklch(0.75 0.12 240);
+  --pub-hero-overlay: rgba(18, 25, 48, 0.72);
+  --pub-wa: #25d366;
+}
+
+/* ---------- Paleta "kimar" (navy / oro / marfil) ---------- */
+:root[data-palette="kimar"] {
+  --pub-bg: #f5f2e8;
+  --pub-bg-alt: #e6e8e5;
+  --pub-surface: #e6e8e5;
+  --pub-soft: #e6e8e5;
+  --pub-line: #c7a35a;
+  --pub-line-input: #6f8c87;
+  --pub-heading: #2b2b2b;
+  --pub-heading-2: #0f2b2e;
+  --pub-text: #2b2b2b;
+  --pub-muted: #6f8c87;
+  --pub-muted-2: #6f8c87;
+  --pub-accent: #c7a35a;
+  --pub-accent-fg: oklch(1 0 0);
+  --pub-deep: #0f2b2e;
+  --pub-deep-2: #0f2b2e;
+  --pub-deep-3: #0f2b2e;
+  --pub-deep-line: #6f8c87;
+  --pub-on-deep: #e6e8e5;
+  --pub-on-deep-muted: #6f8c87;
+  --pub-on-deep-label: #6f8c87;
+  --pub-accent-on-dark: #c7a35a;
+  --pub-hero-overlay: rgba(15, 43, 46, 0.72);
+  --pub-wa: #25d366;
+}
+
+/* ---------- Estilos: tipografía y radios ---------- */
+:root,
+:root[data-style="clasico"] {
+  --pub-font-display: var(--font-sans);
+  --pub-font-body: var(--font-sans);
+  --pub-radius: 0.5rem;
+  --pub-radius-lg: 0.75rem;
+  --pub-radius-xl: 1rem;
+}
+
+:root[data-style="editorial"] {
+  --pub-font-display: var(--font-display-serif), Georgia, serif;
+  --pub-font-body: var(--font-sans);
+  --pub-radius: 0px;
+  --pub-radius-lg: 0px;
+  --pub-radius-xl: 2px;
+}
+
+:root[data-style="moderno"] {
+  --pub-font-display: var(--font-sans-modern), var(--font-sans);
+  --pub-font-body: var(--font-sans-modern), var(--font-sans);
+  --pub-radius: 1rem;
+  --pub-radius-lg: 1.5rem;
+  --pub-radius-xl: 2rem;
+}
+
+/* ---------- Velo anti-flash ----------
+   El script inline agrega html.pub-pending cuando el estilo guardado no es el
+   que renderiza el servidor (clasico). ThemeContext lo quita al hidratar. Si el
+   JS nunca corre, la animación destapa el shell a los 1.5 s. */
+html.pub-pending .pub-shell {
+  visibility: hidden;
+  animation: pub-unveil 0s 1.5s forwards;
+}
+@keyframes pub-unveil {
+  to { visibility: visible; }
+}
+
+/* ---------- Animaciones del sitio público ---------- */
+html.js .pub-reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 0.7s ease, transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1);
+  transition-delay: var(--pub-reveal-delay, 0ms);
+}
+html.js .pub-reveal[data-effect="fade"] { transform: none; }
+html.js .pub-reveal[data-effect="pop"] { transform: translateY(12px) scale(0.96); }
+html.js .pub-reveal.is-in {
+  opacity: 1;
+  transform: none;
+}
+
+.pub-marquee {
+  overflow: hidden;
+  mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+}
+.pub-marquee-track {
+  display: flex;
+  width: max-content;
+  animation: pub-marquee var(--pub-marquee-duration, 30s) linear infinite;
+}
+.pub-marquee-track[data-reverse="true"] { animation-direction: reverse; }
+.pub-marquee:hover .pub-marquee-track { animation-play-state: paused; }
+@keyframes pub-marquee {
+  to { transform: translateX(-50%); }
+}
+
+.pub-glow {
+  animation: pub-drift 14s ease-in-out infinite alternate;
+}
+.pub-glow[data-delay="1"] { animation-delay: -7s; }
+@keyframes pub-drift {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to { transform: translate3d(6%, -8%, 0) scale(1.15); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.js .pub-reveal,
+  .pub-marquee-track,
+  .pub-glow {
+    animation: none !important;
+    transition: none !important;
+    opacity: 1;
+    transform: none;
+  }
+}

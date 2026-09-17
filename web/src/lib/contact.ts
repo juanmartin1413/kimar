@@ -5,4 +5,13 @@ export const kimarContact = {
   telefonoVentas: '+54 9 11 3012-3555',
   emailVentas: 'ventas@kimarcompany.com',
   emailAdmin: 'administracion@kimarcompany.com',
+  horario: 'Lunes a Sábados, 7:00 – 20:00 hs',
+  cobertura: 'Toda la Argentina',
 } as const
+
+/** Convierte un teléfono con formato humano en un link wa.me (solo dígitos, sin "+"). */
+export function whatsappUrl(telefono: string, mensaje?: string): string {
+  const digits = telefono.replace(/\D/g, '')
+  const base = `https://wa.me/${digits}`
+  return mensaje ? `${base}?text=${encodeURIComponent(mensaje)}` : base
+}

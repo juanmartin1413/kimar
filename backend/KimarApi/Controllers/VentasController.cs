@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using KimarApi.Data;
+using KimarApi.Models;
 using KimarApi.Models.DTOs;
 using KimarApi.Models.Entities;
 using KimarApi.Services;
@@ -15,6 +16,7 @@ namespace KimarApi.Controllers;
 public class VentasController(KimarDbContext db, StockService stockSvc, VentaService ventaSvc) : ControllerBase
 {
     [HttpGet]
+    [Authorize(Roles = Roles.Comercial)]
     public async Task<IActionResult> GetAll([FromQuery] string? estado, [FromQuery] Guid? clienteId)
     {
         var rol = User.FindFirst("rol")?.Value;
@@ -40,6 +42,7 @@ public class VentasController(KimarDbContext db, StockService stockSvc, VentaSer
     }
 
     [HttpGet("{id}")]
+    [Authorize(Roles = Roles.Comercial)]
     public async Task<IActionResult> GetById(Guid id)
     {
         var v = await db.Ventas
@@ -49,6 +52,29 @@ public class VentasController(KimarDbContext db, StockService stockSvc, VentaSer
             .FirstOrDefaultAsync(x => x.Id == id);
         if (v is null) return NotFound();
         return Ok(Map(v));
+    }
+
+    // Listado para el depósito: qué hay que preparar por fecha de entrega. Sin precios ni cobranzas.
+    [HttpGet("preparacion")]
+    [Authorize(Roles = Roles.GestionYDeposito)]
+    public async Task<IActionResult> GetPreparacion([FromQuery] DateOnly desde, [FromQuery] DateOnly hasta)
+    {
+        if (hasta < desde) return BadRequest(new { error = "El rango de fechas es inválido." });
+        if (hasta.DayNumber - desde.DayNumber > 31) return BadRequest(new { error = "El rango máximo es de 31 días." });
+
+        var list = await db.Ventas
+            .Include(v => v.Cliente).Include(v => v.Vendedor)
+            .Include(v => v.Items).ThenInclude(i => i.Producto)
+            .Include(v => v.Items).ThenInclude(i => i.Calidad)
+            .Where(v => v.FechaEntrega >= desde && v.FechaEntrega <= hasta)
+            .OrderBy(v => v.FechaEntrega).ThenBy(v => v.Cliente.Nombre)
+            .ToListAsync();
+
+        return Ok(list.Select(v => new VentaPreparacionDto(
+            v.Id, v.FechaEntrega, v.Cliente?.Nombre ?? "", v.Vendedor?.Nombre ?? "", v.NroRemito, v.Observaciones,
+            v.Items.Select(i => new ItemPreparacionDto(
+                i.ProductoId, i.Producto?.Nombre ?? i.Descripcion, i.Descripcion,
+                i.CalidadId, i.Calidad?.Nombre, i.Cantidad, i.Producto?.Unidad ?? "kg")).ToList())));
     }
 
     [HttpPost]
@@ -131,6 +157,18 @@ public class VentasController(KimarDbContext db, StockService stockSvc, VentaSer
         if (req.Observaciones is not null) v.Observaciones = req.Observaciones;
         await db.SaveChangesAsync();
         return Ok(new { id = v.Id });
+    }
+
+    // Edición completa (ítems + stock, cabecera y plan de cobro). Solo administrador.
+    [HttpPut("{id}/completa")]
+    [Authorize(Roles = Roles.Admin)]
+    public async Task<IActionResult> UpdateCompleta(Guid id, [FromBody] UpdateVentaCompletaRequest req)
+    {
+        var userId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value!);
+        var r = await ventaSvc.ActualizarVentaCompletaAsync(id, req, userId);
+        if (r.NotFound) return NotFound();
+        if (!r.Ok) return BadRequest(new { error = r.Error });
+        return await GetById(id);
     }
 
     private static VentaDto Map(Venta v) => new(

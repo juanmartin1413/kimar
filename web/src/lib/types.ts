@@ -1,4 +1,4 @@
-export type Rol = 'admin' | 'gestor' | 'vendedor'
+export type Rol = 'admin' | 'gestor' | 'vendedor' | 'deposito'
 
 export interface Usuario {
   id: string
@@ -283,6 +283,55 @@ export interface StockRealRegistrado {
   fecha: string
   usuarioId: string // quién hizo el conteo
   observaciones?: string
+}
+
+// ── Pedidos a preparar (vista de depósito sobre ventas confirmadas) ─────────
+// Espejo de VentaPreparacionDto: sin precios, totales, estado de cobro ni cobranzas.
+export interface ItemPreparacion {
+  productoId: string
+  productoNombre: string
+  descripcion: string
+  calidadId?: string
+  calidadNombre?: string
+  cantidad: number
+  unidad: UnidadProducto
+}
+
+export interface VentaPreparacion {
+  id: string
+  fechaEntrega: string
+  clienteNombre: string
+  vendedorNombre: string
+  nroRemito?: string
+  observaciones?: string
+  items: ItemPreparacion[]
+}
+
+// ── Edición completa de venta (solo admin) ──────────────────────────────────
+// id null/undefined = cuota nueva. Solo se envían las cuotas pendientes; las cobradas no se tocan.
+export interface PlanCobroItemPayload {
+  id?: string | null
+  fecha: string
+  monto: number
+  formaPago: FormaPago
+  observaciones?: string | null
+}
+
+export interface UpdateVentaCompletaPayload {
+  clienteId: string
+  vendedorId: string
+  fechaEntrega: string
+  nroRemito?: string | null
+  nroFactura?: string | null
+  observaciones?: string | null
+  items: {
+    productoId: string
+    calidadId?: string | null
+    descripcion: string
+    cantidad: number
+    precioUnitario: number
+  }[]
+  cobranzas: PlanCobroItemPayload[]
 }
 
 export type TipoMovimientoStock = 'entrada' | 'salida'

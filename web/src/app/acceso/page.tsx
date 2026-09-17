@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
+import { homePorRol } from '@/lib/permisos'
 import { Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
 
@@ -21,12 +22,7 @@ export default function AccesoPage() {
     setLoading(true)
     const rol = await login(email.trim(), password)
     if (rol) {
-      const destino = rol === 'admin'
-        ? '/interno/dashboard'
-        : rol === 'gestor'
-        ? '/interno/cuenta-corriente'
-        : '/interno/pedidos'
-      router.push(destino)
+      router.push(homePorRol(rol))
     } else {
       setError('Email o contraseña incorrectos.')
       setLoading(false)

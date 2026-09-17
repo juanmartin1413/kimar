@@ -8,7 +8,7 @@ import {
   CreateCompraPayload, CreateFormaPagoPayload, CreateProductoPayload, FormaPagoProveedor,
   GastoFijo, InstanciaGasto, MovimientoStock, Pedido,
   Producto, ProductoProveedor, Proveedor, StockPorProducto, StockRealRegistrado,
-  Vendedor, Venta,
+  UpdateVentaCompletaPayload, Vendedor, Venta,
 } from '@/lib/types'
 import { today } from '@/lib/format'
 import { generateId } from '@/lib/storage'
@@ -35,7 +35,10 @@ interface DataContextValue {
   addPedido: (p: Omit<Pedido, 'id' | 'fechaCreacion' | 'estado'>) => Promise<string>
   updatePedido: (id: string, p: Partial<Pedido>) => void
   addVenta: (v: Omit<Venta, 'id' | 'fechaCreacion' | 'estado' | 'cobranzas'>, cobranzas: Omit<Cobranza, 'id' | 'fechaCreacion' | 'clienteId' | 'ventaId'>[]) => Promise<void>
-  updateVentaCompleta: (id: string, v: Omit<Venta, 'id' | 'fechaCreacion' | 'estado' | 'cobranzas'>, cobranzas: Omit<Cobranza, 'id' | 'fechaCreacion' | 'clienteId' | 'ventaId'>[]) => void
+  // Remito / factura / observaciones (admin y gestor)
+  updateVentaDatos: (id: string, d: { nroRemito?: string; nroFactura?: string; observaciones?: string }) => Promise<void>
+  // Ítems (con ajuste de stock), cabecera y plan de cobro (solo admin)
+  updateVentaCompleta: (id: string, payload: UpdateVentaCompletaPayload) => Promise<void>
   addCobranza: (c: Omit<Cobranza, 'id' | 'fechaCreacion'>) => void
   updateCobranza: (id: string, c: Partial<Omit<Cobranza, 'id' | 'fechaCreacion'>>) => void
   cobrarCobranza: (id: string) => void
@@ -356,17 +359,40 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     await Promise.all([rVentas(), rStock(), rPedidos()])
   }
 
-  async function updateVentaCompleta(
-    id: string,
-    v: Omit<Venta, 'id' | 'fechaCreacion' | 'estado' | 'cobranzas'>,
-    _cobranzas: Omit<Cobranza, 'id' | 'fechaCreacion' | 'clienteId' | 'ventaId'>[]
-  ) {
+  async function updateVentaDatos(id: string, d: { nroRemito?: string; nroFactura?: string; observaciones?: string }): Promise<void> {
     await api.put(`/api/ventas/${id}`, {
-      nroRemito: v.nroRemito ?? null,
-      nroFactura: v.nroFactura ?? null,
-      observaciones: v.observaciones ?? null,
+      nroRemito: d.nroRemito ?? null,
+      nroFactura: d.nroFactura ?? null,
+      observaciones: d.observaciones ?? null,
     })
     await rVentas()
+  }
+
+  async function updateVentaCompleta(id: string, payload: UpdateVentaCompletaPayload): Promise<void> {
+    await api.put(`/api/ventas/${id}/completa`, {
+      clienteId: payload.clienteId,
+      vendedorId: payload.vendedorId,
+      fechaEntrega: payload.fechaEntrega,
+      nroRemito: payload.nroRemito ?? null,
+      nroFactura: payload.nroFactura ?? null,
+      observaciones: payload.observaciones ?? null,
+      items: payload.items.map(i => ({
+        productoId: i.productoId,
+        calidadId: i.calidadId ?? null,
+        descripcion: i.descripcion,
+        cantidad: i.cantidad,
+        precioUnitario: i.precioUnitario,
+      })),
+      cobranzas: payload.cobranzas.map(c => ({
+        id: c.id ?? null,
+        fecha: c.fecha,
+        monto: c.monto,
+        formaPago: c.formaPago,
+        observaciones: c.observaciones ?? null,
+      })),
+    })
+    // Cambian ventas + cobranzas, stock actual y movimientos
+    await Promise.all([rVentas(), rStock(), rMovimientos()])
   }
 
   // ── Cobranzas ────────────────────────────────────────────────────────────────
@@ -646,7 +672,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       addCliente, updateCliente, deleteCliente,
       updateProductoPrecio, updateProducto, addProducto, reorderProductos,
       addPedido, updatePedido,
-      addVenta, updateVentaCompleta,
+      addVenta, updateVentaDatos, updateVentaCompleta,
       addCobranza, updateCobranza, cobrarCobranza,
       addVendedor, updateVendedor,
       addProveedor, updateProveedor, addCompromisoProveedor, updateCompromisoProveedor, pagarCuotaProveedor,

@@ -3,12 +3,14 @@
 import { useData } from '@/contexts/DataContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { Shield, User } from 'lucide-react'
+import { Rol } from '@/lib/types'
 
-const rolLabels = { admin: 'Administrador', gestor: 'Gestor', vendedor: 'Vendedor' }
-const rolColors = {
+const rolLabels: Record<Rol, string> = { admin: 'Administrador', gestor: 'Gestor', vendedor: 'Vendedor', deposito: 'Depósito' }
+const rolColors: Record<Rol, string> = {
   admin: 'bg-[oklch(0.92_0.04_240)] text-[oklch(0.35_0.10_240)]',
   gestor: 'bg-purple-100 text-purple-700',
   vendedor: 'bg-orange-100 text-orange-700',
+  deposito: 'bg-teal-100 text-teal-700',
 }
 
 export default function ConfiguracionPage() {

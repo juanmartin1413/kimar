@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using KimarApi.Data;
+using KimarApi.Models;
 using KimarApi.Models.DTOs;
 using KimarApi.Models.Entities;
 using Microsoft.AspNetCore.Authorization;
@@ -48,6 +49,7 @@ public class PedidosController(KimarDbContext db) : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Roles = Roles.Comercial)]
     public async Task<IActionResult> Create([FromBody] CreatePedidoRequest req)
     {
         var pedido = new Pedido

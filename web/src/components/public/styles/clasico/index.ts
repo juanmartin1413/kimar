@@ -1,0 +1,5 @@
+export { default as Nav } from './Nav'
+export { default as Footer } from './Footer'
+export { default as Home } from './Home'
+export { default as Productos } from './Productos'
+export { default as Contacto } from './Contacto'

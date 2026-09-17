@@ -3,8 +3,9 @@
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 import { LogOut, User } from 'lucide-react'
+import { Rol } from '@/lib/types'
 
-const rolLabels = { admin: 'Administrador', gestor: 'Gestor', vendedor: 'Vendedor' }
+const rolLabels: Record<Rol, string> = { admin: 'Administrador', gestor: 'Gestor', vendedor: 'Vendedor', deposito: 'Depósito' }
 
 export default function InternalTopBar() {
   const { usuario, logout } = useAuth()

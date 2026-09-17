@@ -1,5 +1,5 @@
 import { Cliente, Producto, Vendedor, Venta } from './types'
-import { formatFecha } from './format'
+import { formatFecha, formatPeso } from './format'
 import { brandPdf } from './brandPdf'
 import { kimarContact } from './contact'
 
@@ -21,21 +21,30 @@ function buildRemitoHTML(
 ): string {
   const direccion = direccionCliente(cliente)
 
+  // Anchos compartidos entre el header (flex) y las celdas de la tabla para que las columnas queden alineadas.
+  const colCantidad = 90
+  const colPrecio = 110
+
   const rows = venta.items
     .map((item, i) => {
       const producto = productos.find(p => p.id === item.productoId)
       const unidad = producto?.unidad === 'unidad' ? 'u' : 'kg'
+      const bg = i % 2 === 0 ? '#ffffff' : brandPdf.rowAlt
+      const cell = (content: string, extra = '') =>
+        `<td style="padding:8px 16px;background:${bg};font-family:${brandPdf.fontBody};font-size:12px;color:${brandPdf.carbon};${extra}">${content}</td>`
+      // Solo cantidad + descripción comercial: la "calidad" es interna y nunca se muestra al cliente.
       return `
     <tr>
-      <td style="padding:8px 16px;background:${i % 2 === 0 ? '#ffffff' : brandPdf.rowAlt};font-family:${brandPdf.fontBody};font-size:12px;color:${brandPdf.carbon};text-align:center;width:100px">
-        ${item.cantidad} ${unidad}
-      </td>
-      <td style="padding:8px 16px;background:${i % 2 === 0 ? '#ffffff' : brandPdf.rowAlt};font-family:${brandPdf.fontBody};font-size:12px;color:${brandPdf.carbon}">
-        ${item.descripcion}
-      </td>
+      ${cell(`${item.cantidad} ${unidad}`, `text-align:center;width:${colCantidad}px`)}
+      ${cell(item.descripcion)}
+      ${cell(formatPeso(item.precioUnitario), `text-align:right;width:${colPrecio}px;white-space:nowrap`)}
+      ${cell(formatPeso(item.subtotal), `text-align:right;width:${colPrecio}px;white-space:nowrap;font-weight:700`)}
     </tr>`
     })
     .join('')
+
+  const headerCell = (label: string, extra = '') =>
+    `<div style="color:${brandPdf.navy};font-weight:700;font-size:11px;letter-spacing:1px;font-family:${brandPdf.fontBody};${extra}">${label}</div>`
 
   return `<!DOCTYPE html>
 <html lang="es">
@@ -84,13 +93,21 @@ function buildRemitoHTML(
 
   <!-- Table header -->
   <div style="margin:20px 24px 0;display:flex;align-items:center;background:${brandPdf.gold};padding:8px 16px;border-radius:6px 6px 0 0">
-    <div style="width:100px;color:${brandPdf.navy};font-weight:700;font-size:11px;letter-spacing:1px;font-family:${brandPdf.fontBody};text-align:center">CANTIDAD</div>
-    <div style="flex:1;color:${brandPdf.navy};font-weight:700;font-size:11px;letter-spacing:1px;font-family:${brandPdf.fontBody}">DETALLE</div>
+    ${headerCell('CANTIDAD', `width:${colCantidad}px;text-align:center`)}
+    ${headerCell('DETALLE', 'flex:1')}
+    ${headerCell('P. UNITARIO', `width:${colPrecio}px;text-align:right`)}
+    ${headerCell('SUBTOTAL', `width:${colPrecio}px;text-align:right`)}
   </div>
 
   <!-- Items -->
   <div style="margin:0 24px;border:1px solid ${brandPdf.light};border-top:none">
     <table><tbody>${rows}</tbody></table>
+  </div>
+
+  <!-- Total -->
+  <div style="margin:0 24px;border:1px solid ${brandPdf.light};border-top:none;border-radius:0 0 6px 6px;display:flex;justify-content:space-between;align-items:center;padding:10px 16px;background:${brandPdf.ivory};font-family:${brandPdf.fontBody}">
+    <span style="font-size:11px;font-weight:700;letter-spacing:1px;color:${brandPdf.navy}">TOTAL</span>
+    <span style="font-size:15px;font-weight:700;color:${brandPdf.navy}">${formatPeso(venta.total)}</span>
   </div>
 
   <!-- Spacer: empuja firma + footer al pie de la hoja cuando el detalle es corto;

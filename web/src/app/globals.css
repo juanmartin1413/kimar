@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "./public.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -42,6 +43,35 @@
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) * 1.4);
+
+  /* Sitio público: tokens definidos en public.css */
+  --color-pub-bg: var(--pub-bg);
+  --color-pub-bg-alt: var(--pub-bg-alt);
+  --color-pub-surface: var(--pub-surface);
+  --color-pub-soft: var(--pub-soft);
+  --color-pub-line: var(--pub-line);
+  --color-pub-line-input: var(--pub-line-input);
+  --color-pub-heading: var(--pub-heading);
+  --color-pub-heading-2: var(--pub-heading-2);
+  --color-pub-text: var(--pub-text);
+  --color-pub-muted: var(--pub-muted);
+  --color-pub-muted-2: var(--pub-muted-2);
+  --color-pub-accent: var(--pub-accent);
+  --color-pub-accent-fg: var(--pub-accent-fg);
+  --color-pub-deep: var(--pub-deep);
+  --color-pub-deep-2: var(--pub-deep-2);
+  --color-pub-deep-3: var(--pub-deep-3);
+  --color-pub-deep-line: var(--pub-deep-line);
+  --color-pub-on-deep: var(--pub-on-deep);
+  --color-pub-on-deep-muted: var(--pub-on-deep-muted);
+  --color-pub-on-deep-label: var(--pub-on-deep-label);
+  --color-pub-accent-on-dark: var(--pub-accent-on-dark);
+  --color-pub-wa: var(--pub-wa);
+  --font-pub-display: var(--pub-font-display);
+  --font-pub-body: var(--pub-font-body);
+  --radius-pub: var(--pub-radius);
+  --radius-pub-lg: var(--pub-radius-lg);
+  --radius-pub-xl: var(--pub-radius-xl);
 }
 
 :root {
@@ -78,16 +108,6 @@
   --sidebar-accent-foreground: oklch(0.95 0.01 240);
   --sidebar-border: oklch(0.28 0.06 240);
   --sidebar-ring: oklch(0.62 0.15 240);
-}
-
-/* Kimar brand palette */
-:root[data-palette="kimar"] {
-  --kimar-deep: #0F2B2E;
-  --kimar-gold: #C7A35A;
-  --kimar-ivory: #F5F2E8;
-  --kimar-sea: #6F8C87;
-  --kimar-light: #E6E8E5;
-  --kimar-carbon: #2B2B2B;
 }
 
 @layer base {

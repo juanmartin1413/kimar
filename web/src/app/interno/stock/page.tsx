@@ -28,9 +28,8 @@ interface AuditoriaRow {
 }
 
 export default function StockPage() {
-  const { canManageData: canManage } = useAuth()
+  const { canVerStock, canOperarStock, canAjustarStock, usuario } = useAuth()
   const { data: appData, addStockRealRegistrado } = useData()
-  const { usuario } = useAuth()
   const [registrarEntradaOpen, setRegistrarEntradaOpen] = useState(false)
   const [ajusteManualOpen, setAjusteManualOpen] = useState(false)
   const [stockRealModalOpen, setStockRealModalOpen] = useState(false)
@@ -45,10 +44,10 @@ export default function StockPage() {
   }, [])
 
   useEffect(() => {
-    if (canManage) cargarAuditoria()
-  }, [canManage, cargarAuditoria])
+    if (canVerStock) cargarAuditoria()
+  }, [canVerStock, cargarAuditoria])
 
-  if (!canManage) {
+  if (!canVerStock) {
     return (
       <div className="p-6">
         <div className="text-center">
@@ -87,14 +86,18 @@ export default function StockPage() {
           <p className="text-gray-600">Gestión de inventario y movimientos</p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={() => setRegistrarEntradaOpen(true)} className="gap-2">
-            <Plus className="w-4 h-4" />
-            Registrar Entrada
-          </Button>
-          <Button onClick={() => setAjusteManualOpen(true)} variant="outline" className="gap-2">
-            <Plus className="w-4 h-4" />
-            Ajuste Manual
-          </Button>
+          {canOperarStock && (
+            <Button onClick={() => setRegistrarEntradaOpen(true)} className="gap-2">
+              <Plus className="w-4 h-4" />
+              Registrar Entrada
+            </Button>
+          )}
+          {canAjustarStock && (
+            <Button onClick={() => setAjusteManualOpen(true)} variant="outline" className="gap-2">
+              <Plus className="w-4 h-4" />
+              Ajuste Manual
+            </Button>
+          )}
         </div>
       </div>
 
@@ -140,7 +143,9 @@ export default function StockPage() {
                         </span>
                       </TableCell>
                       <TableCell className="text-right">
-                        <StockMinimForm productoId={stock.productoId} calidadId={stock.calidadId} initialValue={stockMinimo} />
+                        {canAjustarStock
+                          ? <StockMinimForm productoId={stock.productoId} calidadId={stock.calidadId} initialValue={stockMinimo} />
+                          : <span>{stockMinimo.toFixed(2)} kg</span>}
                       </TableCell>
                       <TableCell className="text-center">
                         {vacio && <Badge variant="destructive">SIN STOCK</Badge>}
@@ -262,18 +267,20 @@ export default function StockPage() {
                       {row.estado === 'FALTANTE' && <Badge variant="destructive">FALTANTE</Badge>}
                     </TableCell>
                     <TableCell>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setProductoSeleccionado(row.productoId)
-                          setCalidadSeleccionada(row.calidadId)
-                          setCantidadReal(row.stockFisico?.toString() ?? '')
-                          setStockRealModalOpen(true)
-                        }}
-                      >
-                        Registrar
-                      </Button>
+                      {canOperarStock && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setProductoSeleccionado(row.productoId)
+                            setCalidadSeleccionada(row.calidadId)
+                            setCantidadReal(row.stockFisico?.toString() ?? '')
+                            setStockRealModalOpen(true)
+                          }}
+                        >
+                          Registrar
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -283,8 +290,8 @@ export default function StockPage() {
         </TabsContent>
       </Tabs>
 
-      <RegistrarEntradaModal open={registrarEntradaOpen} onOpenChange={setRegistrarEntradaOpen} />
-      <AjusteManualModal open={ajusteManualOpen} onOpenChange={setAjusteManualOpen} />
+      {canOperarStock && <RegistrarEntradaModal open={registrarEntradaOpen} onOpenChange={setRegistrarEntradaOpen} />}
+      {canAjustarStock && <AjusteManualModal open={ajusteManualOpen} onOpenChange={setAjusteManualOpen} />}
 
       {/* Modal para Stock Real */}
       {stockRealModalOpen && (
