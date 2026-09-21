@@ -19,7 +19,8 @@ Configurar en Railway → Service → Variables:
 | `DATABASE_URL` | `${{kimar-db.DATABASE_URL}}` (referencia al servicio DB) |
 | `JWT_SECRET` | Generar 64 chars aleatorios (Railway → Generate) |
 | `ASPNETCORE_ENVIRONMENT` | `Production` |
-| `AllowedOrigins__0` | URL del frontend Next.js en Railway |
+| `AllowedOrigins__0` | `https://kimarcompany.com.ar` |
+| `AllowedOrigins__1` | `https://www.kimarcompany.com.ar` |
 
 ### 4. Primer deploy
 Al arrancar, la API:
@@ -35,4 +36,4 @@ Al arrancar, la API:
 Todos los usuarios tienen contraseña `Lango2026*`. Cambiarlas después del primer login.
 
 ### CORS
-Actualizar `AllowedOrigins__0` con la URL real del frontend una vez deployado.
+Configurar ambos dominios del frontend (`AllowedOrigins__0` y `AllowedOrigins__1`) en el servicio de la API. Los valores de entorno de Railway tienen prioridad sobre `appsettings.json`.

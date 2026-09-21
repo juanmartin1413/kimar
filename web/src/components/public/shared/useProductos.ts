@@ -18,7 +18,7 @@ export function useProductos() {
   )
 
   useEffect(() => {
-    fetch(`${process.env.API_URL}/api/productos?activo=true`)
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/productos?activo=true`)
       .then(r => (r.ok ? r.json() : Promise.reject()))
       .then((data: ProductoPublico[]) => setProductos([...data].sort((a, b) => a.orden - b.orden)))
       .catch(() => {})
