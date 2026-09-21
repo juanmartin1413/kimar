@@ -28,6 +28,9 @@ interface AuthContextValue {
   canOperarStock: boolean
   canAjustarStock: boolean
   canVerPreparacion: boolean
+  isRepartidor: boolean
+  canVerEntregas: boolean
+  canGestionarEntrega: boolean
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -81,12 +84,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const canOperarStock = permisos.canOperarStock(rol)
   const canAjustarStock = permisos.canAjustarStock(rol)
   const canVerPreparacion = permisos.canVerPreparacion(rol)
+  const isRepartidor = permisos.isRepartidor(rol)
+  const canVerEntregas = permisos.canVerEntregas(rol)
+  const canGestionarEntrega = permisos.canGestionarEntrega(rol)
 
   return (
     <AuthContext.Provider value={{
       usuario, isInitializing, login, logout,
       isAdmin, isGestor, isVendedor, isDeposito,
       canSeeReportes, canManageData, canVerStock, canOperarStock, canAjustarStock, canVerPreparacion,
+      isRepartidor, canVerEntregas, canGestionarEntrega,
     }}>
       {children}
     </AuthContext.Provider>

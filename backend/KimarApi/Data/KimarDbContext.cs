@@ -82,6 +82,8 @@ public class KimarDbContext(DbContextOptions<KimarDbContext> options) : DbContex
         model.Entity<Pedido>().HasIndex(p => new { p.ClienteId, p.VendedorId });
         model.Entity<Pedido>().HasIndex(p => p.Estado);
         model.Entity<Venta>().HasIndex(v => new { v.ClienteId, v.Estado });
+        model.Entity<Venta>().HasIndex(v => v.FechaEntrega);                        // preparación y entregas filtran por fecha
+        model.Entity<Venta>().HasIndex(v => new { v.EstadoEntrega, v.RepartidorId }); // "mis pedidos" del repartidor
         model.Entity<Cobranza>().HasIndex(c => new { c.VentaId, c.Estado });
         model.Entity<MovimientoStock>().HasIndex(m => new { m.ProductoId, m.Fecha });
 
@@ -99,6 +101,13 @@ public class KimarDbContext(DbContextOptions<KimarDbContext> options) : DbContex
             .HasOne(v => v.Pedido)
             .WithOne(p => p.Venta)
             .HasForeignKey<Venta>(v => v.PedidoId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        // Si se elimina el usuario repartidor, la venta queda "sin asignar" en vez de borrarse
+        model.Entity<Venta>()
+            .HasOne(v => v.Repartidor)
+            .WithMany()
+            .HasForeignKey(v => v.RepartidorId)
             .OnDelete(DeleteBehavior.SetNull);
 
         model.Entity<MovimientoStock>()

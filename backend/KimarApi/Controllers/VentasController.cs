@@ -23,7 +23,7 @@ public class VentasController(KimarDbContext db, StockService stockSvc, VentaSer
         var userId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value!);
 
         var query = db.Ventas
-            .Include(v => v.Cliente).Include(v => v.Vendedor)
+            .Include(v => v.Cliente).Include(v => v.Vendedor).Include(v => v.Repartidor)
             .Include(v => v.Items).ThenInclude(i => i.Calidad)
             .Include(v => v.Cobranzas).ThenInclude(c => c.Cliente)
             .AsQueryable();
@@ -46,7 +46,7 @@ public class VentasController(KimarDbContext db, StockService stockSvc, VentaSer
     public async Task<IActionResult> GetById(Guid id)
     {
         var v = await db.Ventas
-            .Include(x => x.Cliente).Include(x => x.Vendedor)
+            .Include(x => x.Cliente).Include(x => x.Vendedor).Include(x => x.Repartidor)
             .Include(x => x.Items).ThenInclude(i => i.Calidad)
             .Include(x => x.Cobranzas).ThenInclude(c => c.Cliente)
             .FirstOrDefaultAsync(x => x.Id == id);
@@ -63,7 +63,7 @@ public class VentasController(KimarDbContext db, StockService stockSvc, VentaSer
         if (hasta.DayNumber - desde.DayNumber > 31) return BadRequest(new { error = "El rango máximo es de 31 días." });
 
         var list = await db.Ventas
-            .Include(v => v.Cliente).Include(v => v.Vendedor)
+            .Include(v => v.Cliente).Include(v => v.Vendedor).Include(v => v.Repartidor)
             .Include(v => v.Items).ThenInclude(i => i.Producto)
             .Include(v => v.Items).ThenInclude(i => i.Calidad)
             .Where(v => v.FechaEntrega >= desde && v.FechaEntrega <= hasta)
@@ -72,6 +72,7 @@ public class VentasController(KimarDbContext db, StockService stockSvc, VentaSer
 
         return Ok(list.Select(v => new VentaPreparacionDto(
             v.Id, v.FechaEntrega, v.Cliente?.Nombre ?? "", v.Vendedor?.Nombre ?? "", v.NroRemito, v.Observaciones,
+            v.EstadoEntrega, v.RepartidorId, v.Repartidor?.Nombre,
             v.Items.Select(i => new ItemPreparacionDto(
                 i.ProductoId, i.Producto?.Nombre ?? i.Descripcion, i.Descripcion,
                 i.CalidadId, i.Calidad?.Nombre, i.Cantidad, i.Producto?.Unidad ?? "kg")).ToList())));
@@ -175,5 +176,6 @@ public class VentasController(KimarDbContext db, StockService stockSvc, VentaSer
         v.Id, v.PedidoId, v.ClienteId, v.Cliente?.Nombre ?? "", v.VendedorId, v.Vendedor?.Nombre ?? "",
         v.FechaEntrega, v.NroRemito, v.NroFactura, v.Total, v.Estado, v.Observaciones, v.FechaCreacion,
         v.Items.Select(i => new ItemVentaDto(i.Id, i.ProductoId, i.CalidadId, i.Calidad?.Nombre, i.Descripcion, i.Cantidad, i.PrecioUnitario, i.Subtotal)).ToList(),
-        v.Cobranzas.Select(c => new CobranzaDto(c.Id, c.VentaId, c.ClienteId, c.Cliente?.Nombre ?? "", c.Fecha, c.Monto, c.FormaPago, c.Estado, c.Observaciones, c.FechaCreacion)).ToList());
+        v.Cobranzas.Select(c => new CobranzaDto(c.Id, c.VentaId, c.ClienteId, c.Cliente?.Nombre ?? "", c.Fecha, c.Monto, c.FormaPago, c.Estado, c.Observaciones, c.FechaCreacion)).ToList(),
+        v.EstadoEntrega, v.RepartidorId, v.Repartidor?.Nombre, v.FechaEntregado);
 }

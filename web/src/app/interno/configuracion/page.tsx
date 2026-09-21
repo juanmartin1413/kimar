@@ -3,15 +3,7 @@
 import { useData } from '@/contexts/DataContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { Shield, User } from 'lucide-react'
-import { Rol } from '@/lib/types'
-
-const rolLabels: Record<Rol, string> = { admin: 'Administrador', gestor: 'Gestor', vendedor: 'Vendedor', deposito: 'Depósito' }
-const rolColors: Record<Rol, string> = {
-  admin: 'bg-[oklch(0.92_0.04_240)] text-[oklch(0.35_0.10_240)]',
-  gestor: 'bg-purple-100 text-purple-700',
-  vendedor: 'bg-orange-100 text-orange-700',
-  deposito: 'bg-teal-100 text-teal-700',
-}
+import { rolColors, rolLabels } from '@/lib/roles'
 
 export default function ConfiguracionPage() {
   const { data } = useData()
@@ -59,13 +51,11 @@ export default function ConfiguracionPage() {
       </div>
 
       <div className="bg-[oklch(0.97_0.01_240)] border border-[oklch(0.9_0.01_240)] rounded-xl p-5">
-        <h3 className="font-semibold text-[oklch(0.3_0.06_240)] mb-2">Credenciales del prototipo</h3>
+        <h3 className="font-semibold text-[oklch(0.3_0.06_240)] mb-2">Usuarios de prueba</h3>
+        <p className="text-xs text-[oklch(0.5_0.04_240)] mb-2">Cuentas operativas creadas automáticamente para probar los módulos de depósito y reparto.</p>
         <div className="text-sm space-y-1 text-[oklch(0.45_0.04_240)] font-mono">
-          <p>admin@kimar.com / kimar123</p>
-          <p>gestor@kimar.com / kimar123</p>
-          <p>marcos@kimar.com / kimar123</p>
-          <p>lucho@kimar.com / kimar123</p>
-          <p>lucas@kimar.com / kimar123</p>
+          <p>deposito@kimarcompany.com.ar · Depósito</p>
+          <p>repartidor1@kimarcompany.com.ar · Repartidor</p>
         </div>
       </div>
     </div>

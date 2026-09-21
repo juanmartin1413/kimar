@@ -6,7 +6,9 @@ import { useData } from '@/contexts/DataContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { FormaPago, ItemVenta } from '@/lib/types'
 import { formatFecha, formatPeso, today } from '@/lib/format'
+import { estadoEntregaConfig, formatFechaHora, parseApiError } from '@/lib/entregas'
 import { generateId } from '@/lib/storage'
+import { AdjuntosVenta } from '@/components/interno/AdjuntosVenta'
 import { Trash2, ArrowLeft, AlertTriangle, Lock, Info } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
@@ -20,16 +22,6 @@ type CobranzaDraft = {
   monto: number
   formaPago: FormaPago
   observaciones?: string
-}
-
-function parseApiError(e: unknown): string {
-  const msg = e instanceof Error ? e.message : String(e)
-  try {
-    const parsed = JSON.parse(msg) as { error?: string; message?: string }
-    return parsed.error ?? parsed.message ?? msg
-  } catch {
-    return msg || 'No se pudo guardar la venta.'
-  }
 }
 
 export default function EditarVentaPage() {
@@ -221,7 +213,7 @@ function EditVentaForm({ ventaId }: { ventaId: string }) {
       }
       router.push('/interno/ventas')
     } catch (e) {
-      setError(parseApiError(e))
+      setError(parseApiError(e, 'No se pudo guardar la venta.'))
       setShowWarning(false)
       setSaving(false)
     }
@@ -267,6 +259,15 @@ function EditVentaForm({ ventaId }: { ventaId: string }) {
         {/* Datos principales */}
         <div className="bg-white rounded-xl border border-[oklch(0.9_0.01_240)] shadow-sm p-6 space-y-4">
           <h2 className="font-semibold text-[oklch(0.25_0.06_240)]">Datos de la venta</h2>
+
+          {/* Estado de entrega: lo manejan depósito y repartidor; acá es solo lectura */}
+          <div className="flex flex-wrap items-center gap-2 text-xs text-[oklch(0.5_0.04_240)]">
+            <span className={cn('font-semibold px-2.5 py-1 rounded-full', estadoEntregaConfig[venta.estadoEntrega ?? 'pendiente'].className)}>
+              {estadoEntregaConfig[venta.estadoEntrega ?? 'pendiente'].label}
+            </span>
+            {venta.repartidorNombre && <span>Repartidor: <span className="font-medium">{venta.repartidorNombre}</span></span>}
+            {venta.fechaEntregado && <span>· Entregado el {formatFechaHora(venta.fechaEntregado)}</span>}
+          </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -560,6 +561,12 @@ function EditVentaForm({ ventaId }: { ventaId: string }) {
           </div>
         )}
       </form>
+
+      {/* Fuera del form: los documentos se suben/eliminan al instante, no al guardar la venta */}
+      <div className="bg-white rounded-xl border border-[oklch(0.9_0.01_240)] shadow-sm p-6 space-y-3">
+        <h2 className="font-semibold text-[oklch(0.25_0.06_240)]">Documentos adjuntos</h2>
+        <AdjuntosVenta ventaId={ventaId} />
+      </div>
     </div>
   )
 }

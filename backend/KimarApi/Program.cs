@@ -55,6 +55,7 @@ builder.Services.AddScoped<VentaService>();
 builder.Services.AddScoped<FormaPagoProveedorService>();
 builder.Services.AddScoped<CompraService>();
 builder.Services.AddScoped<AdjuntoService>();
+builder.Services.AddScoped<EntregaService>();
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
 var allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>()

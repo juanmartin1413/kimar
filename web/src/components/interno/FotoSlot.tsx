@@ -16,30 +16,48 @@ export interface FotoState {
 
 export const FOTO_VACIA: FotoState = { adjunto: null, previewUrl: null, loading: false, subiendo: false }
 
-export function FotoSlot({ foto, onFile, onQuitar }: {
+export function FotoSlot({
+  foto, onFile, onQuitar,
+  etiqueta = 'Elegir foto',
+  capture,
+  permitirQuitar = true,
+  tamanio = 'sm',
+}: {
   foto: FotoState
   onFile: (f: File) => void
-  onQuitar: () => void
+  onQuitar?: () => void
+  etiqueta?: string
+  // 'environment' abre directamente la cámara trasera en celulares (remito firmado en la calle).
+  capture?: 'environment' | 'user'
+  permitirQuitar?: boolean
+  // 'lg' = versión ancha para uso con el dedo (pantalla del repartidor); 'sm' = miniatura de escritorio.
+  tamanio?: 'sm' | 'lg'
 }) {
+  const grande = tamanio === 'lg'
+
   if (foto.loading) {
-    return <div className="h-24 w-24 rounded-lg bg-gray-100 animate-pulse" />
+    return <div className={cn('rounded-lg bg-gray-100 animate-pulse', grande ? 'h-40 w-full' : 'h-24 w-24')} />
   }
 
   if (foto.previewUrl) {
     return (
-      <div className="relative w-fit">
+      <div className={cn('relative', grande ? 'w-full' : 'w-fit')}>
         <a href={foto.previewUrl} target="_blank" rel="noreferrer" title="Ver en tamaño completo">
           <img
             src={foto.previewUrl}
             alt="Comprobante"
-            className={cn('h-24 w-24 rounded-lg border border-gray-200 object-cover', foto.subiendo && 'opacity-50')}
+            className={cn(
+              'rounded-lg border border-gray-200',
+              grande ? 'h-40 w-full object-contain bg-gray-50' : 'h-24 w-24 object-cover',
+              foto.subiendo && 'opacity-50'
+            )}
           />
         </a>
         {foto.subiendo ? (
           <div className="absolute inset-0 flex items-center justify-center text-xs text-gray-600 bg-white/60 rounded-lg">
             <Loader2 className="w-4 h-4 animate-spin" />
           </div>
-        ) : (
+        ) : permitirQuitar && onQuitar ? (
           <button
             type="button"
             onClick={onQuitar}
@@ -48,28 +66,32 @@ export function FotoSlot({ foto, onFile, onQuitar }: {
           >
             <X className="w-3.5 h-3.5" />
           </button>
-        )}
+        ) : null}
       </div>
     )
   }
 
   if (foto.subiendo) {
     return (
-      <div className="flex items-center gap-2 text-sm text-gray-500 h-8">
+      <div className={cn('flex items-center gap-2 text-sm text-gray-500', grande ? 'h-11 justify-center' : 'h-8')}>
         <Loader2 className="w-4 h-4 animate-spin" /> Subiendo...
       </div>
     )
   }
 
   return (
-    <label className="flex items-center gap-2 text-sm text-gray-600 border border-dashed border-gray-300 rounded-lg px-3 h-8 cursor-pointer hover:bg-gray-50 w-fit">
-      <Upload className="w-4 h-4" />
-      Elegir foto
+    <label className={cn(
+      'flex items-center gap-2 text-gray-600 border border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50',
+      grande ? 'h-11 w-full justify-center text-base font-medium px-4' : 'h-8 w-fit text-sm px-3'
+    )}>
+      <Upload className={grande ? 'w-5 h-5' : 'w-4 h-4'} />
+      {etiqueta}
       <input
         type="file"
         accept="image/*"
+        capture={capture}
         className="hidden"
-        onChange={e => { const f = e.target.files?.[0]; if (f) onFile(f) }}
+        onChange={e => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = '' }}
       />
     </label>
   )

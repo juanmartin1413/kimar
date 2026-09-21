@@ -9,6 +9,7 @@ public record AdjuntoDto(
     string Nombre,
     string ContentType,
     Guid UsuarioId,
+    string UsuarioNombre,
     DateTime FechaCreacion);
 
 // El adjunto completo, con el contenido en base64 — para visualizar/descargar.

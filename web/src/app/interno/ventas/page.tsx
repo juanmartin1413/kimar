@@ -3,6 +3,7 @@
 import { useData } from '@/contexts/DataContext'
 import { formatPeso, formatFecha } from '@/lib/format'
 import { downloadRemito } from '@/lib/remitoPdf'
+import { estadoEntregaConfig } from '@/lib/entregas'
 import { Plus, ArrowRight, Pencil, Package, Download } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
@@ -84,12 +85,13 @@ export default function VentasPage() {
                 <th className="text-left py-3 px-4 font-semibold text-[oklch(0.35_0.06_240)]">N° Factura</th>
                 <th className="text-left py-3 px-4 font-semibold text-[oklch(0.35_0.06_240)]">Total</th>
                 <th className="text-left py-3 px-4 font-semibold text-[oklch(0.35_0.06_240)]">Estado</th>
+                <th className="text-left py-3 px-4 font-semibold text-[oklch(0.35_0.06_240)]">Entrega</th>
                 <th className="py-3 px-4" />
               </tr>
             </thead>
             <tbody>
               {sorted.length === 0 ? (
-                <tr><td colSpan={8} className="text-center py-12 text-[oklch(0.55_0.04_240)]">Sin ventas registradas</td></tr>
+                <tr><td colSpan={9} className="text-center py-12 text-[oklch(0.55_0.04_240)]">Sin ventas registradas</td></tr>
               ) : sorted.map(v => {
                 const cliente = data.clientes.find(c => c.id === v.clienteId)
                 const vendedor = data.vendedores.find(x => x.id === v.vendedorId)
@@ -105,6 +107,11 @@ export default function VentasPage() {
                     <td className="py-3 px-4 font-semibold tabular-nums">{formatPeso(v.total)}</td>
                     <td className="py-3 px-4">
                       <span className={cn('text-xs font-semibold px-2.5 py-1 rounded-full', cfg.className)}>{cfg.label}</span>
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className={cn('text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap', estadoEntregaConfig[v.estadoEntrega ?? 'pendiente'].className)}>
+                        {estadoEntregaConfig[v.estadoEntrega ?? 'pendiente'].label}
+                      </span>
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-3">

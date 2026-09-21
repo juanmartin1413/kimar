@@ -8,7 +8,7 @@ import {
   CreateCompraPayload, CreateFormaPagoPayload, CreateProductoPayload, FormaPagoProveedor,
   GastoFijo, InstanciaGasto, MovimientoStock, Pedido,
   Producto, ProductoProveedor, Proveedor, StockPorProducto, StockRealRegistrado,
-  UpdateVentaCompletaPayload, Vendedor, Venta,
+  UpdateVentaCompletaPayload, Usuario, Vendedor, Venta,
 } from '@/lib/types'
 import { today } from '@/lib/format'
 import { generateId } from '@/lib/storage'
@@ -34,7 +34,7 @@ interface DataContextValue {
   reorderProductos: (items: { id: string; orden: number }[]) => void
   addPedido: (p: Omit<Pedido, 'id' | 'fechaCreacion' | 'estado'>) => Promise<string>
   updatePedido: (id: string, p: Partial<Pedido>) => void
-  addVenta: (v: Omit<Venta, 'id' | 'fechaCreacion' | 'estado' | 'cobranzas'>, cobranzas: Omit<Cobranza, 'id' | 'fechaCreacion' | 'clienteId' | 'ventaId'>[]) => Promise<void>
+  addVenta: (v: Omit<Venta, 'id' | 'fechaCreacion' | 'estado' | 'cobranzas' | 'estadoEntrega' | 'repartidorId' | 'repartidorNombre' | 'fechaEntregado'>, cobranzas: Omit<Cobranza, 'id' | 'fechaCreacion' | 'clienteId' | 'ventaId'>[]) => Promise<void>
   // Remito / factura / observaciones (admin y gestor)
   updateVentaDatos: (id: string, d: { nroRemito?: string; nroFactura?: string; observaciones?: string }) => Promise<void>
   // Ítems (con ajuste de stock), cabecera y plan de cobro (solo admin)
@@ -102,10 +102,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [data, setData] = useState<AppData>(EMPTY)
   const [isLoading, setIsLoading] = useState(true)
 
+  const rol = usuario?.rol
+
   const loadAll = useCallback(async () => {
     setIsLoading(true)
     try {
-      const [clientes, productos, vendedores, pedidos, ventas, cobranzas, proveedores, gastosFijos, movimientosStock] =
+      const [clientes, productos, vendedores, pedidos, ventas, cobranzas, proveedores, gastosFijos, movimientosStock, usuarios] =
         await Promise.all([
           api.get<Cliente[]>('/api/clientes').catch(() => [] as Cliente[]),
           api.get<Producto[]>('/api/productos').catch(() => [] as Producto[]),
@@ -116,6 +118,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
           api.get<Proveedor[]>('/api/proveedores').catch(() => [] as Proveedor[]),
           api.get<GastoFijo[]>('/api/gastos').catch(() => [] as GastoFijo[]),
           api.get<MovimientoStock[]>('/api/stock/movimientos').catch(() => [] as MovimientoStock[]),
+          // Solo el admin puede listar usuarios (Configuración); para el resto ni se intenta.
+          rol === 'admin' ? api.get<Usuario[]>('/api/usuarios').catch(() => [] as Usuario[]) : Promise.resolve([] as Usuario[]),
         ])
 
       const [stockRaw, instanciasGasto] = await Promise.all([
@@ -144,7 +148,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       const compras = await api.get<Compra[]>('/api/compras').catch(() => [] as Compra[])
 
       setData({
-        usuarios: [],
+        usuarios,
         vendedores,
         clientes,
         productos,
@@ -166,16 +170,18 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false)
     }
-  }, [])
+  }, [rol])
 
   useEffect(() => {
-    if (!usuario) {
+    // El repartidor no usa nada del contexto (su pantalla consulta /api/entregas directo) y casi todos
+    // los endpoints le devolverían 403: no tiene sentido disparar decenas de requests fallidos.
+    if (!usuario || usuario.rol === 'repartidor') {
       setData(EMPTY)
       setIsLoading(false)
       return
     }
     loadAll()
-  }, [usuario?.id, loadAll])
+  }, [usuario?.id, usuario?.rol, loadAll])
 
   // ── refresh helpers ──────────────────────────────────────────────────────────
   async function rClientes() {
@@ -330,7 +336,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   // ── Ventas ───────────────────────────────────────────────────────────────────
   async function addVenta(
-    v: Omit<Venta, 'id' | 'fechaCreacion' | 'estado' | 'cobranzas'>,
+    v: Omit<Venta, 'id' | 'fechaCreacion' | 'estado' | 'cobranzas' | 'estadoEntrega' | 'repartidorId' | 'repartidorNombre' | 'fechaEntregado'>,
     cobranzasInput: Omit<Cobranza, 'id' | 'fechaCreacion' | 'clienteId' | 'ventaId'>[]
   ): Promise<void> {
     await api.post('/api/ventas', {

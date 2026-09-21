@@ -35,5 +35,11 @@ Al arrancar, la API:
 ### Contraseñas iniciales
 Todos los usuarios tienen contraseña `Lango2026*`. Cambiarlas después del primer login.
 
+### Volumen para adjuntos
+Las fotos (comprobantes de compras y remitos firmados de entregas) se guardan en disco en `Storage:UploadsPath` (`wwwroot/uploads` → `/app/wwwroot/uploads` en el contenedor). El servicio de la API necesita un **Volume** de Railway montado en `/app/wwwroot/uploads`; sin él, los archivos se pierden en cada deploy.
+
+### Usuarios operativos
+Al arrancar, además del seed inicial, la API garantiza (idempotente) que existan `deposito@kimarcompany.com.ar` (Depósito) y `repartidor1@kimarcompany.com.ar` (Repartidor) con la contraseña inicial.
+
 ### CORS
 Configurar ambos dominios del frontend (`AllowedOrigins__0` y `AllowedOrigins__1`) en el servicio de la API. Los valores de entorno de Railway tienen prioridad sobre `appsettings.json`.

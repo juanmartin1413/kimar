@@ -45,6 +45,6 @@ public class AdjuntosController(AdjuntoService adjuntoSvc) : ControllerBase
         return NoContent();
     }
 
-    private static AdjuntoDto Map(Adjunto a) => new(
-        a.Id, a.EntidadTipo, a.EntidadId, a.Tipo, a.Nombre, a.ContentType, a.UsuarioId, a.FechaCreacion);
+    public static AdjuntoDto Map(Adjunto a) => new(
+        a.Id, a.EntidadTipo, a.EntidadId, a.Tipo, a.Nombre, a.ContentType, a.UsuarioId, a.Usuario?.Nombre ?? "", a.FechaCreacion);
 }

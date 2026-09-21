@@ -1,4 +1,4 @@
-export type Rol = 'admin' | 'gestor' | 'vendedor' | 'deposito'
+export type Rol = 'admin' | 'gestor' | 'vendedor' | 'deposito' | 'repartidor'
 
 export interface Usuario {
   id: string
@@ -115,7 +115,14 @@ export interface Venta {
   cobranzas: Cobranza[]
   observaciones?: string
   fechaCreacion: string
+  estadoEntrega: EstadoEntrega
+  repartidorId?: string
+  repartidorNombre?: string
+  fechaEntregado?: string
 }
+
+// Ciclo de entrega, independiente del estado de cobro. 'entregado' es final.
+export type EstadoEntrega = 'pendiente' | 'listo' | 'entregado'
 
 export interface Proveedor {
   id: string
@@ -239,12 +246,17 @@ export interface Adjunto {
   id: string
   entidadTipo: string
   entidadId: string
-  tipo: 'remito' | 'factura' | 'otro'
+  tipo: TipoAdjunto
   nombre: string
   contentType: string
   usuarioId: string
+  usuarioNombre: string
   fechaCreacion: string
 }
+
+// Catálogo cerrado de tipos de documento. 'remito' y 'factura' son los comprobantes de una Compra;
+// 'remito_firmado' es la constancia de entrega que sube el repartidor sobre una Venta.
+export type TipoAdjunto = 'remito' | 'factura' | 'otro' | 'remito_firmado'
 
 // Stock management types
 export interface ProductoProveedor {
@@ -304,7 +316,38 @@ export interface VentaPreparacion {
   vendedorNombre: string
   nroRemito?: string
   observaciones?: string
+  estadoEntrega: EstadoEntrega
+  repartidorId?: string
+  repartidorNombre?: string
   items: ItemPreparacion[]
+}
+
+// ── Pedidos a entregar (vista del repartidor) ───────────────────────────────
+// Espejo de VentaEntregaDto: lo necesario para entregar (a quién, dónde, qué). Sin precios.
+export interface RepartidorLite {
+  id: string
+  nombre: string
+}
+
+export interface VentaEntrega {
+  id: string
+  fechaEntrega: string
+  clienteNombre: string
+  calle?: string
+  altura?: string
+  localidad?: string
+  telefono1?: string
+  telefono2?: string
+  vendedorNombre: string
+  nroRemito?: string
+  observaciones?: string
+  estadoEntrega: EstadoEntrega
+  repartidorId?: string
+  repartidorNombre?: string
+  fechaListo?: string
+  fechaEntregado?: string
+  items: ItemPreparacion[]
+  documentos: Adjunto[]
 }
 
 // ── Edición completa de venta (solo admin) ──────────────────────────────────

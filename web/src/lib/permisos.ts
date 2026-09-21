@@ -15,6 +15,10 @@ export function isDeposito(rol?: Rol): boolean {
   return rol === 'deposito'
 }
 
+export function isRepartidor(rol?: Rol): boolean {
+  return rol === 'repartidor'
+}
+
 // Stock: el depósito ve todo (inventario, movimientos, auditoría) y puede registrar
 // entradas de mercadería y el conteo físico; ajustes manuales y stock mínimo son de gestión.
 export function canVerStock(rol?: Rol): boolean {
@@ -34,15 +38,34 @@ export function canVerPreparacion(rol?: Rol): boolean {
   return canManageData(rol) || isDeposito(rol)
 }
 
-// Pantalla inicial tras el login (y destino cuando /interno/dashboard rebota a un no-admin).
+// Marcar un pedido como "listo para entrega" y asignarle repartidor (desde "Pedidos a preparar").
+export function canGestionarEntrega(rol?: Rol): boolean {
+  return canManageData(rol) || isDeposito(rol)
+}
+
+// "Pedidos a entregar": el repartidor ve los suyos y los sin asignar; gestión supervisa todos.
+export function canVerEntregas(rol?: Rol): boolean {
+  return canManageData(rol) || isRepartidor(rol)
+}
+
+// Pantalla inicial tras el login (y destino cuando una ruta no permitida rebota).
 export function homePorRol(rol?: Rol): string {
   switch (rol) {
     case 'admin': return '/interno/dashboard'
     case 'gestor': return '/interno/cuenta-corriente'
     case 'deposito': return '/interno/preparacion'
+    case 'repartidor': return '/interno/entregas'
     default: return '/interno/pedidos'
   }
 }
 
-// Único rol con navegación acotada por URL: el resto de los roles conserva el comportamiento previo.
-export const RUTAS_DEPOSITO = ['/interno/preparacion', '/interno/stock']
+// Roles con navegación acotada por URL (allowlist). Los roles sin entrada no tienen guard de ruta.
+export const RUTAS_PERMITIDAS_POR_ROL: Partial<Record<Rol, string[]>> = {
+  deposito: ['/interno/preparacion', '/interno/stock'],
+  repartidor: ['/interno/entregas'],
+}
+
+export function rutaPermitida(rol: Rol | undefined, pathname: string): boolean {
+  const rutas = rol ? RUTAS_PERMITIDAS_POR_ROL[rol] : undefined
+  return !rutas || rutas.some(r => pathname.startsWith(r))
+}

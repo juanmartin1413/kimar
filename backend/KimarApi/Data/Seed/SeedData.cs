@@ -1,3 +1,4 @@
+using KimarApi.Models;
 using KimarApi.Models.Entities;
 using KimarApi.Services;
 using Microsoft.EntityFrameworkCore;
@@ -6,10 +7,37 @@ namespace KimarApi.Data.Seed;
 
 public static class SeedData
 {
+    private const string PasswordInicial = "Lango2026*";
+
+    // Usuarios operativos que deben existir siempre, también en una base ya poblada
+    // (el seed completo solo corre sobre una DB vacía, así que estos se garantizan aparte).
+    private static readonly (string Nombre, string Email, string Rol)[] UsuariosBase =
+    [
+        ("Depósito",     "deposito@kimarcompany.com.ar",    Roles.Deposito),
+        ("Repartidor 1", "repartidor1@kimarcompany.com.ar", Roles.Repartidor),
+    ];
+
     public static async Task InitializeAsync(KimarDbContext db)
     {
-        if (await db.Usuarios.AnyAsync()) return;
+        if (!await db.Usuarios.AnyAsync()) await SeedCompletoAsync(db);
+        await AsegurarUsuariosBaseAsync(db);
+    }
 
+    // Idempotente: crea solo los usuarios base que falten. El hash BCrypt se paga únicamente al crear.
+    private static async Task AsegurarUsuariosBaseAsync(KimarDbContext db)
+    {
+        var agregados = false;
+        foreach (var (nombre, email, rol) in UsuariosBase)
+        {
+            if (await db.Usuarios.AnyAsync(u => u.Email == email)) continue;
+            db.Usuarios.Add(new Usuario { Nombre = nombre, Email = email, Rol = rol, PasswordHash = AuthService.HashPassword(PasswordInicial) });
+            agregados = true;
+        }
+        if (agregados) await db.SaveChangesAsync();
+    }
+
+    private static async Task SeedCompletoAsync(KimarDbContext db)
+    {
         // ── Usuarios ──────────────────────────────────────────────────────────
         var uMarcos  = new Usuario { Nombre = "Marcos Monclus", Email = "marcos.monclus@kimarcompany.com.ar", PasswordHash = AuthService.HashPassword("Lango2026*"), Rol = "admin" };
         var uAilin   = new Usuario { Nombre = "Ailin Trigo",    Email = "ailin.trigo@kimarcompany.com.ar",    PasswordHash = AuthService.HashPassword("Lango2026*"), Rol = "gestor" };
@@ -18,9 +46,7 @@ public static class SeedData
         var uTiago   = new Usuario { Nombre = "Tiago Lopez",    Email = "tiago.lopez@kimarcompany.com.ar",    PasswordHash = AuthService.HashPassword("Lango2026*"), Rol = "vendedor" };
         var uManuel  = new Usuario { Nombre = "Manuel Gonzalez", Email = "manuel.gonzalez@kimarcompany.com.ar", PasswordHash = AuthService.HashPassword("Lango2026*"), Rol = "vendedor" };
 
-        var uDeposito = new Usuario { Nombre = "Depósito",       Email = "deposito@kimarcompany.com.ar",       PasswordHash = AuthService.HashPassword("Lango2026*"), Rol = "deposito" };
-
-        db.Usuarios.AddRange(uMarcos, uAilin, uJuan, uLuciano, uTiago, uManuel, uDeposito);
+        db.Usuarios.AddRange(uMarcos, uAilin, uJuan, uLuciano, uTiago, uManuel);
 
         // ── Vendedores ────────────────────────────────────────────────────────
         var vMarcos  = new Vendedor { Nombre = "Marcos",  UsuarioId = uMarcos.Id };

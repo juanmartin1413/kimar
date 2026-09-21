@@ -8,13 +8,15 @@ public static class Roles
     public const string Gestor = "gestor";
     public const string Vendedor = "vendedor";
     public const string Deposito = "deposito";
+    public const string Repartidor = "repartidor";
 
-    public static readonly string[] Todos = [Admin, Gestor, Vendedor, Deposito];
+    public static readonly string[] Todos = [Admin, Gestor, Vendedor, Deposito, Repartidor];
 
     // Combinaciones para atributos [Authorize(Roles = ...)]
     public const string Gestion = "admin,gestor";
     public const string GestionYDeposito = "admin,gestor,deposito";
     public const string Comercial = "admin,gestor,vendedor";
+    public const string GestionYReparto = "admin,gestor,repartidor";
 
     public static bool EsValido(string? rol) => rol is not null && Todos.Contains(rol);
 }

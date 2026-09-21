@@ -54,6 +54,7 @@ public class AdjuntoService(KimarDbContext db, IConfiguration config)
     public async Task<List<Adjunto>> ListarAsync(string entidadTipo, Guid entidadId)
     {
         return await db.Adjuntos
+            .Include(a => a.Usuario)
             .Where(a => a.EntidadTipo == entidadTipo && a.EntidadId == entidadId)
             .OrderByDescending(a => a.FechaCreacion)
             .ToListAsync();

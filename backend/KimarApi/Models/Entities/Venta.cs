@@ -32,9 +32,22 @@ public class Venta
 
     public DateTime FechaCreacion { get; set; } = DateTime.UtcNow;
 
+    // ── Entrega (ciclo independiente del cobro) ──────────────────────────────
+    [Required, MaxLength(20)]
+    public string EstadoEntrega { get; set; } = EstadosEntrega.Pendiente; // pendiente | listo | entregado
+
+    // Usuario con rol repartidor. Null = sin asignar (cualquier repartidor puede tomarla).
+    public Guid? RepartidorId { get; set; }
+
+    public DateTime? FechaListo { get; set; }      // UTC
+    public DateTime? FechaEntregado { get; set; }  // UTC
+
     // Navigation
     [ForeignKey(nameof(PedidoId))]
     public Pedido? Pedido { get; set; }
+
+    [ForeignKey(nameof(RepartidorId))]
+    public Usuario? Repartidor { get; set; }
 
     [ForeignKey(nameof(ClienteId))]
     public Cliente Cliente { get; set; } = null!;

@@ -37,7 +37,11 @@ public record VentaDto(
     string? Observaciones,
     DateTime FechaCreacion,
     IList<ItemVentaDto> Items,
-    IList<CobranzaDto> Cobranzas);
+    IList<CobranzaDto> Cobranzas,
+    string EstadoEntrega,
+    Guid? RepartidorId,
+    string? RepartidorNombre,
+    DateTime? FechaEntregado);
 
 public record ItemVentaRequest(
     Guid ProductoId,
@@ -86,6 +90,9 @@ public record VentaPreparacionDto(
     string VendedorNombre,
     string? NroRemito,
     string? Observaciones,
+    string EstadoEntrega,
+    Guid? RepartidorId,
+    string? RepartidorNombre,
     IList<ItemPreparacionDto> Items);
 
 // ── Edición completa de venta (solo admin) ───────────────────────────────────
