@@ -90,11 +90,6 @@ export const segmentos = [
     title: 'Pescaderías',
     desc: 'Surtido amplio para mostrador, con precios por kilo claros y entrega puntual.',
   },
-  {
-    key: 'catering',
-    title: 'Catering y eventos',
-    desc: 'Volumen, variedad y cumplimiento para servicios que no admiten demoras.',
-  },
 ] as const
 
 export const stats = [

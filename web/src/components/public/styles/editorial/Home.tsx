@@ -266,13 +266,14 @@ export default function Home() {
             Cocinas, barras <em className="italic text-pub-accent">y mostradores.</em>
           </SectionTitle>
         </Reveal>
-        <div className="mt-12 grid grid-cols-1 sm:grid-cols-2 border-y border-pub-line">
+        <div className="mt-12 grid grid-cols-1 sm:grid-cols-3 border-y border-pub-line">
           {segmentos.map((s, i) => {
+            const isLast = i === segmentos.length - 1
             const cell = [
               'py-10 sm:py-12',
-              i % 2 === 0 ? 'sm:pr-10 sm:border-r sm:border-pub-line' : 'sm:pl-10',
-              // Separadores horizontales: en móvil todos menos el último; en columnas sólo la primera fila.
-              i < 2 ? 'border-b border-pub-line' : i < segmentos.length - 1 ? 'border-b border-pub-line sm:border-b-0' : '',
+              i > 0 ? 'sm:pl-10' : '',
+              // Hairline vertical entre columnas; en móvil, horizontal entre filas (todas menos la última).
+              isLast ? '' : 'sm:pr-10 sm:border-r sm:border-pub-line border-b border-pub-line sm:border-b-0',
             ].join(' ')
             return (
               <article key={s.key} className={cell}>

@@ -4,7 +4,6 @@ import Link from 'next/link'
 import {
   ArrowRight,
   Award,
-  ChefHat,
   Fish,
   Mail,
   Plus,
@@ -36,7 +35,7 @@ import Counter from '@/components/public/shared/Counter'
 import Marquee from '@/components/public/shared/Marquee'
 import Reveal from '@/components/public/shared/Reveal'
 import WhatsAppIcon from '@/components/public/shared/WhatsAppIcon'
-import { NetPattern, RippleRings, ScallopSilhouette, ShrimpSilhouette, WaveDivider } from '@/components/public/shared/SeaIllustrations'
+import { NetPattern, RippleRings, ScallopSilhouette, WaveDivider } from '@/components/public/shared/SeaIllustrations'
 
 const featureIcons: Record<(typeof features)[number]['key'], LucideIcon> = {
   experiencia: Award,
@@ -51,7 +50,6 @@ const segmentoIcons: Record<(typeof segmentos)[number]['key'], LucideIcon> = {
   restaurantes: UtensilsCrossed,
   sushi: Fish,
   pescaderias: Store,
-  catering: ChefHat,
 }
 
 /* ---------- helpers ---------- */
@@ -166,21 +164,20 @@ export default function Home() {
           </div>
 
           <Reveal effect="pop" delay={200} className="lg:col-span-5">
-            <div className="relative mx-auto max-w-md lg:max-w-none">
-              <div className="rounded-pub-xl border border-white/15 bg-white/5 p-2 rotate-2 hover:rotate-0 transition-transform duration-500">
+            <div className="relative mx-auto max-w-xl lg:max-w-none">
+              <div className="rounded-pub-xl border border-white/15 bg-white/5 p-2 shadow-2xl">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src="/homeBackground.webp"
-                  alt="Mariscos premium seleccionados por KIMAR"
-                  className="rounded-pub-lg w-full aspect-[4/5] object-cover"
+                  alt="Planta de elaboración de KIMAR Mariscos Premium"
+                  className="rounded-pub-lg w-full aspect-[4/3] object-cover object-[22%_50%]"
                 />
               </div>
-              <GlassChip icon={Snowflake} className="absolute -left-3 top-8 sm:-left-8">
-                Cadena de frío controlada
-              </GlassChip>
-              <GlassChip icon={Truck} className="absolute -right-2 bottom-10 sm:-right-6">
-                Logística propia
-              </GlassChip>
+              {/* Sellos alineados en fila sobre el borde inferior de la foto */}
+              <div className="absolute left-5 bottom-5 right-5 flex flex-wrap gap-2">
+                <GlassChip icon={Snowflake}>Cadena de frío controlada</GlassChip>
+                <GlassChip icon={Truck}>Logística propia</GlassChip>
+              </div>
             </div>
           </Reveal>
         </div>
@@ -217,9 +214,6 @@ export default function Home() {
             return (
               <Reveal key={f.key} delay={i * 80} className={`h-full ${featureSpan[i]}`}>
                 <div className="relative overflow-hidden h-full rounded-pub-xl bg-pub-surface border border-pub-line p-8 hover:-translate-y-1 hover:shadow-xl transition">
-                  {i === 0 && (
-                    <ShrimpSilhouette className="absolute -right-10 -bottom-12 w-64 h-64 text-pub-accent/20 rotate-12" />
-                  )}
                   <div className="relative">
                     <div className="w-12 h-12 rounded-2xl bg-pub-soft text-pub-accent flex items-center justify-center">
                       <Icon className="w-6 h-6" />
@@ -271,7 +265,7 @@ export default function Home() {
       {/* 6. Segmentos */}
       <Section className="pt-0">
         <SectionHeading eyebrow="A quién abastecemos" title="Pensado para tu negocio" />
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {segmentos.map((s, i) => {
             const Icon = segmentoIcons[s.key]
             return (
