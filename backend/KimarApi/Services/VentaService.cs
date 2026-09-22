@@ -159,8 +159,11 @@ public class VentaService(KimarDbContext db, StockService stockSvc)
             });
         }
 
+        // Los ítems nuevos se agregan vía DbSet (estado Added) y NO reasignando venta.Items: como ItemVenta.Id
+        // ya viene con Guid.NewGuid(), al descubrirlos por la navegación EF los trataría como Modified y emitiría
+        // un UPDATE sobre filas inexistentes (DbUpdateConcurrencyException: 0 rows). Mismo caso que CompraService.
         db.ItemsVenta.RemoveRange(venta.Items);
-        venta.Items = nuevosItems;
+        db.ItemsVenta.AddRange(nuevosItems);
         venta.Total = nuevoTotal;
 
         // Cliente denormalizado en cada cobranza (incluidas las cobradas: solo cambia a quién pertenece,

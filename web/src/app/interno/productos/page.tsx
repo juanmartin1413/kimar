@@ -5,7 +5,8 @@ import { useData } from '@/contexts/DataContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { Producto, UnidadProducto } from '@/lib/types'
 import { formatPeso } from '@/lib/format'
-import { Pencil, Check, X, Layers, Plus, GripVertical, Ban, RotateCcw } from 'lucide-react'
+import { Pencil, Check, X, Layers, Plus, GripVertical, Ban, RotateCcw, Download } from 'lucide-react'
+import { buildFlyerHTML } from '@/components/public/shared/flyer'
 import { cn } from '@/lib/utils'
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent,
@@ -286,6 +287,16 @@ export default function ProductosInternoPage() {
   const productos = [...data.productos].sort((a, b) => a.orden - b.orden)
   const activos = productos.filter(p => p.activo)
 
+  // Mismo flyer A4 que descarga el cliente desde la lista de precios pública (components/public/shared).
+  function descargarLista() {
+    const dateStr = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    const html = buildFlyerHTML(activos, `${window.location.origin}/logoLangoBackground.png`, dateStr)
+    const win = window.open('', '_blank')
+    if (!win) return
+    win.document.write(html)
+    win.document.close()
+  }
+
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
   function handleDragEnd(event: DragEndEvent) {
@@ -307,15 +318,27 @@ export default function ProductosInternoPage() {
             {activos.length} productos activos — clic en el precio para editar precio y unidad. Arrastrá para cambiar el orden en la lista de precios.
           </p>
         </div>
-        {canManageData && (
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           <button
-            onClick={() => setShowNuevo(true)}
-            className="flex items-center gap-2 rounded-lg bg-[oklch(0.42_0.14_240)] text-white text-sm font-semibold px-4 py-2 shrink-0"
+            type="button"
+            onClick={descargarLista}
+            disabled={activos.length === 0}
+            className="flex items-center gap-2 rounded-lg border border-[oklch(0.88_0.02_240)] text-[oklch(0.35_0.06_240)] text-sm font-semibold px-4 py-2 hover:bg-[oklch(0.96_0.01_240)] disabled:opacity-50 transition-colors"
+            title="Descargar la lista de precios (la misma que ve el cliente)"
           >
-            <Plus className="w-4 h-4" />
-            Cargar producto
+            <Download className="w-4 h-4" />
+            Descargar lista
           </button>
-        )}
+          {canManageData && (
+            <button
+              onClick={() => setShowNuevo(true)}
+              className="flex items-center gap-2 rounded-lg bg-[oklch(0.42_0.14_240)] text-white text-sm font-semibold px-4 py-2"
+            >
+              <Plus className="w-4 h-4" />
+              Cargar producto
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="bg-white rounded-xl border border-[oklch(0.9_0.01_240)] shadow-sm overflow-hidden">
