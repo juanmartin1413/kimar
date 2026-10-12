@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { Download, Pencil } from 'lucide-react'
 import { Producto, Vendedor } from '@/lib/types'
-import { ModoPeriodo, VentaComision, formatCantidad } from '@/lib/comisiones'
+import { MargenVenta, ModoPeriodo, VentaComision, formatCantidad } from '@/lib/comisiones'
 import { formatFecha, formatPeso } from '@/lib/format'
 import { downloadRemito } from '@/lib/remitoPdf'
 import { cn } from '@/lib/utils'
@@ -13,6 +13,7 @@ interface Props {
   modo: ModoPeriodo
   vendedor: Vendedor
   productos: Producto[]
+  margen?: MargenVenta // calculado con los costos tipeados en el resumen
 }
 
 const estadoVentaConfig = {
@@ -32,7 +33,7 @@ const formaPagoLabel = { efectivo: 'Efectivo', transferencia: 'Transferencia', c
 const thClass = 'text-left py-2 px-3 text-xs font-semibold text-[oklch(0.4_0.06_240)]'
 const tdClass = 'py-2 px-3 text-sm text-[oklch(0.35_0.04_240)]'
 
-export function VentaComisionCard({ item, modo, vendedor, productos }: Props) {
+export function VentaComisionCard({ item, modo, vendedor, productos, margen }: Props) {
   const { venta, cliente, cobranzas } = item
   const cfg = estadoVentaConfig[venta.estado]
   const puedeDescargarRemito = !!venta.nroRemito && !!cliente
@@ -62,6 +63,18 @@ export function VentaComisionCard({ item, modo, vendedor, productos }: Props) {
               <p className="text-[oklch(0.75_0.08_240)]">Pendiente</p>
               <p className={cn('font-bold text-sm tabular-nums', item.pendiente > 0 ? 'text-red-300' : 'text-white/60')}>{formatPeso(item.pendiente)}</p>
             </div>
+            {margen && (
+              <>
+                <div className="text-right border-l border-white/20 pl-4" title={margen.sinCosto ? 'Algún producto de esta venta no tiene costo cargado' : undefined}>
+                  <p className="text-[oklch(0.75_0.08_240)]">Margen</p>
+                  <p className={cn('font-bold text-sm tabular-nums', margen.sinCosto && 'text-amber-300')}>{formatPeso(margen.margen)}</p>
+                </div>
+                <div className="text-right" title={`${Math.round(item.ratioCobrado * 100)}% cobrado`}>
+                  <p className="text-[oklch(0.75_0.08_240)]">Margen cobrado</p>
+                  <p className={cn('font-bold text-sm tabular-nums', margen.sinCosto ? 'text-amber-300' : 'text-[oklch(0.85_0.1_90)]')}>{formatPeso(margen.margenCobrado)}</p>
+                </div>
+              </>
+            )}
           </div>
           <div className="flex items-center gap-2 border-l border-white/20 pl-4">
             <button

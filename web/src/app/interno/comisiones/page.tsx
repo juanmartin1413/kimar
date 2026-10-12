@@ -10,7 +10,7 @@ import { formatPeso } from '@/lib/format'
 import { Periodo, periodoMensualActual } from '@/lib/saludFinanciera'
 import {
   CostosPorProducto, ModoPeriodo, aplicarCostos, calcularComisiones, clientesCandidatos,
-  costosIniciales, periodoValido, totalesComisiones, vendedoresComisionables,
+  costosIniciales, margenesPorVenta, periodoValido, totalesComisiones, vendedoresComisionables,
 } from '@/lib/comisiones'
 import { abrirReporteComisiones } from '@/lib/comisionesPdf'
 import { ComisionesFiltros } from '@/components/interno/comisiones/ComisionesFiltros'
@@ -77,6 +77,7 @@ export default function ComisionesPage() {
 
   const resumenConCosto = useMemo(() => aplicarCostos(resultado.resumen, costos), [resultado.resumen, costos])
   const totales = useMemo(() => totalesComisiones(resultado, resumenConCosto), [resultado, resumenConCosto])
+  const margenes = useMemo(() => margenesPorVenta(resultado.ventas, costos), [resultado.ventas, costos])
 
   if (!usuario || !canSeeComisiones) return null
 
@@ -94,15 +95,25 @@ export default function ComisionesPage() {
       resumen: resumenConCosto,
       totales,
       productos: data.productos,
+      margenes,
     }, { autoPrint })
   }
 
-  const kpis: { label: string; valor: number; className: string }[] = [
-    { label: 'Venta total', valor: totales.ventaTotal, className: 'bg-white border-[oklch(0.9_0.01_240)] text-[oklch(0.2_0.06_240)]' },
+  const neutro = 'bg-white border-[oklch(0.9_0.01_240)] text-[oklch(0.2_0.06_240)]'
+  const kpis: { label: string; valor: number; className: string; destacado?: boolean }[] = [
+    { label: 'Venta total', valor: totales.ventaTotal, className: neutro },
     { label: modo === 'cobro' ? 'Cobrado en el período' : 'Cobrado', valor: totales.cobrado, className: 'bg-green-50 border-green-200 text-green-700' },
     { label: 'Pendiente de cobro', valor: totales.pendiente, className: 'bg-red-50 border-red-200 text-red-700' },
-    { label: 'Costo de adquisición', valor: totales.costoTotal, className: 'bg-white border-[oklch(0.9_0.01_240)] text-[oklch(0.2_0.06_240)]' },
-    { label: 'Margen bruto', valor: totales.margenBruto, className: totales.margenBruto < 0 ? 'bg-red-50 border-red-200 text-red-700' : 'bg-[oklch(0.96_0.02_240)] border-[oklch(0.88_0.04_240)] text-[oklch(0.25_0.1_240)]' },
+    { label: 'Costo de adquisición', valor: totales.costoTotal, className: neutro },
+    { label: 'Margen total', valor: totales.margenBruto, className: totales.margenBruto < 0 ? 'bg-red-50 border-red-200 text-red-700' : neutro },
+    {
+      label: 'Margen sobre lo cobrado',
+      valor: totales.margenCobrado,
+      destacado: true,
+      className: totales.margenCobrado < 0
+        ? 'bg-red-50 border-red-300 text-red-700'
+        : 'bg-[oklch(0.42_0.14_240)] border-transparent text-white',
+    },
   ]
 
   return (
@@ -161,13 +172,23 @@ export default function ComisionesPage() {
             <ClientesSelector candidatos={candidatos} seleccionados={clienteIds} onChange={setClienteIds} />
           </div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-            {kpis.map(k => (
-              <div key={k.label} className={cn('rounded-xl border px-4 py-3', k.className)}>
-                <p className="text-xs font-medium opacity-80">{k.label}</p>
-                <p className="text-xl font-bold tabular-nums">{formatPeso(k.valor)}</p>
-              </div>
-            ))}
+          <div className="space-y-2">
+            <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+              {kpis.map(k => (
+                <div key={k.label} className={cn('rounded-xl border px-4 py-3', k.className, k.destacado && 'shadow-md')}>
+                  <p className="text-xs font-medium opacity-80">{k.label}{k.destacado && ' · a liquidar'}</p>
+                  <p className="text-xl font-bold tabular-nums">{formatPeso(k.valor)}</p>
+                </div>
+              ))}
+            </div>
+            {hayVentas && (
+              <p className="text-xs text-[oklch(0.5_0.04_240)] px-1">
+                De lo cobrado ({formatPeso(totales.cobrado)}): <strong className="text-[oklch(0.3_0.06_240)]">{formatPeso(totales.costoCobrado)}</strong> corresponde a costo (KIMAR)
+                y <strong className="text-[oklch(0.3_0.06_240)]">{formatPeso(totales.margenCobrado)}</strong> a margen del vendedor.
+                Cada venta aporta su margen en la proporción en que fue cobrada.
+                {totales.productosSinCosto > 0 && <span className="text-amber-700"> Hay productos sin costo: el margen está sobreestimado.</span>}
+              </p>
+            )}
           </div>
 
           {resultado.cobranzasSinVenta.length > 0 && (
@@ -191,7 +212,7 @@ export default function ComisionesPage() {
                   : `${vendedor?.nombre ?? 'El vendedor'} no tiene ventas para este período y estos clientes.`}
               </div>
             ) : resultado.ventas.map(item => (
-              <VentaComisionCard key={item.venta.id} item={item} modo={modo} vendedor={vendedor!} productos={data.productos} />
+              <VentaComisionCard key={item.venta.id} item={item} modo={modo} vendedor={vendedor!} productos={data.productos} margen={margenes.get(item.venta.id)} />
             ))}
           </section>
 

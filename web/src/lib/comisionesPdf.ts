@@ -4,7 +4,7 @@ import { brandPdf } from './brandPdf'
 import { kimarContact } from './contact'
 import { Periodo } from './saludFinanciera'
 import {
-  MODO_LABEL, ModoPeriodo, ResumenProductoConCosto, TotalesComisiones, VentaComision,
+  MODO_LABEL, MargenVenta, ModoPeriodo, ResumenProductoConCosto, TotalesComisiones, VentaComision,
   formatCantidad, unidadLabel,
 } from './comisiones'
 
@@ -17,6 +17,7 @@ export interface ReporteComisionesInput {
   resumen: ResumenProductoConCosto[]
   totales: TotalesComisiones
   productos: Producto[] // para mostrar kg/unid. por ítem
+  margenes: Map<string, MargenVenta> // margen por venta con los costos tipeados (margenesPorVenta)
 }
 
 const formaPagoLabel: Record<string, string> = { efectivo: 'Efectivo', transferencia: 'Transferencia', cheque: 'Cheque' }
@@ -44,7 +45,7 @@ function seccionTitulo(titulo: string): string {
   return `<div style="margin:18px 0 8px;font-size:11px;font-weight:700;letter-spacing:2px;color:${brandPdf.navy};font-family:${brandPdf.fontBody};border-bottom:2px solid ${brandPdf.gold};padding-bottom:4px">${titulo}</div>`
 }
 
-function bloqueVenta(vc: VentaComision, modo: ModoPeriodo, unidadDe: (productoId: string) => UnidadProducto): string {
+function bloqueVenta(vc: VentaComision, modo: ModoPeriodo, unidadDe: (productoId: string) => UnidadProducto, margenVenta: MargenVenta | undefined): string {
   const v = vc.venta
   const items = v.items.map((it, i) => `
     <tr>
@@ -84,6 +85,7 @@ function bloqueVenta(vc: VentaComision, modo: ModoPeriodo, unidadDe: (productoId
         <span>Total <b>${formatPeso(v.total)}</b></span>
         <span style="margin-left:10px">Cobrado <b style="color:#9fe3b4">${formatPeso(vc.cobradoEnPeriodo)}</b></span>
         <span style="margin-left:10px">Pendiente <b style="color:#f5b8b8">${formatPeso(vc.pendiente)}</b></span>
+        <span style="margin-left:10px">Margen cobrado <b style="color:${brandPdf.gold}">${formatPeso(margenVenta?.margenCobrado ?? 0)}</b>${margenVenta?.sinCosto ? ' <span style="color:#fcd34d">*</span>' : ''}</span>
         <span style="margin-left:10px;color:${brandPdf.gold}">${estadoVentaLabel[v.estado] ?? v.estado}</span>
       </div>
     </div>
@@ -99,7 +101,7 @@ function bloqueVenta(vc: VentaComision, modo: ModoPeriodo, unidadDe: (productoId
 }
 
 function buildComisionesHTML(input: ReporteComisionesInput, logoUrl: string, autoPrint: boolean): string {
-  const { vendedor, periodo, modo, clientesFiltro, ventas, resumen, totales, productos } = input
+  const { vendedor, periodo, modo, clientesFiltro, ventas, resumen, totales, productos, margenes } = input
   const unidadPorProducto = new Map(productos.map(p => [p.id, p.unidad]))
   const unidadDe = (id: string): UnidadProducto => unidadPorProducto.get(id) ?? 'kg'
   const clientesTexto = clientesFiltro === null ? 'Todos' : (clientesFiltro.length === 0 ? 'Ninguno' : clientesFiltro.map(esc).join(', '))
@@ -111,7 +113,8 @@ function buildComisionesHTML(input: ReporteComisionesInput, logoUrl: string, aut
       ${td(formatPeso(r.ventaTotal), i, 'text-align:right')}
       ${td(r.sinCosto ? `<span style="color:${AMBAR};font-weight:700">sin costo</span>` : `${formatPeso(r.costoUnitario)}/${unidadLabel(r.unidad)}`, i, 'text-align:right')}
       ${td(formatPeso(r.costoTotal), i, 'text-align:right')}
-      ${td(formatPeso(r.margen), i, `text-align:right;font-weight:700;color:${r.margen < 0 ? ROJO : brandPdf.navy}`)}
+      ${td(formatPeso(r.margen), i, `text-align:right;color:${r.margen < 0 ? ROJO : brandPdf.carbon}`)}
+      ${td(formatPeso(r.margenCobrado), i, `text-align:right;font-weight:700;color:${r.margenCobrado < 0 ? ROJO : brandPdf.navy}`)}
     </tr>`).join('')
 
   const filaTotal = (label: string, valor: string, extra = '') =>
@@ -120,7 +123,7 @@ function buildComisionesHTML(input: ReporteComisionesInput, logoUrl: string, aut
     </div>`
 
   const avisoSinCosto = totales.productosSinCosto > 0
-    ? `<div style="margin-top:8px;font-size:9.5px;color:${AMBAR};font-family:${brandPdf.fontBody}">⚠ ${totales.productosSinCosto} producto${totales.productosSinCosto !== 1 ? 's' : ''} sin costo de adquisición cargado: el costo total y el margen están subestimados.</div>`
+    ? `<div style="margin-top:8px;font-size:9.5px;color:${AMBAR};font-family:${brandPdf.fontBody}">⚠ ${totales.productosSinCosto} producto${totales.productosSinCosto !== 1 ? 's' : ''} sin costo de adquisición cargado: el costo está subestimado y los márgenes sobreestimados (las ventas afectadas llevan un * en la cabecera).</div>`
     : ''
 
   return `<!DOCTYPE html>
@@ -166,12 +169,12 @@ function buildComisionesHTML(input: ReporteComisionesInput, logoUrl: string, aut
   </div>
 
   ${seccionTitulo(`VENTAS INCLUIDAS (${ventas.length})`)}
-  ${ventas.length === 0 ? `<div style="font-size:11px;color:#888;font-family:${brandPdf.fontBody}">No hay ventas para los filtros seleccionados.</div>` : ventas.map(v => bloqueVenta(v, modo, unidadDe)).join('')}
+  ${ventas.length === 0 ? `<div style="font-size:11px;color:#888;font-family:${brandPdf.fontBody}">No hay ventas para los filtros seleccionados.</div>` : ventas.map(v => bloqueVenta(v, modo, unidadDe, margenes.get(v.venta.id))).join('')}
 
   ${seccionTitulo('RESUMEN POR PRODUCTO')}
   <div style="border:1px solid ${brandPdf.light};border-radius:8px;overflow:hidden">
     <table>
-      <thead><tr>${th('PRODUCTO')}${th('CANTIDAD', 'text-align:right')}${th('VENTA', 'text-align:right')}${th('COSTO ADQ.', 'text-align:right')}${th('COSTO TOTAL', 'text-align:right')}${th('MARGEN', 'text-align:right')}</tr></thead>
+      <thead><tr>${th('PRODUCTO')}${th('CANTIDAD', 'text-align:right')}${th('VENTA', 'text-align:right')}${th('COSTO ADQ.', 'text-align:right')}${th('COSTO TOTAL', 'text-align:right')}${th('MARGEN TOTAL', 'text-align:right')}${th('MARGEN COBRADO', 'text-align:right')}</tr></thead>
       <tbody>${filasResumen || `<tr>${td('—', 0)}</tr>`}</tbody>
     </table>
   </div>
@@ -184,7 +187,15 @@ function buildComisionesHTML(input: ReporteComisionesInput, logoUrl: string, aut
     ${filaTotal(modo === 'cobro' ? 'Cobrado en el período' : 'Cobrado', formatPeso(totales.cobrado), `color:${VERDE}`)}
     ${filaTotal('Pendiente de cobro', formatPeso(totales.pendiente), `color:${ROJO}`)}
     ${filaTotal('Costo de adquisición (Σ cantidad × costo)', formatPeso(totales.costoTotal))}
-    ${filaTotal('Margen bruto (Venta − Costo)', formatPeso(totales.margenBruto), `color:${totales.margenBruto < 0 ? ROJO : brandPdf.navy}`)}
+    ${filaTotal('Margen total (Venta − Costo)', formatPeso(totales.margenBruto), `color:${totales.margenBruto < 0 ? ROJO : brandPdf.navy}`)}
+    ${filaTotal('Costo sobre lo cobrado (corresponde a KIMAR)', formatPeso(totales.costoCobrado))}
+    <div style="display:flex;justify-content:space-between;padding:10px 16px;font-size:13px;background:${brandPdf.ivory};font-family:${brandPdf.fontBody}">
+      <span style="color:${brandPdf.navy};font-weight:700">MARGEN SOBRE LO COBRADO · A LIQUIDAR</span>
+      <span style="font-weight:700;font-size:15px;color:${totales.margenCobrado < 0 ? ROJO : brandPdf.navy}">${formatPeso(totales.margenCobrado)}</span>
+    </div>
+    <div style="padding:6px 16px 10px;font-size:9px;color:#777;font-family:${brandPdf.fontBody}">
+      Prorrateo proporcional: cada venta aporta su margen en la proporción en que fue cobrada (cobrado ÷ total de la venta). De lo cobrado, ${formatPeso(totales.costoCobrado)} corresponde a costo y ${formatPeso(totales.margenCobrado)} a margen.
+    </div>
   </div>
 
   <!-- Footer -->

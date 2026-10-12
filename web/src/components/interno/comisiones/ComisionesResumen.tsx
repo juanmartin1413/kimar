@@ -42,12 +42,13 @@ export function ComisionesResumen({ resumen, costos, onCosto, totales }: Props) 
               <th className={cn(thClass, 'text-right')}>Venta</th>
               <th className={cn(thClass, 'text-right')}>Costo adquisición</th>
               <th className={cn(thClass, 'text-right')}>Costo total</th>
-              <th className={cn(thClass, 'text-right')}>Margen</th>
+              <th className={cn(thClass, 'text-right')}>Margen total</th>
+              <th className={cn(thClass, 'text-right')} title="Margen prorrateado por lo cobrado de cada venta">Margen cobrado</th>
             </tr>
           </thead>
           <tbody>
             {resumen.length === 0 ? (
-              <tr><td colSpan={6} className={cn(tdClass, 'text-center py-8 text-[oklch(0.55_0.04_240)]')}>Sin productos en el período</td></tr>
+              <tr><td colSpan={7} className={cn(tdClass, 'text-center py-8 text-[oklch(0.55_0.04_240)]')}>Sin productos en el período</td></tr>
             ) : resumen.map(r => (
               <tr key={r.productoId} className="border-t border-[oklch(0.95_0.01_240)]">
                 <td className={cn(tdClass, 'font-medium text-[oklch(0.25_0.06_240)]')}>{r.nombre}</td>
@@ -77,8 +78,11 @@ export function ComisionesResumen({ resumen, costos, onCosto, totales }: Props) 
                     ? <span className="text-xs font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">sin costo</span>
                     : formatPeso(r.costoTotal)}
                 </td>
-                <td className={cn(tdClass, 'text-right tabular-nums font-semibold', r.margen < 0 ? 'text-red-600' : 'text-[oklch(0.25_0.06_240)]')}>
+                <td className={cn(tdClass, 'text-right tabular-nums', r.margen < 0 ? 'text-red-600' : 'text-[oklch(0.35_0.04_240)]')}>
                   {formatPeso(r.margen)}
+                </td>
+                <td className={cn(tdClass, 'text-right tabular-nums font-semibold', r.margenCobrado < 0 ? 'text-red-600' : 'text-[oklch(0.25_0.06_240)]')}>
+                  {formatPeso(r.margenCobrado)}
                 </td>
               </tr>
             ))}
@@ -91,7 +95,8 @@ export function ComisionesResumen({ resumen, costos, onCosto, totales }: Props) 
                 <td className={cn(tdClass, 'text-right tabular-nums')}>{formatPeso(totales.ventaTotal)}</td>
                 <td className={tdClass} />
                 <td className={cn(tdClass, 'text-right tabular-nums')}>{formatPeso(totales.costoTotal)}</td>
-                <td className={cn(tdClass, 'text-right tabular-nums', totales.margenBruto < 0 && 'text-red-600')}>{formatPeso(totales.margenBruto)}</td>
+                <td className={cn(tdClass, 'text-right tabular-nums font-normal', totales.margenBruto < 0 && 'text-red-600')}>{formatPeso(totales.margenBruto)}</td>
+                <td className={cn(tdClass, 'text-right tabular-nums', totales.margenCobrado < 0 && 'text-red-600')}>{formatPeso(totales.margenCobrado)}</td>
               </tr>
             </tfoot>
           )}

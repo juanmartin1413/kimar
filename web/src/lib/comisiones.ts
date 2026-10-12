@@ -100,6 +100,10 @@ export interface VentaComision {
   cobradoEnPeriodo: number // modo entrega: = cobradoTotal; modo cobro: solo las cobradas dentro del período
   pendiente: number // total − cobradoTotal
   cobranzasEnPeriodoIds: ReadonlySet<string> // para resaltar/atenuar filas en modo cobro
+  // Proporción cobrada de la venta (cobradoEnPeriodo / total, 0..1). Regla acordada con el dueño: lo cobrado
+  // se reparte entre costo y margen en la misma proporción que tiene la venta ("prorrateo proporcional"),
+  // así una venta cobrada al 50% aporta el 50% de su margen a la liquidación.
+  ratioCobrado: number
 }
 
 export interface ResumenProducto {
@@ -108,6 +112,8 @@ export interface ResumenProducto {
   unidad: UnidadProducto
   cantidad: number // Σ item.cantidad (kg o unidades según el producto)
   ventaTotal: number // Σ item.subtotal
+  cantidadCobrada: number // Σ item.cantidad × ratioCobrado de su venta
+  ventaCobrada: number // Σ item.subtotal × ratioCobrado de su venta
 }
 
 export interface ResultadoComisiones {
@@ -155,12 +161,13 @@ export function calcularComisiones(
         cobradoEnPeriodo,
         pendiente: venta.total - cobradoTotal,
         cobranzasEnPeriodoIds: enPeriodoIds,
+        ratioCobrado: venta.total > 0 ? Math.min(1, cobradoEnPeriodo / venta.total) : 0,
       }
     })
 
   // Resumen por producto: nombre/unidad del catálogo; si el producto ya no existe, se usa la descripción del ítem.
   const acumulado = new Map<string, ResumenProducto>()
-  for (const { venta } of ventas) {
+  for (const { venta, ratioCobrado } of ventas) {
     for (const item of venta.items) {
       const producto = productosPorId.get(item.productoId)
       const actual = acumulado.get(item.productoId) ?? {
@@ -169,9 +176,13 @@ export function calcularComisiones(
         unidad: producto?.unidad ?? 'kg',
         cantidad: 0,
         ventaTotal: 0,
+        cantidadCobrada: 0,
+        ventaCobrada: 0,
       }
       actual.cantidad += item.cantidad
       actual.ventaTotal += item.subtotal
+      actual.cantidadCobrada += item.cantidad * ratioCobrado
+      actual.ventaCobrada += item.subtotal * ratioCobrado
       acumulado.set(item.productoId, actual)
     }
   }
@@ -211,7 +222,9 @@ export interface ResumenProductoConCosto extends ResumenProducto {
   costoUnitario: number // 0 si no se pudo interpretar un número > 0
   sinCosto: boolean
   costoTotal: number // cantidad × costoUnitario
-  margen: number // ventaTotal − costoTotal
+  margen: number // ventaTotal − costoTotal (margen total, cobrado o no)
+  costoCobrado: number // cantidadCobrada × costoUnitario: parte del cobrado que corresponde a KIMAR
+  margenCobrado: number // ventaCobrada − costoCobrado: parte del cobrado que corresponde al vendedor
 }
 
 export interface TotalesComisiones {
@@ -219,8 +232,32 @@ export interface TotalesComisiones {
   cobrado: number
   pendiente: number
   costoTotal: number
-  margenBruto: number // ventaTotal − costoTotal
+  margenBruto: number // ventaTotal − costoTotal (margen total)
+  costoCobrado: number // Σ costoCobrado por producto
+  margenCobrado: number // Σ margenCobrado por producto = lo que se liquida al vendedor. Identidad: cobrado = costoCobrado + margenCobrado
   productosSinCosto: number
+}
+
+// Margen de una venta puntual con los costos tipeados, prorrateado por lo cobrado de esa venta.
+export interface MargenVenta {
+  margen: number
+  margenCobrado: number
+  sinCosto: boolean // algún ítem de la venta no tiene costo cargado: el margen está sobreestimado
+}
+
+export function margenesPorVenta(ventas: VentaComision[], costos: CostosPorProducto): Map<string, MargenVenta> {
+  const resultado = new Map<string, MargenVenta>()
+  for (const vc of ventas) {
+    let margen = 0
+    let sinCosto = false
+    for (const item of vc.venta.items) {
+      const costo = parseCosto(costos[item.productoId])
+      if (costo === 0) sinCosto = true
+      margen += item.subtotal - item.cantidad * costo
+    }
+    resultado.set(vc.venta.id, { margen, margenCobrado: margen * vc.ratioCobrado, sinCosto })
+  }
+  return resultado
 }
 
 // Completa solo los productos que todavía no tienen valor tipeado; nunca pisa lo que escribió el dueño.
@@ -245,16 +282,29 @@ export function aplicarCostos(resumen: ResumenProducto[], costos: CostosPorProdu
   return resumen.map(r => {
     const costoUnitario = parseCosto(costos[r.productoId])
     const costoTotal = r.cantidad * costoUnitario
-    return { ...r, costoUnitario, sinCosto: costoUnitario === 0, costoTotal, margen: r.ventaTotal - costoTotal }
+    const costoCobrado = r.cantidadCobrada * costoUnitario
+    return {
+      ...r,
+      costoUnitario,
+      sinCosto: costoUnitario === 0,
+      costoTotal,
+      margen: r.ventaTotal - costoTotal,
+      costoCobrado,
+      margenCobrado: r.ventaCobrada - costoCobrado,
+    }
   })
 }
 
 export function totalesComisiones(r: ResultadoComisiones, conCosto: ResumenProductoConCosto[]): TotalesComisiones {
   const costoTotal = conCosto.reduce((s, p) => s + p.costoTotal, 0)
+  const costoCobrado = conCosto.reduce((s, p) => s + p.costoCobrado, 0)
+  const margenCobrado = conCosto.reduce((s, p) => s + p.margenCobrado, 0)
   return {
     ...r.totales,
     costoTotal,
     margenBruto: r.totales.ventaTotal - costoTotal,
+    costoCobrado,
+    margenCobrado,
     productosSinCosto: conCosto.filter(p => p.sinCosto).length,
   }
 }
