@@ -45,7 +45,8 @@ public record VentaDto(
     string EstadoEntrega,
     Guid? RepartidorId,
     string? RepartidorNombre,
-    DateTime? FechaEntregado);
+    DateTime? FechaEntregado,
+    string MedioEnvio);
 
 public record ItemVentaRequest(
     Guid ProductoId,
@@ -97,6 +98,7 @@ public record VentaPreparacionDto(
     string EstadoEntrega,
     Guid? RepartidorId,
     string? RepartidorNombre,
+    string MedioEnvio,
     IList<ItemPreparacionDto> Items);
 
 // ── Edición completa de venta (solo admin) ───────────────────────────────────

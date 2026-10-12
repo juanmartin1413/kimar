@@ -72,7 +72,7 @@ public class VentasController(KimarDbContext db, StockService stockSvc, VentaSer
 
         return Ok(list.Select(v => new VentaPreparacionDto(
             v.Id, v.FechaEntrega, v.Cliente?.Nombre ?? "", v.Vendedor?.Nombre ?? "", v.NroRemito, v.Observaciones,
-            v.EstadoEntrega, v.RepartidorId, v.Repartidor?.Nombre,
+            v.EstadoEntrega, v.RepartidorId, v.Repartidor?.Nombre, v.MedioEnvio,
             v.Items.Select(i => new ItemPreparacionDto(
                 i.ProductoId, i.Producto?.Nombre ?? i.Descripcion, i.Descripcion,
                 i.CalidadId, i.Calidad?.Nombre, i.Cantidad, i.Producto?.Unidad ?? "kg")).ToList())));
@@ -178,5 +178,5 @@ public class VentasController(KimarDbContext db, StockService stockSvc, VentaSer
         v.FechaEntrega, v.NroRemito, v.NroFactura, v.Total, v.Estado, v.Observaciones, v.FechaCreacion,
         v.Items.Select(i => new ItemVentaDto(i.Id, i.ProductoId, i.CalidadId, i.Calidad?.Nombre, i.Descripcion, i.Cantidad, i.PrecioUnitario, i.Subtotal)).ToList(),
         v.Cobranzas.Select(c => new CobranzaDto(c.Id, c.VentaId, c.ClienteId, c.Cliente?.Nombre ?? "", c.Fecha, c.Monto, c.FormaPago, c.Estado, c.Observaciones, c.FechaCreacion, c.FechaCobro)).ToList(),
-        v.EstadoEntrega, v.RepartidorId, v.Repartidor?.Nombre, v.FechaEntregado);
+        v.EstadoEntrega, v.RepartidorId, v.Repartidor?.Nombre, v.FechaEntregado, v.MedioEnvio);
 }

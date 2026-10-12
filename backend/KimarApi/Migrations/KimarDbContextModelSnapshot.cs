@@ -995,6 +995,11 @@ namespace KimarApi.Migrations
                     b.Property<DateTime?>("FechaListo")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("MedioEnvio")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.Property<string>("NroFactura")
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");

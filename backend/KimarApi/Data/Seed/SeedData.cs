@@ -11,10 +11,12 @@ public static class SeedData
 
     // Usuarios operativos que deben existir siempre, también en una base ya poblada
     // (el seed completo solo corre sobre una DB vacía, así que estos se garantizan aparte).
-    private static readonly (string Nombre, string Email, string Rol)[] UsuariosBase =
+    // EmailAnterior: si el usuario ya existe en la DB con un email viejo, se lo renombra en lugar de
+    // crear uno nuevo (conserva Id, contraseña y todas las referencias).
+    private static readonly (string Nombre, string Email, string Rol, string? EmailAnterior)[] UsuariosBase =
     [
-        ("Depósito",     "deposito@kimarcompany.com.ar",    Roles.Deposito),
-        ("Repartidor 1", "repartidor1@kimarcompany.com.ar", Roles.Repartidor),
+        ("Depósito", "deposito@kimarcompany.com.ar", Roles.Deposito,   null),
+        ("David",    "david@kimarcompany.com.ar",    Roles.Repartidor, "repartidor1@kimarcompany.com.ar"),
     ];
 
     public static async Task InitializeAsync(KimarDbContext db)
@@ -23,17 +25,32 @@ public static class SeedData
         await AsegurarUsuariosBaseAsync(db);
     }
 
-    // Idempotente: crea solo los usuarios base que falten. El hash BCrypt se paga únicamente al crear.
+    // Idempotente: crea solo los usuarios base que falten (o renombra el que tenga el email anterior).
+    // El hash BCrypt se paga únicamente al crear.
     private static async Task AsegurarUsuariosBaseAsync(KimarDbContext db)
     {
-        var agregados = false;
-        foreach (var (nombre, email, rol) in UsuariosBase)
+        var cambios = false;
+        foreach (var (nombre, email, rol, emailAnterior) in UsuariosBase)
         {
             if (await db.Usuarios.AnyAsync(u => u.Email == email)) continue;
-            db.Usuarios.Add(new Usuario { Nombre = nombre, Email = email, Rol = rol, PasswordHash = AuthService.HashPassword(PasswordInicial) });
-            agregados = true;
+
+            var existente = emailAnterior is null
+                ? null
+                : await db.Usuarios.FirstOrDefaultAsync(u => u.Email == emailAnterior);
+
+            if (existente is not null)
+            {
+                existente.Nombre = nombre;
+                existente.Email  = email;
+                existente.Rol    = rol;
+            }
+            else
+            {
+                db.Usuarios.Add(new Usuario { Nombre = nombre, Email = email, Rol = rol, PasswordHash = AuthService.HashPassword(PasswordInicial) });
+            }
+            cambios = true;
         }
-        if (agregados) await db.SaveChangesAsync();
+        if (cambios) await db.SaveChangesAsync();
     }
 
     private static async Task SeedCompletoAsync(KimarDbContext db)

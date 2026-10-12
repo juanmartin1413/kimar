@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { api } from '@/lib/api'
 import { addDaysIso, formatFecha, today } from '@/lib/format'
-import { estadoEntregaConfig, parseApiError } from '@/lib/entregas'
+import { esEnvioExterno, estadoEntregaConfig, medioEnvioLabels, parseApiError } from '@/lib/entregas'
 import { RepartidorLite, VentaPreparacion } from '@/lib/types'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -12,12 +12,14 @@ import { Card } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { MarcarListoDialog } from '@/components/interno/entregas/MarcarListoDialog'
-import { AlertTriangle, Bike, Loader2, PackageCheck, RefreshCw, ScrollText, Undo2, User } from 'lucide-react'
+import { MarcarEntregadoDialog } from '@/components/interno/entregas/MarcarEntregadoDialog'
+import { AlertTriangle, Bike, Car, CheckCircle2, Loader2, PackageCheck, RefreshCw, ScrollText, Undo2, User } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 // Vista del depósito sobre las ventas confirmadas: qué preparar y para cuándo.
 // Deliberadamente sin precios, totales ni cobranzas (el endpoint tampoco los devuelve).
-// Desde acá el depósito marca cada pedido como "Listo para entrega" (con repartidor opcional).
+// Desde acá el depósito marca cada pedido como "Listo para entrega" (con repartidor opcional o por Uber/Remis)
+// y cierra a mano los envíos externos.
 
 type Periodo = 'hoy' | 'manana' | 'semana'
 type Vista = 'entregas' | 'productos'
@@ -54,6 +56,7 @@ export default function PreparacionPage() {
   const [periodo, setPeriodo] = useState<Periodo>('hoy')
   const [vista, setVista] = useState<Vista>('entregas')
   const [ventaDialogo, setVentaDialogo] = useState<VentaPreparacion | null>(null)
+  const [ventaACerrar, setVentaACerrar] = useState<VentaPreparacion | null>(null)
   const [accionEnCurso, setAccionEnCurso] = useState<string | null>(null)
   const [erroresPorVenta, setErroresPorVenta] = useState<Record<string, string>>({})
 
@@ -132,7 +135,7 @@ export default function PreparacionPage() {
   }, [visibles])
 
   async function volverAPreparacion(v: VentaPreparacion) {
-    if (!window.confirm(`¿Volver "${v.clienteNombre}" a preparación? Se quitará la asignación de repartidor.`)) return
+    if (!window.confirm(`¿Volver "${v.clienteNombre}" a preparación? Se quitará la asignación de repartidor o envío.`)) return
     setAccionEnCurso(v.id)
     setErroresPorVenta(p => ({ ...p, [v.id]: '' }))
     try {
@@ -257,7 +260,12 @@ export default function PreparacionPage() {
                               <ScrollText className="w-3 h-3" /> Remito {v.nroRemito}
                             </>
                           )}
-                          {v.repartidorNombre && (
+                          {esEnvioExterno(v.medioEnvio) ? (
+                            <>
+                              <span className="mx-1">·</span>
+                              <Car className="w-3 h-3" /> {medioEnvioLabels[v.medioEnvio]}
+                            </>
+                          ) : v.repartidorNombre && (
                             <>
                               <span className="mx-1">·</span>
                               <Bike className="w-3 h-3" /> {v.repartidorNombre}
@@ -308,8 +316,15 @@ export default function PreparacionPage() {
                           </Button>
                         ) : (
                           <>
+                            {esEnvioExterno(v.medioEnvio) && (
+                              <Button className="gap-2 h-10" onClick={() => setVentaACerrar(v)} disabled={ocupada}>
+                                <CheckCircle2 className="w-4 h-4" /> Marcar entregado
+                              </Button>
+                            )}
                             <Button variant="outline" className="gap-2 h-10" onClick={() => setVentaDialogo(v)} disabled={ocupada}>
-                              <Bike className="w-4 h-4" /> {v.repartidorId ? 'Cambiar repartidor' : 'Asignar repartidor'}
+                              {esEnvioExterno(v.medioEnvio)
+                                ? <><Car className="w-4 h-4" /> Cambiar envío</>
+                                : <><Bike className="w-4 h-4" /> {v.repartidorId ? 'Cambiar repartidor' : 'Asignar repartidor'}</>}
                             </Button>
                             <Button variant="ghost" className="gap-2 h-10 text-gray-600" onClick={() => volverAPreparacion(v)} disabled={ocupada}>
                               {ocupada ? <Loader2 className="w-4 h-4 animate-spin" /> : <Undo2 className="w-4 h-4" />} Volver a preparación
@@ -332,6 +347,12 @@ export default function PreparacionPage() {
         repartidores={repartidores}
         onClose={() => setVentaDialogo(null)}
         onDone={() => { setVentaDialogo(null); cargar() }}
+      />
+
+      <MarcarEntregadoDialog
+        venta={ventaACerrar}
+        onClose={() => setVentaACerrar(null)}
+        onDone={() => { setVentaACerrar(null); cargar() }}
       />
     </div>
   )

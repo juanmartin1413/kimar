@@ -1,4 +1,4 @@
-import { EstadoEntrega, TipoAdjunto } from '@/lib/types'
+import { EstadoEntrega, MedioEnvio, TipoAdjunto } from '@/lib/types'
 
 // Etiquetas legibles del catálogo de documentos (ver TipoAdjunto).
 export const tipoAdjuntoLabels: Record<TipoAdjunto, string> = {
@@ -14,6 +14,17 @@ export const estadoEntregaConfig: Record<EstadoEntrega, { label: string; classNa
   pendiente: { label: 'En preparación', className: 'bg-gray-100 text-gray-600' },
   listo: { label: 'Listo para entrega', className: 'bg-blue-100 text-blue-700' },
   entregado: { label: 'Entregado', className: 'bg-green-100 text-green-700' },
+}
+
+export const medioEnvioLabels: Record<MedioEnvio, string> = {
+  reparto: 'Reparto propio',
+  uber: 'Uber',
+  remis: 'Remis',
+}
+
+// Uber/Remis: no hay repartidor que suba el remito; depósito/gestión lo marcan entregado a mano.
+export function esEnvioExterno(medio?: MedioEnvio): boolean {
+  return medio === 'uber' || medio === 'remis'
 }
 
 // "Calle 123, Localidad" — omite las partes que falten.

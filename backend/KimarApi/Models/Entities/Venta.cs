@@ -39,6 +39,10 @@ public class Venta
     // Usuario con rol repartidor. Null = sin asignar (cualquier repartidor puede tomarla).
     public Guid? RepartidorId { get; set; }
 
+    // reparto | uber | remis. Con uber/remis RepartidorId siempre es null.
+    [Required, MaxLength(20)]
+    public string MedioEnvio { get; set; } = MediosEnvio.Reparto;
+
     public DateTime? FechaListo { get; set; }      // UTC
     public DateTime? FechaEntregado { get; set; }  // UTC
 

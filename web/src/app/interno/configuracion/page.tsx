@@ -55,7 +55,7 @@ export default function ConfiguracionPage() {
         <p className="text-xs text-[oklch(0.5_0.04_240)] mb-2">Cuentas operativas creadas automáticamente para probar los módulos de depósito y reparto.</p>
         <div className="text-sm space-y-1 text-[oklch(0.45_0.04_240)] font-mono">
           <p>deposito@kimarcompany.com.ar · Depósito</p>
-          <p>repartidor1@kimarcompany.com.ar · Repartidor</p>
+          <p>david@kimarcompany.com.ar · Repartidor</p>
         </div>
       </div>
     </div>

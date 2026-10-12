@@ -2,12 +2,12 @@
 
 import { VentaEntrega } from '@/lib/types'
 import { formatFecha } from '@/lib/format'
-import { direccionCliente, estadoEntregaConfig, formatFechaHora, mapsUrl, TIPO_REMITO_FIRMADO } from '@/lib/entregas'
+import { direccionCliente, esEnvioExterno, estadoEntregaConfig, formatFechaHora, mapsUrl, medioEnvioLabels, TIPO_REMITO_FIRMADO } from '@/lib/entregas'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { DocumentoSlot } from '@/components/interno/entregas/DocumentoSlot'
-import { Bike, Loader2, MapPin, Phone, ScrollText, User } from 'lucide-react'
+import { Bike, Car, CheckCircle2, Loader2, MapPin, Phone, ScrollText, User } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const cantidadFmt = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 })
@@ -18,7 +18,7 @@ function formatCantidad(cantidad: number, unidad: string): string {
 
 // Tarjeta de un pedido en "Pedidos a entregar". Pensada para el celular del repartidor:
 // dirección y teléfonos son links (Maps / llamar), botones altos, ítems en lista.
-export function TarjetaEntrega({ venta, usuarioId, esGestion, esRepartidor, ocupada, error, onTomar, onSoltar, onDocumentoSubido }: {
+export function TarjetaEntrega({ venta, usuarioId, esGestion, esRepartidor, ocupada, error, onTomar, onSoltar, onDocumentoSubido, onMarcarEntregado }: {
   venta: VentaEntrega
   usuarioId?: string
   esGestion: boolean
@@ -28,12 +28,15 @@ export function TarjetaEntrega({ venta, usuarioId, esGestion, esRepartidor, ocup
   onTomar: () => void
   onSoltar: () => void
   onDocumentoSubido: () => void
+  onMarcarEntregado: () => void
 }) {
   const esMia = !!usuarioId && venta.repartidorId === usuarioId
   const sinAsignar = !venta.repartidorId
   const listo = venta.estadoEntrega === 'listo'
   const entregado = venta.estadoEntrega === 'entregado'
-  const puedeDocumentar = listo && (esMia || esGestion)
+  const externo = esEnvioExterno(venta.medioEnvio)
+  // Uber/Remis no tienen repartidor que suba el remito: gestión los cierra con "Marcar entregado".
+  const puedeDocumentar = listo && !externo && (esMia || esGestion)
   const estado = estadoEntregaConfig[venta.estadoEntrega]
   const direccion = direccionCliente(venta)
   const telefonos = [venta.telefono1, venta.telefono2].filter((t): t is string => !!t)
@@ -61,7 +64,11 @@ export function TarjetaEntrega({ venta, usuarioId, esGestion, esRepartidor, ocup
       </div>
 
       <div className="px-4 py-3 space-y-3">
-        {(esGestion || entregado) && venta.repartidorNombre && (
+        {externo ? (
+          <p className="text-sm text-gray-600 flex items-center gap-1.5">
+            <Car className="w-4 h-4 text-gray-400" /> Envío por <span className="font-medium">{medioEnvioLabels[venta.medioEnvio]}</span>
+          </p>
+        ) : (esGestion || entregado) && venta.repartidorNombre && (
           <p className="text-sm text-gray-600 flex items-center gap-1.5">
             <Bike className="w-4 h-4 text-gray-400" /> Repartidor: <span className="font-medium">{venta.repartidorNombre}</span>
           </p>
@@ -142,7 +149,13 @@ export function TarjetaEntrega({ venta, usuarioId, esGestion, esRepartidor, ocup
 
         {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
 
-        {listo && (
+        {listo && externo && esGestion && (
+          <Button className="h-11 w-full sm:w-auto text-base" onClick={onMarcarEntregado} disabled={ocupada}>
+            <CheckCircle2 className="w-4 h-4" /> Marcar entregado
+          </Button>
+        )}
+
+        {listo && !externo && (
           <div className="flex flex-col sm:flex-row gap-2 pt-1">
             {sinAsignar && esRepartidor && (
               <Button className="h-11 w-full sm:w-auto text-base" onClick={onTomar} disabled={ocupada}>

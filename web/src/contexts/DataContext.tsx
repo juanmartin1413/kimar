@@ -34,7 +34,7 @@ interface DataContextValue {
   reorderProductos: (items: { id: string; orden: number }[]) => void
   addPedido: (p: Omit<Pedido, 'id' | 'fechaCreacion' | 'estado'>) => Promise<string>
   updatePedido: (id: string, p: Partial<Pedido>) => void
-  addVenta: (v: Omit<Venta, 'id' | 'fechaCreacion' | 'estado' | 'cobranzas' | 'estadoEntrega' | 'repartidorId' | 'repartidorNombre' | 'fechaEntregado'>, cobranzas: Omit<Cobranza, 'id' | 'fechaCreacion' | 'clienteId' | 'ventaId'>[]) => Promise<void>
+  addVenta: (v: Omit<Venta, 'id' | 'fechaCreacion' | 'estado' | 'cobranzas' | 'estadoEntrega' | 'repartidorId' | 'repartidorNombre' | 'fechaEntregado' | 'medioEnvio'>, cobranzas: Omit<Cobranza, 'id' | 'fechaCreacion' | 'clienteId' | 'ventaId'>[]) => Promise<void>
   // Remito / factura / observaciones (admin y gestor)
   updateVentaDatos: (id: string, d: { nroRemito?: string; nroFactura?: string; observaciones?: string }) => Promise<void>
   // Ítems (con ajuste de stock), cabecera y plan de cobro (solo admin)
@@ -336,7 +336,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   // ── Ventas ───────────────────────────────────────────────────────────────────
   async function addVenta(
-    v: Omit<Venta, 'id' | 'fechaCreacion' | 'estado' | 'cobranzas' | 'estadoEntrega' | 'repartidorId' | 'repartidorNombre' | 'fechaEntregado'>,
+    v: Omit<Venta, 'id' | 'fechaCreacion' | 'estado' | 'cobranzas' | 'estadoEntrega' | 'repartidorId' | 'repartidorNombre' | 'fechaEntregado' | 'medioEnvio'>,
     cobranzasInput: Omit<Cobranza, 'id' | 'fechaCreacion' | 'clienteId' | 'ventaId'>[]
   ): Promise<void> {
     await api.post('/api/ventas', {

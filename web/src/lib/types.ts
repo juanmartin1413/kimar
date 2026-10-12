@@ -119,11 +119,15 @@ export interface Venta {
   estadoEntrega: EstadoEntrega
   repartidorId?: string
   repartidorNombre?: string
+  medioEnvio: MedioEnvio
   fechaEntregado?: string
 }
 
 // Ciclo de entrega, independiente del estado de cobro. 'entregado' es final.
 export type EstadoEntrega = 'pendiente' | 'listo' | 'entregado'
+
+// Cómo sale el pedido. 'uber' | 'remis' = envío externo: sin repartidor, se cierra a mano.
+export type MedioEnvio = 'reparto' | 'uber' | 'remis'
 
 export interface Proveedor {
   id: string
@@ -320,6 +324,7 @@ export interface VentaPreparacion {
   estadoEntrega: EstadoEntrega
   repartidorId?: string
   repartidorNombre?: string
+  medioEnvio: MedioEnvio
   items: ItemPreparacion[]
 }
 
@@ -345,6 +350,7 @@ export interface VentaEntrega {
   estadoEntrega: EstadoEntrega
   repartidorId?: string
   repartidorNombre?: string
+  medioEnvio: MedioEnvio
   fechaListo?: string
   fechaEntregado?: string
   items: ItemPreparacion[]

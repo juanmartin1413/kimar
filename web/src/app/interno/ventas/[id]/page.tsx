@@ -6,7 +6,7 @@ import { useData } from '@/contexts/DataContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { FormaPago, ItemVenta } from '@/lib/types'
 import { formatFecha, formatPeso, today } from '@/lib/format'
-import { estadoEntregaConfig, formatFechaHora, parseApiError } from '@/lib/entregas'
+import { esEnvioExterno, estadoEntregaConfig, formatFechaHora, medioEnvioLabels, parseApiError } from '@/lib/entregas'
 import { generateId } from '@/lib/storage'
 import { AdjuntosVenta } from '@/components/interno/AdjuntosVenta'
 import { Trash2, ArrowLeft, AlertTriangle, Lock, Info } from 'lucide-react'
@@ -265,6 +265,7 @@ function EditVentaForm({ ventaId }: { ventaId: string }) {
             <span className={cn('font-semibold px-2.5 py-1 rounded-full', estadoEntregaConfig[venta.estadoEntrega ?? 'pendiente'].className)}>
               {estadoEntregaConfig[venta.estadoEntrega ?? 'pendiente'].label}
             </span>
+            {esEnvioExterno(venta.medioEnvio) && <span>Envío por <span className="font-medium">{medioEnvioLabels[venta.medioEnvio]}</span></span>}
             {venta.repartidorNombre && <span>Repartidor: <span className="font-medium">{venta.repartidorNombre}</span></span>}
             {venta.fechaEntregado && <span>· Entregado el {formatFechaHora(venta.fechaEntregado)}</span>}
           </div>

@@ -54,7 +54,9 @@ public class EntregasController(KimarDbContext db, EntregaService entregaSvc, Ad
         if (!EsGestion)
         {
             var userId = UserId;
-            query = query.Where(v => v.RepartidorId == userId || v.RepartidorId == null);
+            // Los envíos por Uber/Remis no son del reparto propio: ningún repartidor los ve.
+            query = query.Where(v => v.MedioEnvio == MediosEnvio.Reparto
+                                  && (v.RepartidorId == userId || v.RepartidorId == null));
         }
 
         var ventas = await query
@@ -74,7 +76,7 @@ public class EntregasController(KimarDbContext db, EntregaService entregaSvc, Ad
             v.Cliente?.Nombre ?? "", v.Cliente?.Calle, v.Cliente?.Altura, v.Cliente?.Localidad,
             v.Cliente?.Telefono1, v.Cliente?.Telefono2,
             v.Vendedor?.Nombre ?? "", v.NroRemito, v.Observaciones,
-            v.EstadoEntrega, v.RepartidorId, v.Repartidor?.Nombre, v.FechaListo, v.FechaEntregado,
+            v.EstadoEntrega, v.RepartidorId, v.Repartidor?.Nombre, v.MedioEnvio, v.FechaListo, v.FechaEntregado,
             v.Items.Select(i => new ItemPreparacionDto(
                 i.ProductoId, i.Producto?.Nombre ?? i.Descripcion, i.Descripcion,
                 i.CalidadId, i.Calidad?.Nombre, i.Cantidad, i.Producto?.Unidad ?? "kg")).ToList(),
@@ -84,7 +86,13 @@ public class EntregasController(KimarDbContext db, EntregaService entregaSvc, Ad
     [HttpPost("{ventaId}/listo")]
     [Authorize(Roles = Roles.GestionYDeposito)]
     public async Task<IActionResult> MarcarListo(Guid ventaId, [FromBody] MarcarListoRequest req)
-        => DesdeResultado(await entregaSvc.MarcarListoAsync(ventaId, req.RepartidorId));
+        => DesdeResultado(await entregaSvc.MarcarListoAsync(ventaId, req.RepartidorId, req.MedioEnvio));
+
+    // Cierre manual de envíos por Uber/Remis (no hay repartidor que suba el remito).
+    [HttpPost("{ventaId}/entregado")]
+    [Authorize(Roles = Roles.GestionYDeposito)]
+    public async Task<IActionResult> MarcarEntregado(Guid ventaId, [FromBody] MarcarEntregadoRequest req)
+        => DesdeResultado(await entregaSvc.MarcarEntregadoExternoAsync(ventaId, req, UserId));
 
     [HttpPost("{ventaId}/volver-a-preparacion")]
     [Authorize(Roles = Roles.GestionYDeposito)]

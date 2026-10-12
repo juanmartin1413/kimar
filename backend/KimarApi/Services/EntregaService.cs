@@ -14,7 +14,8 @@ public record ResultadoEntrega(bool Ok, string? Error = null, bool NotFound = fa
     public static readonly ResultadoEntrega Prohibido = new(false, null, Forbidden: true);
 }
 
-// Ciclo de entrega de una venta: pendiente → listo (depósito) → entregado (repartidor sube el remito firmado).
+// Ciclo de entrega de una venta: pendiente → listo (depósito) → entregado (repartidor sube el remito firmado,
+// o depósito/gestión lo marcan a mano si salió por Uber/Remis).
 // Toda la regla de negocio vive acá; el controller solo traduce resultados a HTTP.
 public class EntregaService(KimarDbContext db, AdjuntoService adjuntoSvc)
 {
@@ -24,12 +25,17 @@ public class EntregaService(KimarDbContext db, AdjuntoService adjuntoSvc)
     private const string ErrorYaEntregada = "La venta ya fue entregada.";
 
     // Marca la venta como lista para entrega. Es idempotente sobre una venta ya lista:
-    // volver a llamarlo solo cambia el repartidor, así depósito/gestión reasignan sin otro endpoint.
-    public async Task<ResultadoEntrega> MarcarListoAsync(Guid ventaId, Guid? repartidorId)
+    // volver a llamarlo solo cambia el repartidor / medio de envío, así depósito/gestión reasignan sin otro endpoint.
+    public async Task<ResultadoEntrega> MarcarListoAsync(Guid ventaId, Guid? repartidorId, string? medioEnvio)
     {
         var venta = await db.Ventas.FindAsync(ventaId);
         if (venta is null) return ResultadoEntrega.NoEncontrado;
         if (venta.EstadoEntrega == EstadosEntrega.Entregado) return ResultadoEntrega.Fallo(ErrorYaEntregada);
+
+        var medio = medioEnvio ?? MediosEnvio.Reparto;
+        if (!MediosEnvio.EsValido(medio)) return ResultadoEntrega.Fallo("Medio de envío inválido.");
+        // Uber/Remis no tienen repartidor propio.
+        if (MediosEnvio.EsExterno(medio)) repartidorId = null;
 
         if (repartidorId.HasValue)
         {
@@ -38,6 +44,7 @@ public class EntregaService(KimarDbContext db, AdjuntoService adjuntoSvc)
         }
 
         venta.EstadoEntrega = EstadosEntrega.Listo;
+        venta.MedioEnvio = medio;
         venta.RepartidorId = repartidorId;
         venta.FechaListo ??= DateTime.UtcNow;
         await db.SaveChangesAsync();
@@ -51,6 +58,7 @@ public class EntregaService(KimarDbContext db, AdjuntoService adjuntoSvc)
         if (venta.EstadoEntrega == EstadosEntrega.Entregado) return ResultadoEntrega.Fallo(ErrorYaEntregada);
 
         venta.EstadoEntrega = EstadosEntrega.Pendiente;
+        venta.MedioEnvio = MediosEnvio.Reparto;
         venta.RepartidorId = null;
         venta.FechaListo = null;
         await db.SaveChangesAsync();
@@ -63,6 +71,7 @@ public class EntregaService(KimarDbContext db, AdjuntoService adjuntoSvc)
         var venta = await db.Ventas.FindAsync(ventaId);
         if (venta is null) return ResultadoEntrega.NoEncontrado;
         if (venta.EstadoEntrega != EstadosEntrega.Listo) return ResultadoEntrega.Fallo("El pedido no está listo para entrega.");
+        if (MediosEnvio.EsExterno(venta.MedioEnvio)) return ResultadoEntrega.Fallo("El pedido sale por un envío externo.");
         if (venta.RepartidorId is not null && venta.RepartidorId != repartidorUserId)
             return ResultadoEntrega.Fallo("El pedido ya está asignado a otro repartidor.");
 
@@ -79,6 +88,31 @@ public class EntregaService(KimarDbContext db, AdjuntoService adjuntoSvc)
         if (!esGestion && venta.RepartidorId != userId) return ResultadoEntrega.Prohibido;
 
         venta.RepartidorId = null;
+        await db.SaveChangesAsync();
+        return ResultadoEntrega.Exito();
+    }
+
+    // Cierre manual de un envío por Uber/Remis: no hay repartidor que suba el remito, lo marca depósito/gestión.
+    // Si viene la foto del remito firmado, se adjunta en la misma operación (eso ya marca entregado).
+    public async Task<ResultadoEntrega> MarcarEntregadoExternoAsync(Guid ventaId, MarcarEntregadoRequest req, Guid userId)
+    {
+        var venta = await db.Ventas.FindAsync(ventaId);
+        if (venta is null) return ResultadoEntrega.NoEncontrado;
+        if (venta.EstadoEntrega == EstadosEntrega.Entregado) return ResultadoEntrega.Fallo(ErrorYaEntregada);
+        if (venta.EstadoEntrega != EstadosEntrega.Listo) return ResultadoEntrega.Fallo("El pedido todavía no está listo para entrega.");
+        if (!MediosEnvio.EsExterno(venta.MedioEnvio))
+            return ResultadoEntrega.Fallo("Los pedidos de reparto propio se cierran con el remito firmado del repartidor.");
+
+        if (!string.IsNullOrEmpty(req.ContenidoBase64))
+        {
+            var doc = new CreateDocumentoEntregaRequest(
+                TiposDocumentoVenta.RemitoFirmado, req.Nombre ?? "", req.ContentType ?? "", req.ContenidoBase64);
+            var (r, _) = await AdjuntarDocumentoAsync(ventaId, doc, userId, esGestion: true);
+            return r;
+        }
+
+        venta.EstadoEntrega = EstadosEntrega.Entregado;
+        venta.FechaEntregado = DateTime.UtcNow;
         await db.SaveChangesAsync();
         return ResultadoEntrega.Exito();
     }

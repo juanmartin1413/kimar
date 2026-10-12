@@ -4,18 +4,20 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { api } from '@/lib/api'
 import { addDaysIso, formatFecha, today } from '@/lib/format'
-import { parseApiError } from '@/lib/entregas'
+import { esEnvioExterno, parseApiError } from '@/lib/entregas'
 import { VentaEntrega } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { TarjetaEntrega } from '@/components/interno/entregas/TarjetaEntrega'
+import { MarcarEntregadoDialog } from '@/components/interno/entregas/MarcarEntregadoDialog'
 import { AlertTriangle, Bike, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 // "Pedidos a entregar": los pedidos que el depósito marcó como listos, para que el repartidor
 // los entregue y suba el remito firmado. Mismos períodos que "Pedidos a preparar".
-// El repartidor ve los suyos y los sin asignar (el backend ya filtra); gestión ve todos.
+// El repartidor ve los suyos y los sin asignar (el backend ya filtra); gestión ve todos, incluidos
+// los envíos por Uber/Remis, que cierra a mano.
 
 type Periodo = 'hoy' | 'manana' | 'semana'
 
@@ -35,6 +37,7 @@ export default function EntregasPage() {
   const [periodo, setPeriodo] = useState<Periodo>('hoy')
   const [accionEnCurso, setAccionEnCurso] = useState<string | null>(null)
   const [erroresPorVenta, setErroresPorVenta] = useState<Record<string, string>>({})
+  const [ventaACerrar, setVentaACerrar] = useState<VentaEntrega | null>(null)
 
   const hoy = today()
   const manana = addDaysIso(hoy, 1)
@@ -72,12 +75,13 @@ export default function EntregasPage() {
     [periodo, atrasados, porPeriodo]
   )
 
-  // Tres grupos: los míos, los que nadie tomó y (solo gestión) los de otros repartidores.
+  // Grupos: los míos, los que nadie tomó y (solo gestión) los de otros repartidores y los envíos externos.
   const grupos = useMemo(() => {
     const mios = visibles.filter(v => v.repartidorId && v.repartidorId === usuario?.id)
-    const sinAsignar = visibles.filter(v => !v.repartidorId)
+    const externos = visibles.filter(v => esEnvioExterno(v.medioEnvio))
+    const sinAsignar = visibles.filter(v => !v.repartidorId && !esEnvioExterno(v.medioEnvio))
     const deOtros = visibles.filter(v => v.repartidorId && v.repartidorId !== usuario?.id)
-    return { mios, sinAsignar, deOtros }
+    return { mios, sinAsignar, deOtros, externos }
   }, [visibles, usuario?.id])
 
   async function ejecutar(ventaId: string, accion: 'tomar' | 'soltar') {
@@ -136,6 +140,7 @@ export default function EntregasPage() {
             onTomar={() => ejecutar(v.id, 'tomar')}
             onSoltar={() => ejecutar(v.id, 'soltar')}
             onDocumentoSubido={cargar}
+            onMarcarEntregado={() => setVentaACerrar(v)}
           />
         ))}
       </div>
@@ -191,8 +196,15 @@ export default function EntregasPage() {
           {renderGrupo(isRepartidor ? 'Mis pedidos' : 'Mis pedidos', grupos.mios)}
           {renderGrupo('Sin asignar', grupos.sinAsignar)}
           {canManageData && renderGrupo('Otros repartidores', grupos.deOtros)}
+          {canManageData && renderGrupo('Uber / Remis', grupos.externos)}
         </div>
       )}
+
+      <MarcarEntregadoDialog
+        venta={ventaACerrar}
+        onClose={() => setVentaACerrar(null)}
+        onDone={() => { setVentaACerrar(null); cargar() }}
+      />
     </div>
   )
 }

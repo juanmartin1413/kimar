@@ -5,7 +5,11 @@ namespace KimarApi.Models.DTOs;
 public record RepartidorLiteDto(Guid Id, string Nombre);
 
 // RepartidorId null = "listo para entrega, sin asignar" (cualquier repartidor puede tomarlo).
-public record MarcarListoRequest(Guid? RepartidorId);
+// MedioEnvio null = reparto propio. Con uber/remis el RepartidorId se ignora.
+public record MarcarListoRequest(Guid? RepartidorId, string? MedioEnvio = null);
+
+// Cierre manual de un envío externo (uber/remis). La foto del remito firmado es opcional.
+public record MarcarEntregadoRequest(string? Nombre, string? ContentType, string? ContenidoBase64);
 
 public record CreateDocumentoEntregaRequest(
     string Tipo,
@@ -30,6 +34,7 @@ public record VentaEntregaDto(
     string EstadoEntrega,
     Guid? RepartidorId,
     string? RepartidorNombre,
+    string MedioEnvio,
     DateTime? FechaListo,
     DateTime? FechaEntregado,
     IList<ItemPreparacionDto> Items,
