@@ -138,7 +138,12 @@ export default function CobranzasPage() {
                     <td className="py-3 px-4 text-[oklch(0.45_0.04_240)]">{formaPagoLabel[c.formaPago]}</td>
                     <td className="py-3 px-4 text-[oklch(0.45_0.04_240)]">{venta ? `Remito: ${venta.nroRemito ?? '—'}` : '—'}</td>
                     <td className="py-3 px-4">
-                      <span className={cn('text-xs font-semibold px-2.5 py-1 rounded-full', cfg.className)}>{cfg.label}</span>
+                      <div className="flex items-center gap-2">
+                        <span className={cn('text-xs font-semibold px-2.5 py-1 rounded-full', cfg.className)}>{cfg.label}</span>
+                        {c.estado === 'cobrado' && c.fechaCobro && (
+                          <span className="text-xs text-[oklch(0.55_0.04_240)]" title="Fecha de cobro">{formatFecha(c.fechaCobro)}</span>
+                        )}
+                      </div>
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-3">

@@ -22,6 +22,10 @@ public class Cobranza
     [Required, MaxLength(20)]
     public string Estado { get; set; } = "pendiente"; // pendiente | cobrado | vencido
 
+    // Fecha real en que se cobró (null mientras no esté cobrada). `Fecha` sigue siendo la planificada.
+    // La usa Comisiones para liquidar "por fecha de cobro" sin pagar dos veces la misma cobranza.
+    public DateOnly? FechaCobro { get; set; }
+
     [MaxLength(500)]
     public string? Observaciones { get; set; }
 

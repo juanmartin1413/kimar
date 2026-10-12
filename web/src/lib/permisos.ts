@@ -11,6 +11,11 @@ export function canSeeReportes(rol?: Rol): boolean {
   return rol === 'admin'
 }
 
+// "Comisiones de vendedores": información de costos y márgenes, solo el dueño.
+export function canSeeComisiones(rol?: Rol): boolean {
+  return rol === 'admin'
+}
+
 export function isDeposito(rol?: Rol): boolean {
   return rol === 'deposito'
 }

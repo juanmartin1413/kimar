@@ -174,6 +174,9 @@ namespace KimarApi.Migrations
                     b.Property<DateOnly>("Fecha")
                         .HasColumnType("date");
 
+                    b.Property<DateOnly?>("FechaCobro")
+                        .HasColumnType("date");
+
                     b.Property<DateTime>("FechaCreacion")
                         .HasColumnType("timestamp with time zone");
 

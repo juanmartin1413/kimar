@@ -20,7 +20,11 @@ public record CobranzaDto(
     string FormaPago,
     string Estado,
     string? Observaciones,
-    DateTime FechaCreacion);
+    DateTime FechaCreacion,
+    DateOnly? FechaCobro);
+
+// Body opcional de POST cobranzas/{id}/cobrar: permite registrar una fecha de cobro distinta de hoy.
+public record CobrarCobranzaRequest(DateOnly? FechaCobro = null);
 
 public record VentaDto(
     Guid Id,

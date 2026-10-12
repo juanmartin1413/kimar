@@ -22,6 +22,7 @@ interface AuthContextValue {
   isGestor: boolean
   isVendedor: boolean
   canSeeReportes: boolean
+  canSeeComisiones: boolean
   canManageData: boolean
   isDeposito: boolean
   canVerStock: boolean
@@ -79,6 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isVendedor = rol === 'vendedor'
   const isDeposito = permisos.isDeposito(rol)
   const canSeeReportes = permisos.canSeeReportes(rol)
+  const canSeeComisiones = permisos.canSeeComisiones(rol)
   const canManageData = permisos.canManageData(rol)
   const canVerStock = permisos.canVerStock(rol)
   const canOperarStock = permisos.canOperarStock(rol)
@@ -92,7 +94,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <AuthContext.Provider value={{
       usuario, isInitializing, login, logout,
       isAdmin, isGestor, isVendedor, isDeposito,
-      canSeeReportes, canManageData, canVerStock, canOperarStock, canAjustarStock, canVerPreparacion,
+      canSeeReportes, canSeeComisiones, canManageData, canVerStock, canOperarStock, canAjustarStock, canVerPreparacion,
       isRepartidor, canVerEntregas, canGestionarEntrega,
     }}>
       {children}

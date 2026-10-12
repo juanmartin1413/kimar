@@ -41,7 +41,7 @@ interface DataContextValue {
   updateVentaCompleta: (id: string, payload: UpdateVentaCompletaPayload) => Promise<void>
   addCobranza: (c: Omit<Cobranza, 'id' | 'fechaCreacion'>) => void
   updateCobranza: (id: string, c: Partial<Omit<Cobranza, 'id' | 'fechaCreacion'>>) => void
-  cobrarCobranza: (id: string) => void
+  cobrarCobranza: (id: string, fechaCobro?: string) => void
   addVendedor: (v: Omit<Vendedor, 'id'>) => void
   updateVendedor: (id: string, v: Partial<Vendedor>) => void
   addProveedor: (p: Omit<Proveedor, 'id' | 'fechaCreacion' | 'activo'>) => void
@@ -424,8 +424,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     await Promise.all([rCobranzas(), rVentas()])
   }
 
-  async function cobrarCobranza(id: string) {
-    await api.post(`/api/cobranzas/${id}/cobrar`)
+  // Se manda siempre la fecha en hora local: el backend usa UTC por defecto y entre las 21 y las 24 hs
+  // (ART) marcaría el día siguiente.
+  async function cobrarCobranza(id: string, fechaCobro?: string) {
+    await api.post(`/api/cobranzas/${id}/cobrar`, { fechaCobro: fechaCobro ?? today() })
     await Promise.all([rCobranzas(), rVentas()])
   }
 

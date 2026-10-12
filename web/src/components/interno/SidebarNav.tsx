@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils'
 import {
   LayoutDashboard, Users, BookOpen, ShoppingCart, Package,
   CreditCard, Boxes, Truck, Wallet, BarChart3, Settings, ClipboardList,
-  Store, ReceiptText, PackageCheck, Bike,
+  Store, ReceiptText, PackageCheck, Bike, BadgePercent,
 } from 'lucide-react'
 
 interface NavItem {
@@ -27,6 +27,7 @@ const navItems: NavItem[] = [
   { href: '/interno/cobranzas', label: 'Cobranzas', icon: CreditCard, roles: ['admin', 'gestor'] },
   { href: '/interno/productos', label: 'Productos & Precios', icon: Store, roles: ['admin', 'gestor', 'vendedor'] },
   { href: '/interno/vendedores', label: 'Vendedores', icon: ClipboardList, roles: ['admin', 'gestor'] },
+  { href: '/interno/comisiones', label: 'Comisiones', icon: BadgePercent, roles: ['admin'] },
   { href: '/interno/stock', label: 'Stock', icon: Boxes, roles: ['admin', 'gestor', 'deposito'] },
   { href: '/interno/preparacion', label: 'Pedidos a preparar', icon: PackageCheck, roles: ['admin', 'gestor', 'deposito'] },
   { href: '/interno/entregas', label: 'Pedidos a entregar', icon: Bike, roles: ['admin', 'gestor', 'repartidor'] },

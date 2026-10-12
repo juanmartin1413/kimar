@@ -47,6 +47,8 @@ public class CobranzasController(KimarDbContext db, VentaService ventaSvc) : Con
             Monto = req.Monto,
             FormaPago = req.FormaPago,
             Estado = req.Estado,
+            // Alta ya cobrada (pago contado): la fecha planificada es la fecha real de cobro.
+            FechaCobro = req.Estado == "cobrado" ? req.Fecha : null,
             Observaciones = req.Observaciones
         };
         db.Cobranzas.Add(c);
@@ -57,11 +59,14 @@ public class CobranzasController(KimarDbContext db, VentaService ventaSvc) : Con
 
     [HttpPost("{id}/cobrar")]
     [Authorize(Roles = "admin,gestor")]
-    public async Task<IActionResult> Cobrar(Guid id)
+    public async Task<IActionResult> Cobrar(Guid id, [FromBody] CobrarCobranzaRequest? req = null)
     {
         var c = await db.Cobranzas.FindAsync(id);
         if (c is null) return NotFound();
+        // No se vuelve a cobrar: pisaría la fecha de cobro original.
+        if (c.Estado == "cobrado") return BadRequest(new { error = "La cobranza ya está cobrada." });
         c.Estado = "cobrado";
+        c.FechaCobro = req?.FechaCobro ?? DateOnly.FromDateTime(DateTime.UtcNow);
         await db.SaveChangesAsync();
         if (c.VentaId.HasValue) await ventaSvc.RecalcularEstadoAsync(c.VentaId.Value);
         return Ok(new { id = c.Id, estado = c.Estado });
@@ -88,5 +93,5 @@ public class CobranzasController(KimarDbContext db, VentaService ventaSvc) : Con
 
     private static CobranzaDto Map(Cobranza c) => new(
         c.Id, c.VentaId, c.ClienteId, c.Cliente?.Nombre ?? "", c.Fecha, c.Monto,
-        c.FormaPago, c.Estado, c.Observaciones, c.FechaCreacion);
+        c.FormaPago, c.Estado, c.Observaciones, c.FechaCreacion, c.FechaCobro);
 }

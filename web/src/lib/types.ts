@@ -99,6 +99,7 @@ export interface Cobranza {
   estado: EstadoCobranza
   observaciones?: string
   fechaCreacion: string
+  fechaCobro?: string // ISO yyyy-mm-dd; solo cuando estado === 'cobrado' (fecha real, `fecha` es la planificada)
 }
 
 export interface Venta {
