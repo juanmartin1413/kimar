@@ -42,6 +42,7 @@ Una venta de homologación también afecta stock y cuenta corriente en la base d
 ## Operación
 
 - Cliente: preferencia de factura y datos fiscales. Venta: selector Sí/No, revisión de descripciones, receptor y total; confirmación obligatoria.
+- Después de registrar, las ventas con factura muestran «Generando factura» y consultan su estado cada 1,5 segundos durante hasta 30 segundos. Al autorizarse, requerir revisión o vencer la espera, vuelven al listado de ventas con el resultado. La espera solo consulta; no reenvía la venta ni cambia los reintentos del backend. Sin factura se vuelve directamente al listado. Las tarjetas fiscales muestran cabecera, estado con color y descarga del PDF; los errores operativos quedan en un detalle desplegable.
 - Un borrador revisado queda vinculado al contenido de la venta y al emisor/ambiente. Cambios posteriores exigen una nueva revisión.
 - La confirmación guarda venta, cobranzas, stock y solicitud en una transacción. El worker detecta nuevas solicitudes cada 15 segundos; errores transitorios se reintentan cada 15 minutos, configurables, sin límite de intentos.
 - La venta continúa por preparación, entrega y cobranza durante una caída. Facturación muestra pendientes, último error, próximo intento y alerta tras una hora.

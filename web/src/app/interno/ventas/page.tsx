@@ -1,6 +1,8 @@
 'use client'
 
 import { useData } from '@/contexts/DataContext'
+import { Suspense } from 'react'
+import { ResultadoRegistroVenta } from '@/components/interno/ResultadoRegistroVenta'
 import { formatPeso, formatFecha } from '@/lib/format'
 import { fiscalLabels } from '@/lib/facturacion'
 import { downloadRemito } from '@/lib/remitoPdf'
@@ -27,6 +29,7 @@ export default function VentasPage() {
 
   return (
     <div className="space-y-6">
+      <Suspense fallback={null}><ResultadoRegistroVenta /></Suspense>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-[oklch(0.2_0.06_240)]">Ventas</h1>

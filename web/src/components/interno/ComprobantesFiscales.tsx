@@ -5,8 +5,8 @@ import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import { useData } from '@/contexts/DataContext'
 import { api } from '@/lib/api'
-import { formatPeso, today } from '@/lib/format'
-import { ComprobanteFiscal, FiscalConfig, fiscalLabels, ReceptorFiscal } from '@/lib/facturacion'
+import { formatPeso, formatFecha, today } from '@/lib/format'
+import { ComprobanteFiscal, FiscalConfig, fiscalLabels, fiscalStatusClass, ReceptorFiscal } from '@/lib/facturacion'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { FacturaResumen, ReceptorFields } from './FacturaEditor'
 
@@ -23,7 +23,7 @@ export function ComprobantesFiscales({ ventaId }: { ventaId?: string }) {
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [selected, setSelected] = useState<{ c: ComprobanteFiscal; action: 'ver' | 'nc' | 'corregir' | 'reemplazar' } | null>(null)
+  const [selected, setSelected] = useState<{ c: ComprobanteFiscal; action: 'nc' | 'corregir' | 'reemplazar' } | null>(null)
   const [motivo, setMotivo] = useState('')
   const [efecto, setEfecto] = useState('')
   const [receptor, setReceptor] = useState<ReceptorFiscal>({ razonSocial: '', cuit: '', condicionIva: 0, domicilio: '' })
@@ -45,7 +45,7 @@ export function ComprobantesFiscales({ ventaId }: { ventaId?: string }) {
     api.get<FiscalConfig>('/api/facturacion/configuracion').then(setConfig).catch(e => setError(e.message))
     return () => clearInterval(timer)
   }, [load, canManageData])
-  function open(c: ComprobanteFiscal, action: 'ver' | 'nc' | 'corregir' | 'reemplazar') {
+  function open(c: ComprobanteFiscal, action: 'nc' | 'corregir' | 'reemplazar') {
     setSelected({ c, action }); setMotivo(''); setEfecto(''); setReceptor(c.datos.receptor)
     setDescripciones(c.datos.items.map(i => i.descripcion)); setObservaciones(c.datos.observaciones || ''); setFecha(today()); setError('')
   }
@@ -58,7 +58,7 @@ export function ComprobantesFiscales({ ventaId }: { ventaId?: string }) {
   if (!canManageData) return <p>No tenés acceso a Facturación.</p>
   return <section className="space-y-4">
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <h2 className="text-xl font-semibold">{ventaId ? 'Comprobantes fiscales y archivos' : 'Facturación'}</h2>
+      <h2 className="text-xl font-semibold">{ventaId ? 'Comprobantes fiscales' : 'Facturación'}</h2>
       <button className={button} onClick={() => run(load, 'Listado actualizado')} disabled={busy}>Actualizar</button>
     </div>
     {config && !ventaId && <div className="rounded-lg border bg-blue-50 p-3 text-sm">
@@ -72,25 +72,22 @@ export function ComprobantesFiscales({ ventaId }: { ventaId?: string }) {
       <option value="">Todos</option>{Object.entries(fiscalLabels).filter(([id]) => id !== 'borrador').map(([id, label]) => <option key={id} value={id}>{label}</option>)}
     </select></label>}
     {loading ? <p>Cargando comprobantes…</p> : !items.length ? <p className="text-gray-500">Sin comprobantes fiscales.</p> : items.map(c => {
-      const nc = items.find(n => n.comprobanteOrigenId === c.id)
+      const nc = items.find(n => n.comprobanteOrigenId === c.id && n.estado === 'autorizado') ?? items.find(n => n.comprobanteOrigenId === c.id)
       const old = c.estado !== 'autorizado' && Date.now() - Date.parse(c.fechaCreacion) > 3600000
       return <article key={c.id} className={`rounded-xl border p-4 space-y-3 ${old ? 'border-amber-400 bg-amber-50' : 'bg-white border-gray-200'}`}>
         <div className="flex flex-wrap justify-between gap-2">
           <div><p className="font-bold">{c.tipo === 3 ? 'NC' : 'FC'} A · {c.numeroCompleto || 'Sin número autorizado'}</p>
-            <p className="text-sm">{c.datos.receptor.razonSocial} · {c.fecha} · {formatPeso(c.total)}</p></div>
-          <span className="text-sm font-semibold">{nc?.estado === 'autorizado' ? 'Acreditada totalmente' : fiscalLabels[c.estado] || c.estado}</span>
+            <p className="text-sm">{c.datos.receptor.razonSocial} · {formatFecha(c.fecha)} · {formatPeso(c.total)}</p></div>
+          <span className={`self-start rounded-full px-3 py-1 text-xs font-semibold ${fiscalStatusClass(c.estado, nc?.estado === 'autorizado')}`}>{nc?.estado === 'autorizado' ? 'Acreditada totalmente' : fiscalLabels[c.estado] || c.estado}</span>
         </div>
-        <p className="text-xs text-gray-600">Emisor: {c.datos.emisor.razonSocial} · CUIT {c.datos.emisor.cuit} · {c.ambiente === 'production' ? 'Producción' : 'PRUEBA'}</p>
-        {c.comprobanteOrigenId && <p className="text-sm">Nota de crédito total · {c.efectoComercial === 'anular_venta' ? 'Anulación comercial' : 'Corrección fiscal'} · {c.motivo}</p>}
-        {c.reemplazaId && <p className="text-sm">Factura de reemplazo — misma operación comercial.</p>}
-        {c.ultimoError && <p className="text-sm text-amber-900">{c.ultimoError}</p>}
-        {c.proximoIntento && <p className="text-xs">Próximo intento: {new Date(c.proximoIntento).toLocaleString('es-AR')} · Intentos: {c.intentos}</p>}
-        {old && <p className="text-sm font-semibold">Pendiente hace más de una hora. {c.proximoIntento ? 'Los reintentos siguen activos.' : 'Requiere revisión.'}</p>}
-        {c.errorPdf && <p className="text-sm text-amber-800">{c.errorPdf}</p>}
-        {c.cae && <p className="text-xs">CAE {c.cae} · Vencimiento {c.vencimientoCae}</p>}
-        {c.observacionesArca && <p className="text-xs">Observaciones ARCA: {c.observacionesArca}</p>}
+        {c.estado !== 'autorizado' && (c.ultimoError || old) && <details className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          <summary className="cursor-pointer font-medium">{['rechazado', 'requiere_atencion'].includes(c.estado) ? 'Revisar motivo' : 'Información de la emisión pendiente'}</summary>
+          {c.ultimoError && <p className="mt-2">{c.ultimoError}</p>}
+          {c.proximoIntento && <p className="mt-2">Próximo intento: {new Date(c.proximoIntento).toLocaleString('es-AR')}</p>}
+          {old && <p className="mt-2">Pendiente hace más de una hora. {c.proximoIntento ? 'Los reintentos siguen activos.' : 'Requiere revisión.'}</p>}
+        </details>}
+        {c.errorPdf && <p className="text-sm text-amber-800">El comprobante está autorizado. El PDF todavía no está disponible.</p>}
         <div className="flex flex-wrap gap-2">
-          <button className={button} onClick={() => open(c, 'ver')}>Ver comprobante</button>
           {c.pdfDisponible && <button disabled={busy} className={button} onClick={() => run(() => api.download(`/api/facturacion/${c.id}/pdf`, `${c.tipo === 3 ? 'NC' : 'FC'}-A-${c.numeroCompleto}.pdf`), 'PDF descargado')}>Descargar PDF</button>}
           {c.estado !== 'rechazado' && c.estado !== 'en_proceso' && (c.estado !== 'autorizado' || !c.pdfDisponible || c.errorPdf) && <button disabled={busy} className={button} onClick={() => run(() => api.post(`/api/facturacion/${c.id}/reintentar`), 'Reintento solicitado. El proceso continuará en segundo plano.')}>{c.estado === 'autorizado' ? 'Regenerar PDF' : 'Reintentar ahora'}</button>}
           {['rechazado', 'requiere_atencion'].includes(c.estado) && !c.numero && <button className={button} onClick={() => open(c, 'corregir')}>Corregir y confirmar</button>}
@@ -103,7 +100,7 @@ export function ComprobantesFiscales({ ventaId }: { ventaId?: string }) {
     {total > 50 && <div className="flex items-center gap-3"><button className={button} disabled={pagina === 1} onClick={() => setPagina(p => p - 1)}>Anterior</button><span>Página {pagina}</span><button className={button} disabled={pagina * 50 >= total} onClick={() => setPagina(p => p + 1)}>Siguiente</button></div>}
     <Dialog open={!!selected} onOpenChange={v => { if (!v && !busy) setSelected(null) }}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-        <DialogTitle>{selected?.action === 'nc' ? 'Confirmar nota de crédito total' : selected?.action === 'ver' ? 'Comprobante fiscal' : 'Revisar y confirmar factura'}</DialogTitle>
+        <DialogTitle>{selected?.action === 'nc' ? 'Confirmar nota de crédito total' : 'Revisar y confirmar factura'}</DialogTitle>
         {selected && <>
           <FacturaResumen comprobante={selected.c} />
           {selected.action === 'nc' && <div className="space-y-3">

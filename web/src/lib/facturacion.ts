@@ -15,6 +15,12 @@ export const fiscalLabels: Record<string, string> = {
   borrador: 'Borrador', pendiente: 'Pendiente de emisión', en_proceso: 'Emitiendo', desconocido: 'Verificando emisión',
   autorizado: 'Autorizado', rechazado: 'Rechazado: corregir datos', requiere_atencion: 'Requiere intervención',
 }
+export function fiscalStatusClass(estado: string, acreditada = false) {
+  if (acreditada) return 'bg-slate-100 text-slate-700'
+  if (estado === 'autorizado') return 'bg-green-100 text-green-800'
+  if (['rechazado', 'requiere_atencion'].includes(estado)) return 'bg-red-100 text-red-800'
+  return 'bg-amber-100 text-amber-900'
+}
 export const condicionIvaLabels: Record<number, string> = { 1: 'Responsable inscripto', 6: 'Monotributo', 13: 'Monotributista social', 16: 'Monotributo trabajador independiente promovido' }
 export function receptorCliente(c: Cliente): ReceptorFiscal {
   return { razonSocial: c.razonSocial || c.nombre, cuit: c.cuit || '', condicionIva: c.condicionIva || 0,

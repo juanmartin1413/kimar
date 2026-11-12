@@ -363,7 +363,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         observaciones: c.observaciones ?? null,
       })),
     })
-    await Promise.all([rVentas(), rStock(), rPedidos()])
+    // The sale is already committed. A refresh failure must not present it as a failed registration.
+    void Promise.allSettled([rVentas(), rStock(), rPedidos()])
     return result
   }
 

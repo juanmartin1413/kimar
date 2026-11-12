@@ -1,17 +1,19 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useData } from '@/contexts/DataContext'
 import { Cobranza, FormaPago, ItemVenta } from '@/lib/types'
 import { formatPeso, formatFecha, today } from '@/lib/format'
 import { generateId } from '@/lib/storage'
-import { Trash2, ArrowLeft } from 'lucide-react'
+import { Trash2, ArrowLeft, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { FacturaEditor, FacturaResumen } from '@/components/interno/FacturaEditor'
 import { ComprobanteFiscal, roundMoney } from '@/lib/facturacion'
+import { api } from '@/lib/api'
+import { esperarFactura } from '@/lib/esperarFactura'
 
 type CobranzaDraft = {
   id: string
@@ -33,6 +35,10 @@ export default function NuevaVentaPage() {
   const [emitirFactura, setEmitirFactura] = useState(false)
   const [preview, setPreview] = useState<ComprobanteFiscal | null>(null)
   const [saving, setSaving] = useState(false)
+  const [generatingInvoice, setGeneratingInvoice] = useState(false)
+  const savingRef = useRef(false)
+  const waitController = useRef<AbortController | null>(null)
+  useEffect(() => () => { waitController.current?.abort() }, [])
   const [error, setError] = useState('')
   const [operacionId] = useState(() => crypto.randomUUID())
   const [observaciones, setObservaciones] = useState('')
@@ -157,7 +163,10 @@ export default function NuevaVentaPage() {
   }
 
   async function doSave() {
-    if (saving) return
+    if (savingRef.current) return
+    savingRef.current = true
+    const controller = new AbortController()
+    waitController.current = controller
     setSaving(true); setError('')
     try {
     const cobsInput: Omit<Cobranza, 'id' | 'fechaCreacion' | 'clienteId' | 'ventaId'>[] = cobranzas.map(c => ({
@@ -181,9 +190,23 @@ export default function NuevaVentaPage() {
       cobsInput
     )
 
-    router.push(`/interno/ventas/${result.id}`)
-    } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo registrar la venta') }
-    finally { setSaving(false) }
+    if (controller.signal.aborted) return
+    let resultado = 'sin_factura'
+    if (emitirFactura) {
+      setGeneratingInvoice(true)
+      resultado = await esperarFactura(async signal => {
+        const response = await api.get<{ items: ComprobanteFiscal[] }>(`/api/facturacion?ventaId=${encodeURIComponent(result.id)}`, signal)
+        return response.items.find(c => c.tipo === 1 && !c.reemplazaId)
+      }, controller.signal)
+    }
+    if (controller.signal.aborted) return
+    router.replace(`/interno/ventas?registro=${resultado}&venta=${encodeURIComponent(result.id)}`)
+    // Keep the dialog locked until navigation completes, including after the sale is saved.
+    } catch (e) {
+      if (controller.signal.aborted) return
+      setError(e instanceof Error ? e.message : 'No se pudo registrar la venta')
+      setSaving(false); setGeneratingInvoice(false); savingRef.current = false
+    }
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -487,7 +510,13 @@ export default function NuevaVentaPage() {
 
         {error && <p role="alert" className="text-red-700">{error}</p>}
         <Dialog open={showWarning} onOpenChange={open => { if (!saving) setShowWarning(open) }}>
-          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+          <DialogContent showCloseButton={!saving} className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+            {saving ? <div role="status" aria-live="polite" className="flex flex-col items-center gap-4 py-10 text-center">
+              <Loader2 aria-hidden="true" className="h-10 w-10 animate-spin text-blue-700" />
+              <DialogTitle>{generatingInvoice ? 'Generando factura' : 'Registrando venta'}</DialogTitle>
+              <p className="text-sm text-gray-600">{generatingInvoice ? 'Estamos esperando la respuesta de ARCA. Al terminar, volverás al listado de ventas.' : 'Estamos guardando los datos de la venta.'}</p>
+              {generatingInvoice && <p className="text-xs text-gray-500">Tu venta ya está registrada. Si la emisión demora, continuará en segundo plano.</p>}
+            </div> : <>
             <DialogTitle>Confirmar registro de venta</DialogTitle>
             <p>{selectedCliente?.nombre} · Total a cobrar: <strong>{formatPeso(total)}</strong></p>
             <p className={cn('rounded-lg p-4 text-lg font-bold', emitirFactura ? 'bg-blue-50 text-blue-900' : 'bg-amber-50 text-amber-900')}>
@@ -502,6 +531,7 @@ export default function NuevaVentaPage() {
               <button type="button" disabled={saving} onClick={() => setShowWarning(false)} className="rounded-lg border px-4 py-2">Volver y corregir</button>
               <button type="button" disabled={saving || (emitirFactura && !preview)} onClick={doSave} className="rounded-lg bg-blue-700 text-white px-4 py-2 disabled:opacity-50">{saving ? 'Registrando…' : emitirFactura ? 'Confirmar venta y emitir factura' : 'Confirmar venta sin emitir factura'}</button>
             </div>
+            </>}
           </DialogContent>
         </Dialog>
 
