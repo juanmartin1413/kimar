@@ -25,7 +25,7 @@ public class VentaService(KimarDbContext db, StockService stockSvc)
             .Where(c => c.Estado == "cobrado")
             .Sum(c => c.Monto);
 
-        venta.Estado = cobrado >= venta.Total ? "pagado"
+        venta.Estado = cobrado >= venta.Total - venta.CreditoAplicado ? "pagado"
             : cobrado > 0 ? "cobrado_parcial"
             : "debe";
 
@@ -71,6 +71,8 @@ public class VentaService(KimarDbContext db, StockService stockSvc)
             .Include(v => v.Cobranzas)
             .FirstOrDefaultAsync(v => v.Id == ventaId);
         if (venta is null) return new ResultadoEdicionVenta(false, null, NotFound: true);
+        if (venta.EmitirFactura)
+            return new ResultadoEdicionVenta(false, "Esta venta tiene una solicitud fiscal. Sus datos comerciales están protegidos; usá Facturación para corregir o acreditar.");
 
         if (req.Items.Count == 0)
             return new ResultadoEdicionVenta(false, "La venta debe tener al menos un ítem.");

@@ -229,7 +229,7 @@ function VentasTab() {
         const d = new Date(now)
         d.setDate(d.getDate() - i)
         const dateStr = d.toISOString().split('T')[0]
-        const total = data.ventas.filter(v => v.fechaCreacion === dateStr).reduce((s, v) => s + v.total, 0)
+        const total = data.ventas.filter(v => v.fechaCreacion === dateStr).reduce((s, v) => s + v.total - (v.creditoAplicado ?? 0), 0)
         days.push({ label: `${d.getDate()}/${d.getMonth() + 1}`, total })
       }
       return days
@@ -243,7 +243,7 @@ function VentasTab() {
         weekStart.setDate(weekStart.getDate() - 6)
         const startStr = weekStart.toISOString().split('T')[0]
         const endStr = weekEnd.toISOString().split('T')[0]
-        const total = data.ventas.filter(v => v.fechaCreacion >= startStr && v.fechaCreacion <= endStr).reduce((s, v) => s + v.total, 0)
+        const total = data.ventas.filter(v => v.fechaCreacion >= startStr && v.fechaCreacion <= endStr).reduce((s, v) => s + v.total - (v.creditoAplicado ?? 0), 0)
         weeks.push({ label: `S${12 - i}`, total })
       }
       return weeks
@@ -253,7 +253,7 @@ function VentasTab() {
       for (let i = 11; i >= 0; i--) {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
         const prefix = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-        const total = data.ventas.filter(v => v.fechaCreacion.startsWith(prefix)).reduce((s, v) => s + v.total, 0)
+        const total = data.ventas.filter(v => v.fechaCreacion.startsWith(prefix)).reduce((s, v) => s + v.total - (v.creditoAplicado ?? 0), 0)
         months.push({ label: `${d.getMonth() + 1}/${String(d.getFullYear()).slice(2)}`, total })
       }
       return months
@@ -435,7 +435,7 @@ function VendedoresTab() {
       .reduce((s, x) => s + x.total, 0)
     const ventasMes = data.ventas
       .filter(v => v.vendedorId === vendedor.id && v.fechaCreacion >= startOfMonth)
-      .reduce((s, v) => s + v.total, 0)
+      .reduce((s, v) => s + v.total - (v.creditoAplicado ?? 0), 0)
     const cobranzasMes = data.cobranzas
       .filter(c => {
         const venta = data.ventas.find(v => v.id === c.ventaId)

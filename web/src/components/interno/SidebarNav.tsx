@@ -24,6 +24,7 @@ const navItems: NavItem[] = [
   { href: '/interno/cuenta-corriente', label: 'Cuenta Corriente', icon: BookOpen, roles: ['admin', 'gestor'] },
   { href: '/interno/pedidos', label: 'Pedidos', icon: ShoppingCart, roles: ['admin', 'gestor', 'vendedor'] },
   { href: '/interno/ventas', label: 'Ventas', icon: Package, roles: ['admin', 'gestor'] },
+  { href: '/interno/facturacion', label: 'Facturación', icon: ReceiptText, roles: ['admin', 'gestor'] },
   { href: '/interno/cobranzas', label: 'Cobranzas', icon: CreditCard, roles: ['admin', 'gestor'] },
   { href: '/interno/productos', label: 'Productos & Precios', icon: Store, roles: ['admin', 'gestor', 'vendedor'] },
   { href: '/interno/vendedores', label: 'Vendedores', icon: ClipboardList, roles: ['admin', 'gestor'] },

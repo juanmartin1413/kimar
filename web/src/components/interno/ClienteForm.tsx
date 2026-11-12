@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useData } from '@/contexts/DataContext'
+import { condicionIvaLabels } from '@/lib/facturacion'
 import { Cliente, Vendedor } from '@/lib/types'
 
 const PROVINCIAS_AR = [
@@ -43,6 +44,10 @@ export default function ClienteForm({ initial, vendedores, onSave, onCancel }: P
   const { addCliente, updateCliente } = useData()
   const [form, setForm] = useState({
     nombre: initial?.nombre ?? '',
+    requiereFactura: initial?.requiereFactura ?? false,
+    razonSocial: initial?.razonSocial ?? '',
+    domicilioFiscal: initial?.domicilioFiscal ?? '',
+    condicionIva: initial?.condicionIva ?? 0,
     calle: initial?.calle ?? '',
     altura: initial?.altura ?? '',
     localidad: initial?.localidad ?? '',
@@ -58,12 +63,12 @@ export default function ClienteForm({ initial, vendedores, onSave, onCancel }: P
     setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (initial) {
-      updateCliente(initial.id, form)
+      await updateCliente(initial.id, form)
     } else {
-      addCliente(form)
+      await addCliente(form)
     }
     onSave()
   }
@@ -73,6 +78,17 @@ export default function ClienteForm({ initial, vendedores, onSave, onCancel }: P
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      <fieldset className="space-y-3 rounded-lg border p-3">
+        <legend className="font-semibold text-sm">Facturación</legend>
+        <label className={labelClass}>¿Requiere factura?
+          <select className={fieldClass} value={String(form.requiereFactura)} onChange={e => setForm(p => ({ ...p, requiereFactura: e.target.value === 'true' }))}><option value="false">No</option><option value="true">Sí</option></select>
+        </label>
+        <label className={labelClass}>Razón social<input className={fieldClass} name="razonSocial" value={form.razonSocial} maxLength={200} onChange={handleChange} /></label>
+        <label className={labelClass}>Domicilio fiscal<input className={fieldClass} name="domicilioFiscal" value={form.domicilioFiscal} maxLength={300} onChange={handleChange} /></label>
+        <label className={labelClass}>Condición frente al IVA<select className={fieldClass} value={form.condicionIva} onChange={e => setForm(p => ({ ...p, condicionIva: Number(e.target.value) }))}>
+          <option value={0}>Sin configurar</option>{Object.entries(condicionIvaLabels).map(([id, label]) => <option value={id} key={id}>{label}</option>)}
+        </select></label>
+      </fieldset>
       <div>
         <label className={labelClass}>Nombre *</label>
         <input name="nombre" required value={form.nombre} onChange={handleChange} className={fieldClass} placeholder="Nombre del cliente" />

@@ -5,6 +5,12 @@ namespace KimarApi.Models.Entities;
 
 public class Venta
 {
+    public bool EmitirFactura { get; set; }
+    public Guid? OperacionId { get; set; }
+    [MaxLength(64)] public string? HuellaOperacion { get; set; }
+    public decimal Iva { get; set; }
+    public decimal CreditoAplicado { get; set; }
+    public ICollection<ComprobanteFiscal> Comprobantes { get; set; } = [];
     [Key]
     public Guid Id { get; set; } = Guid.NewGuid();
 

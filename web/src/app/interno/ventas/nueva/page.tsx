@@ -6,9 +6,12 @@ import { useData } from '@/contexts/DataContext'
 import { Cobranza, FormaPago, ItemVenta } from '@/lib/types'
 import { formatPeso, formatFecha, today } from '@/lib/format'
 import { generateId } from '@/lib/storage'
-import { Trash2, ArrowLeft, AlertTriangle } from 'lucide-react'
+import { Trash2, ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { FacturaEditor, FacturaResumen } from '@/components/interno/FacturaEditor'
+import { ComprobanteFiscal, roundMoney } from '@/lib/facturacion'
 
 type CobranzaDraft = {
   id: string
@@ -27,7 +30,11 @@ export default function NuevaVentaPage() {
   const [vendedorId, setVendedorId] = useState(data.vendedores[0]?.id ?? '')
   const [pedidoId, setPedidoId] = useState('')
   const [fechaEntrega, setFechaEntrega] = useState(today())
-  const [nroFactura, setNroFactura] = useState('')
+  const [emitirFactura, setEmitirFactura] = useState(false)
+  const [preview, setPreview] = useState<ComprobanteFiscal | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [operacionId] = useState(() => crypto.randomUUID())
   const [observaciones, setObservaciones] = useState('')
   const [items, setItems] = useState<ItemVenta[]>([])
   const [cobranzas, setCobranzas] = useState<CobranzaDraft[]>([
@@ -48,7 +55,10 @@ export default function NuevaVentaPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams])
 
-  const total = items.reduce((s, i) => s + i.subtotal, 0)
+  const neto = roundMoney(items.reduce((s, i) => s + roundMoney(i.cantidad * i.precioUnitario), 0))
+  const iva = emitirFactura ? roundMoney(neto * 0.21) : 0
+  const total = roundMoney(neto + iva)
+  useEffect(() => { setPreview(null) }, [clienteId, items, emitirFactura])
   const totalCobranzas = cobranzas.reduce((s, c) => s + (c.tipo === 'total' ? total : c.monto), 0)
   const pendingPedidos = data.pedidos.filter(p => p.estado === 'pendiente')
   const selectedProduct = data.productos.find(p => p.id === productoId)
@@ -81,6 +91,7 @@ export default function NuevaVentaPage() {
   function onClienteChange(id: string) {
     setClienteId(id)
     const cliente = data.clientes.find(c => c.id === id)
+    setEmitirFactura(cliente?.requiereFactura ?? false)
     if (cliente?.vendedorId) setVendedorId(cliente.vendedorId)
   }
 
@@ -88,7 +99,7 @@ export default function NuevaVentaPage() {
     setPedidoId(pid)
     const p = data.pedidos.find(x => x.id === pid)
     if (!p) return
-    setClienteId(p.clienteId)
+    onClienteChange(p.clienteId)
     setVendedorId(p.vendedorId)
     setItems(p.items.map(i => ({ ...i, descripcion: i.productoNombre })))
   }
@@ -114,7 +125,7 @@ export default function NuevaVentaPage() {
       descripcion: prod.nombre,
       cantidad: qty,
       precioUnitario: pr,
-      subtotal: qty * pr,
+      subtotal: roundMoney(qty * pr),
     }])
     setProductoId('')
     setCantidad('')
@@ -146,6 +157,9 @@ export default function NuevaVentaPage() {
   }
 
   async function doSave() {
+    if (saving) return
+    setSaving(true); setError('')
+    try {
     const cobsInput: Omit<Cobranza, 'id' | 'fechaCreacion' | 'clienteId' | 'ventaId'>[] = cobranzas.map(c => ({
       fecha: c.fecha,
       monto: c.tipo === 'total' ? total : c.monto,
@@ -153,13 +167,13 @@ export default function NuevaVentaPage() {
       estado: 'pendiente' as const,
     }))
 
-    await addVenta(
+    const result = await addVenta(
       {
         clienteId,
         vendedorId,
         pedidoId: pedidoId || undefined,
         fechaEntrega,
-        nroFactura: nroFactura || undefined,
+        emitirFactura, borradorFiscalId: emitirFactura ? preview?.id : undefined, operacionId,
         items,
         total,
         observaciones: observaciones || undefined,
@@ -167,7 +181,9 @@ export default function NuevaVentaPage() {
       cobsInput
     )
 
-    router.push('/interno/ventas')
+    router.push(`/interno/ventas/${result.id}`)
+    } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo registrar la venta') }
+    finally { setSaving(false) }
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -175,12 +191,9 @@ export default function NuevaVentaPage() {
     if (!clienteId || items.length === 0) return
     if (itemsPendientesCalidad.length > 0) return
 
-    const planTotal = cobranzas.reduce((s, c) => s + (c.tipo === 'total' ? total : c.monto), 0)
-    if (cobranzas.length === 0 || planTotal < total) {
-      setShowWarning(true)
-      return
-    }
-    doSave()
+    if (emitirFactura && !preview) { setError('Revisá la vista previa de la factura antes de confirmar.'); return }
+    if (totalCobranzas > total) { setError('El plan de cobro supera el total de la venta.'); return }
+    setError(''); setShowWarning(true)
   }
 
   const fieldClass = "w-full border border-[oklch(0.88_0.02_240)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[oklch(0.42_0.14_240)]"
@@ -250,8 +263,8 @@ export default function NuevaVentaPage() {
               <input type="date" value={fechaEntrega} onChange={e => setFechaEntrega(e.target.value)} className={fieldClass} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-[oklch(0.35_0.06_240)] mb-1">N° Factura</label>
-              <input value={nroFactura} onChange={e => setNroFactura(e.target.value)} className={fieldClass} placeholder="Ej: 245" />
+              <label className="block text-xs font-medium text-[oklch(0.35_0.06_240)] mb-1">Emitir factura</label>
+              <select value={String(emitirFactura)} onChange={e => setEmitirFactura(e.target.value === 'true')} className={fieldClass}><option value="false">No</option><option value="true">Sí</option></select>
             </div>
           </div>
           <p className="text-xs text-[oklch(0.55_0.04_240)] -mt-2">
@@ -363,6 +376,8 @@ export default function NuevaVentaPage() {
           )}
         </div>
 
+        {emitirFactura && selectedCliente && <FacturaEditor key={clienteId} cliente={selectedCliente} items={items} onPreview={setPreview} />}
+        <p className="text-sm font-semibold">Neto: {formatPeso(neto)}{emitirFactura && <> · IVA 21%: {formatPeso(iva)}</>} · Total a cobrar: {formatPeso(total)}</p>
         {/* Plan de cobro */}
         <div className="bg-white rounded-xl border border-[oklch(0.9_0.01_240)] shadow-sm p-6 space-y-4">
           <div className="flex items-center justify-between">
@@ -470,40 +485,25 @@ export default function NuevaVentaPage() {
           />
         </div>
 
-        {/* Warning banner */}
-        {showWarning && (
-          <div className="bg-orange-50 border border-orange-200 rounded-xl p-5 space-y-3">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="font-semibold text-orange-700">Plan de cobro incompleto</p>
-                <p className="text-sm text-orange-600 mt-0.5">
-                  {cobranzas.length === 0
-                    ? 'No registraste ningún plan de cobro para esta venta.'
-                    : `El plan cubre ${formatPeso(totalCobranzas)} de ${formatPeso(total)}. Falta registrar ${formatPeso(total - totalCobranzas)}.`
-                  }
-                  {' '}Podés completarlo ahora o registrar el resto desde el módulo de Cobranzas.
-                </p>
-              </div>
-            </div>
+        {error && <p role="alert" className="text-red-700">{error}</p>}
+        <Dialog open={showWarning} onOpenChange={open => { if (!saving) setShowWarning(open) }}>
+          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+            <DialogTitle>Confirmar registro de venta</DialogTitle>
+            <p>{selectedCliente?.nombre} · Total a cobrar: <strong>{formatPeso(total)}</strong></p>
+            <p className={cn('rounded-lg p-4 text-lg font-bold', emitirFactura ? 'bg-blue-50 text-blue-900' : 'bg-amber-50 text-amber-900')}>
+              {emitirFactura ? 'SE EMITIRÁ FACTURA A' : 'NO SE EMITIRÁ FACTURA — SOLO REMITO'}
+            </p>
+            {!emitirFactura && selectedCliente?.requiereFactura && <p className="text-amber-800">Este cliente tiene configurado que requiere factura. Elegiste No para esta operación.</p>}
+            {emitirFactura && preview && <FacturaResumen comprobante={preview} />}
+            {emitirFactura && <p className="text-sm">Si ARCA no responde, la venta continúa y la emisión se reintenta automáticamente. Podés consultar su estado desde Facturación.</p>}
+            {totalCobranzas < total && <p className="text-amber-800">Plan de cobro incompleto: cubre {formatPeso(totalCobranzas)} de {formatPeso(total)}. Podés completar el resto desde Cobranzas.</p>}
+            {error && <p role="alert" className="text-red-700">{error}</p>}
             <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => setShowWarning(false)}
-                className="flex-1 border border-orange-300 text-orange-700 py-2 rounded-lg text-sm font-medium hover:bg-orange-100 transition-colors"
-              >
-                Completar ahora
-              </button>
-              <button
-                type="button"
-                onClick={doSave}
-                className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-2 rounded-lg text-sm font-semibold transition-colors"
-              >
-                Registrar igual
-              </button>
+              <button type="button" disabled={saving} onClick={() => setShowWarning(false)} className="rounded-lg border px-4 py-2">Volver y corregir</button>
+              <button type="button" disabled={saving || (emitirFactura && !preview)} onClick={doSave} className="rounded-lg bg-blue-700 text-white px-4 py-2 disabled:opacity-50">{saving ? 'Registrando…' : emitirFactura ? 'Confirmar venta y emitir factura' : 'Confirmar venta sin emitir factura'}</button>
             </div>
-          </div>
-        )}
+          </DialogContent>
+        </Dialog>
 
         {!showWarning && (
           <div className="flex gap-3">
@@ -515,7 +515,7 @@ export default function NuevaVentaPage() {
             </Link>
             <button
               type="submit"
-              disabled={!clienteId || items.length === 0 || itemsPendientesCalidad.length > 0}
+              disabled={saving || !clienteId || items.length === 0 || itemsPendientesCalidad.length > 0 || (emitirFactura && !preview)}
               title={itemsPendientesCalidad.length > 0 ? 'Hay ítems que requieren elegir una calidad' : undefined}
               className="flex-1 bg-[oklch(0.42_0.14_240)] hover:bg-[oklch(0.52_0.14_240)] disabled:opacity-50 text-white py-3 rounded-lg text-sm font-semibold transition-colors"
             >

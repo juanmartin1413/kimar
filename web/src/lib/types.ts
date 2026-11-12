@@ -17,6 +17,10 @@ export interface Vendedor {
 }
 
 export interface Cliente {
+  requiereFactura?: boolean
+  razonSocial?: string
+  domicilioFiscal?: string
+  condicionIva?: number
   id: string
   nombre: string
   calle?: string
@@ -103,6 +107,12 @@ export interface Cobranza {
 }
 
 export interface Venta {
+  emitirFactura?: boolean
+  iva?: number
+  creditoAplicado?: number
+  estadoFiscal?: string
+  borradorFiscalId?: string
+  operacionId?: string
   id: string
   pedidoId?: string
   clienteId: string

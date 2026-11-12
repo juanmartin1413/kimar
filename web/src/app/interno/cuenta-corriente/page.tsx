@@ -156,7 +156,7 @@ export default function CuentaCorrientePage() {
       ventas: ventasConSaldo(data.ventas, cliente.id),
       saldo: saldoCliente(data.ventas, cliente.id),
     }))
-    .filter(({ saldo }) => mostrarTodos || saldo > 0)
+    .filter(({ saldo }) => mostrarTodos || Math.abs(saldo) > 0.005)
     .sort((a, b) => b.saldo - a.saldo)
 
   return (
@@ -168,7 +168,7 @@ export default function CuentaCorrientePage() {
         </div>
         <div className="flex items-center gap-4">
           <div className="bg-red-50 border border-red-200 rounded-xl px-5 py-3 text-center">
-            <p className="text-xs text-red-600 font-medium">TOTAL A COBRAR</p>
+            <p className="text-xs text-red-600 font-medium">SALDO NETO (negativo: a favor)</p>
             <p className="text-xl font-bold text-red-700 tabular-nums">{formatPeso(totalGeneral)}</p>
           </div>
         </div>

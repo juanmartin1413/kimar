@@ -3,6 +3,7 @@ using KimarApi.Models;
 using KimarApi.Models.DTOs;
 using KimarApi.Models.Entities;
 using KimarApi.Services;
+using KimarApi.Services.Facturacion;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -39,6 +40,8 @@ public class CobranzasController(KimarDbContext db, VentaService ventaSvc) : Con
     [Authorize(Roles = "admin,gestor")]
     public async Task<IActionResult> Create([FromBody] CobranzaRequest req, [FromQuery] Guid? ventaId, [FromQuery] Guid clienteId)
     {
+        await using var tx = await db.Database.BeginTransactionAsync();
+        if (ventaId.HasValue) await ValidarVentaAsync(ventaId.Value);
         var c = new Cobranza
         {
             VentaId = ventaId,
@@ -54,6 +57,7 @@ public class CobranzasController(KimarDbContext db, VentaService ventaSvc) : Con
         db.Cobranzas.Add(c);
         await db.SaveChangesAsync();
         if (ventaId.HasValue) await ventaSvc.RecalcularEstadoAsync(ventaId.Value);
+        await tx.CommitAsync();
         return CreatedAtAction(nameof(GetById), new { id = c.Id }, Map(c));
     }
 
@@ -63,12 +67,17 @@ public class CobranzasController(KimarDbContext db, VentaService ventaSvc) : Con
     {
         var c = await db.Cobranzas.FindAsync(id);
         if (c is null) return NotFound();
+        await using var tx = await db.Database.BeginTransactionAsync();
+        if (c.VentaId.HasValue) await ValidarVentaAsync(c.VentaId.Value);
+        await db.Entry(c).ReloadAsync();
+        if (db.Entry(c).State == EntityState.Detached) return NotFound();
         // No se vuelve a cobrar: pisaría la fecha de cobro original.
         if (c.Estado == "cobrado") return BadRequest(new { error = "La cobranza ya está cobrada." });
         c.Estado = "cobrado";
         c.FechaCobro = req?.FechaCobro ?? DateOnly.FromDateTime(DateTime.UtcNow);
         await db.SaveChangesAsync();
         if (c.VentaId.HasValue) await ventaSvc.RecalcularEstadoAsync(c.VentaId.Value);
+        await tx.CommitAsync();
         return Ok(new { id = c.Id, estado = c.Estado });
     }
 
@@ -78,6 +87,10 @@ public class CobranzasController(KimarDbContext db, VentaService ventaSvc) : Con
     {
         var c = await db.Cobranzas.FindAsync(id);
         if (c is null) return NotFound();
+        await using var tx = await db.Database.BeginTransactionAsync();
+        if (c.VentaId.HasValue) await ValidarVentaAsync(c.VentaId.Value);
+        await db.Entry(c).ReloadAsync();
+        if (db.Entry(c).State == EntityState.Detached) return NotFound();
         // Una cobranza cobrada es intocable; para cobrar existe POST {id}/cobrar.
         if (c.Estado == "cobrado") return BadRequest(new { error = "No se puede modificar una cobranza ya cobrada." });
         if (req.Estado == "cobrado") return BadRequest(new { error = "Para marcar como cobrada usá la acción Cobrar." });
@@ -88,7 +101,17 @@ public class CobranzasController(KimarDbContext db, VentaService ventaSvc) : Con
         c.Observaciones = req.Observaciones;
         await db.SaveChangesAsync();
         if (c.VentaId.HasValue) await ventaSvc.RecalcularEstadoAsync(c.VentaId.Value);
+        await tx.CommitAsync();
         return Ok(Map(c));
+    }
+
+    private async Task ValidarVentaAsync(Guid id)
+    {
+        var key = FiscalRules.LockKey("cobranza:" + id);
+        await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({key})");
+        var v = await db.Ventas.AsNoTracking().FirstOrDefaultAsync(v => v.Id == id);
+        if (v is null || v.CreditoAplicado > 0)
+            throw new FiscalException("No se pueden registrar o modificar cobranzas de una venta anulada por nota de crédito.");
     }
 
     private static CobranzaDto Map(Cobranza c) => new(

@@ -31,6 +31,8 @@ public class AdjuntosController(AdjuntoService adjuntoSvc) : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateAdjuntoRequest req)
     {
+        if (req.EntidadTipo is not ("Compra" or "Venta") || req.EntidadTipo == "Venta" && req.Tipo != "remito_firmado")
+            return BadRequest(new { error = "Los comprobantes fiscales de ventas se generan exclusivamente desde Facturación." });
         var userId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value!);
         var adjunto = await adjuntoSvc.GuardarAsync(
             req.EntidadTipo, req.EntidadId, req.Tipo, req.Nombre, req.ContentType, req.ContenidoBase64, userId);

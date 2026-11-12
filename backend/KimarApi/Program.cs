@@ -2,6 +2,7 @@ using System.Text;
 using KimarApi.Data;
 using KimarApi.Data.Seed;
 using KimarApi.Services;
+using KimarApi.Services.Facturacion;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.EntityFrameworkCore;
@@ -56,6 +57,12 @@ builder.Services.AddScoped<FormaPagoProveedorService>();
 builder.Services.AddScoped<CompraService>();
 builder.Services.AddScoped<AdjuntoService>();
 builder.Services.AddScoped<EntregaService>();
+builder.Services.AddSingleton<FiscalConfig>();
+builder.Services.AddScoped<FacturacionService>();
+builder.Services.AddScoped<FiscalProcessor>();
+builder.Services.AddScoped<FiscalPdf>();
+builder.Services.AddHttpClient<IArcaClient, ArcaClient>(client => client.Timeout = TimeSpan.FromSeconds(45));
+builder.Services.AddHostedService<FiscalWorker>();
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
 var allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>()
@@ -115,6 +122,12 @@ app.UseExceptionHandler(errorApp => errorApp.Run(async context =>
         context.Response.Headers["Access-Control-Allow-Origin"] = origin;
 
     var error = context.Features.Get<IExceptionHandlerFeature>()?.Error;
+    if (error is FiscalException fiscalError)
+    {
+        context.Response.StatusCode = StatusCodes.Status400BadRequest;
+        await context.Response.WriteAsJsonAsync(new { error = fiscalError.Message });
+        return;
+    }
     Console.Error.WriteLine(error);
 
     context.Response.StatusCode = StatusCodes.Status500InternalServerError;

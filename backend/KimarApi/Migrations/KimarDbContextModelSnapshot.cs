@@ -115,9 +115,16 @@ namespace KimarApi.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<int?>("CondicionIva")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Cuit")
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
+
+                    b.Property<string>("DomicilioFiscal")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
 
                     b.Property<string>("Email")
                         .HasMaxLength(200)
@@ -138,6 +145,13 @@ namespace KimarApi.Migrations
                     b.Property<string>("Provincia")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
+
+                    b.Property<string>("RazonSocial")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<bool>("RequiereFactura")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("Telefono1")
                         .HasMaxLength(50)
@@ -257,6 +271,145 @@ namespace KimarApi.Migrations
                     b.HasIndex("ProveedorId", "FechaRecepcion");
 
                     b.ToTable("Compras");
+                });
+
+            modelBuilder.Entity("KimarApi.Models.Entities.ComprobanteFiscal", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Ambiente")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime?>("AutorizadoEn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Cae")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("ClienteId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ComprobanteOrigenId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CuitEmisor")
+                        .IsRequired()
+                        .HasMaxLength(11)
+                        .HasColumnType("character varying(11)");
+
+                    b.Property<string>("DatosJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("EfectoComercial")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("EmisorId")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("ErrorPdf")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateOnly>("Fecha")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime>("FechaCreacion")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("HashPdf")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("HuellaVenta")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int>("Intentos")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("Iva")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("Motivo")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<decimal>("Neto")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<long?>("Numero")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ObservacionesArca")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("ProximoIntento")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("PuntoVenta")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("ReemplazaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("RutaPdf")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<int>("Tipo")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("Total")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("UltimoError")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("UltimoIntento")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly?>("VencimientoCae")
+                        .HasColumnType("date");
+
+                    b.Property<Guid?>("VentaId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ComprobanteOrigenId")
+                        .IsUnique();
+
+                    b.HasIndex("ReemplazaId")
+                        .IsUnique();
+
+                    b.HasIndex("VentaId");
+
+                    b.HasIndex("Estado", "ProximoIntento");
+
+                    b.HasIndex("Ambiente", "CuitEmisor", "PuntoVenta", "Tipo", "Numero")
+                        .IsUnique();
+
+                    b.ToTable("ComprobantesFiscales");
                 });
 
             modelBuilder.Entity("KimarApi.Models.Entities.CompromisoProv", b =>
@@ -466,6 +619,36 @@ namespace KimarApi.Migrations
                     b.HasIndex("GastoFijoId");
 
                     b.ToTable("InstanciasGasto");
+                });
+
+            modelBuilder.Entity("KimarApi.Models.Entities.IntentoFiscal", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ComprobanteFiscalId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Detalle")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("Fecha")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long?>("Numero")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Resultado")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ComprobanteFiscalId");
+
+                    b.ToTable("IntentosFiscales");
                 });
 
             modelBuilder.Entity("KimarApi.Models.Entities.ItemCompra", b =>
@@ -973,6 +1156,13 @@ namespace KimarApi.Migrations
                     b.Property<Guid>("ClienteId")
                         .HasColumnType("uuid");
 
+                    b.Property<decimal>("CreditoAplicado")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<bool>("EmitirFactura")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Estado")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -995,6 +1185,14 @@ namespace KimarApi.Migrations
                     b.Property<DateTime?>("FechaListo")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("HuellaOperacion")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<decimal>("Iva")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
                     b.Property<string>("MedioEnvio")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -1012,6 +1210,9 @@ namespace KimarApi.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<Guid?>("OperacionId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid?>("PedidoId")
                         .HasColumnType("uuid");
 
@@ -1028,6 +1229,9 @@ namespace KimarApi.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("FechaEntrega");
+
+                    b.HasIndex("OperacionId")
+                        .IsUnique();
 
                     b.HasIndex("PedidoId")
                         .IsUnique();
@@ -1119,6 +1323,16 @@ namespace KimarApi.Migrations
                     b.Navigation("Usuario");
                 });
 
+            modelBuilder.Entity("KimarApi.Models.Entities.ComprobanteFiscal", b =>
+                {
+                    b.HasOne("KimarApi.Models.Entities.Venta", "Venta")
+                        .WithMany("Comprobantes")
+                        .HasForeignKey("VentaId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Venta");
+                });
+
             modelBuilder.Entity("KimarApi.Models.Entities.CompromisoProv", b =>
                 {
                     b.HasOne("KimarApi.Models.Entities.Compra", "Compra")
@@ -1168,6 +1382,17 @@ namespace KimarApi.Migrations
                         .IsRequired();
 
                     b.Navigation("GastoFijo");
+                });
+
+            modelBuilder.Entity("KimarApi.Models.Entities.IntentoFiscal", b =>
+                {
+                    b.HasOne("KimarApi.Models.Entities.ComprobanteFiscal", "ComprobanteFiscal")
+                        .WithMany("Historial")
+                        .HasForeignKey("ComprobanteFiscalId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ComprobanteFiscal");
                 });
 
             modelBuilder.Entity("KimarApi.Models.Entities.ItemCompra", b =>
@@ -1452,6 +1677,11 @@ namespace KimarApi.Migrations
                     b.Navigation("MovimientosStock");
                 });
 
+            modelBuilder.Entity("KimarApi.Models.Entities.ComprobanteFiscal", b =>
+                {
+                    b.Navigation("Historial");
+                });
+
             modelBuilder.Entity("KimarApi.Models.Entities.CompromisoProv", b =>
                 {
                     b.Navigation("Cuotas");
@@ -1523,6 +1753,8 @@ namespace KimarApi.Migrations
             modelBuilder.Entity("KimarApi.Models.Entities.Venta", b =>
                 {
                     b.Navigation("Cobranzas");
+
+                    b.Navigation("Comprobantes");
 
                     b.Navigation("Items");
 

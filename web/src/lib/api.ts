@@ -24,7 +24,9 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 
   if (!res.ok) {
     const text = await res.text().catch(() => '')
-    throw new Error(text || `HTTP ${res.status}`)
+    let message = text
+    try { message = JSON.parse(text).error || text } catch { /* respuesta sin JSON */ }
+    throw new Error(message || `HTTP ${res.status}`)
   }
 
   if (res.status === 204) return undefined as T
@@ -33,6 +35,14 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 }
 
 export const api = {
+  download: async (path: string, filename: string) => {
+    const token = localStorage.getItem('kimar_token')
+    const res = await fetch(BASE + path, { headers: { Authorization: 'Bearer ' + token } })
+    if (!res.ok) { const error = await res.json().catch(() => ({})); throw new Error(error.error || 'No se pudo descargar el documento') }
+    const url = URL.createObjectURL(await res.blob())
+    const a = document.createElement('a'); a.href = url; a.download = filename; a.click()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  },
   get:    <T>(path: string)                 => request<T>('GET',    path),
   post:   <T>(path: string, body?: unknown) => request<T>('POST',   path, body),
   put:    <T>(path: string, body?: unknown) => request<T>('PUT',    path, body),

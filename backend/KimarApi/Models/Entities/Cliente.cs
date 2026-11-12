@@ -5,6 +5,10 @@ namespace KimarApi.Models.Entities;
 
 public class Cliente
 {
+    public bool RequiereFactura { get; set; }
+    [MaxLength(200)] public string? RazonSocial { get; set; }
+    [MaxLength(300)] public string? DomicilioFiscal { get; set; }
+    public int? CondicionIva { get; set; }
     [Key]
     public Guid Id { get; set; } = Guid.NewGuid();
 

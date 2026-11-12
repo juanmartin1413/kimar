@@ -6,7 +6,7 @@ export function saldoVenta(venta: Venta): number {
   const cobrado = venta.cobranzas
     .filter(c => c.estado === 'cobrado')
     .reduce((s, c) => s + c.monto, 0)
-  return venta.total - cobrado
+  return venta.total - (venta.creditoAplicado ?? 0) - cobrado
 }
 
 // Fecha de la cuota pendiente más próxima de la venta, si tiene alguna planificada.
@@ -19,7 +19,7 @@ export function proximoVencimiento(venta: Venta): string | undefined {
 }
 
 export function ventasConSaldo(ventas: Venta[], clienteId: string): Venta[] {
-  return ventas.filter(v => v.clienteId === clienteId && saldoVenta(v) > 0)
+  return ventas.filter(v => v.clienteId === clienteId && Math.abs(saldoVenta(v)) > 0.005)
 }
 
 export function saldoCliente(ventas: Venta[], clienteId: string): number {

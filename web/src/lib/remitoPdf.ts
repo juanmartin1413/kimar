@@ -105,6 +105,7 @@ function buildRemitoHTML(
   </div>
 
   <!-- Total -->
+  ${venta.iva ? `<div style="margin:10px 24px;font-size:11px">Neto: ${formatPeso(venta.total - venta.iva)} · IVA 21%: ${formatPeso(venta.iva)}</div>` : ''}
   <div style="margin:0 24px;border:1px solid ${brandPdf.light};border-top:none;border-radius:0 0 6px 6px;display:flex;justify-content:space-between;align-items:center;padding:10px 16px;background:${brandPdf.ivory};font-family:${brandPdf.fontBody}">
     <span style="font-size:11px;font-weight:700;letter-spacing:1px;color:${brandPdf.navy}">TOTAL</span>
     <span style="font-size:15px;font-weight:700;color:${brandPdf.navy}">${formatPeso(venta.total)}</span>

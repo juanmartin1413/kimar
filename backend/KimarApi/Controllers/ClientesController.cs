@@ -41,7 +41,7 @@ public class ClientesController(KimarDbContext db) : ControllerBase
                 c.Id, c.Nombre, c.Calle, c.Altura, c.Localidad, c.Provincia,
                 c.Telefono1, c.Telefono2, c.Email, c.Cuit,
                 c.VendedorId, c.Vendedor != null ? c.Vendedor.Nombre : null,
-                c.Activo, c.FechaCreacion))
+                c.Activo, c.FechaCreacion, c.RequiereFactura, c.RazonSocial, c.DomicilioFiscal, c.CondicionIva))
             .ToListAsync();
 
         return Ok(list);
@@ -54,7 +54,7 @@ public class ClientesController(KimarDbContext db) : ControllerBase
         if (c is null) return NotFound();
         return Ok(new ClienteDto(c.Id, c.Nombre, c.Calle, c.Altura, c.Localidad, c.Provincia,
             c.Telefono1, c.Telefono2, c.Email, c.Cuit,
-            c.VendedorId, c.Vendedor?.Nombre, c.Activo, c.FechaCreacion));
+            c.VendedorId, c.Vendedor?.Nombre, c.Activo, c.FechaCreacion, c.RequiereFactura, c.RazonSocial, c.DomicilioFiscal, c.CondicionIva));
     }
 
     [HttpPost]
@@ -64,6 +64,7 @@ public class ClientesController(KimarDbContext db) : ControllerBase
         var cliente = new Cliente
         {
             Nombre = req.Nombre,
+            RequiereFactura = req.RequiereFactura, RazonSocial = req.RazonSocial, DomicilioFiscal = req.DomicilioFiscal, CondicionIva = req.CondicionIva,
             Calle = req.Calle,
             Altura = req.Altura,
             Localidad = req.Localidad,
@@ -79,7 +80,7 @@ public class ClientesController(KimarDbContext db) : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = cliente.Id },
             new ClienteDto(cliente.Id, cliente.Nombre, cliente.Calle, cliente.Altura, cliente.Localidad,
                 cliente.Provincia, cliente.Telefono1, cliente.Telefono2, cliente.Email, cliente.Cuit,
-                cliente.VendedorId, null, cliente.Activo, cliente.FechaCreacion));
+                cliente.VendedorId, null, cliente.Activo, cliente.FechaCreacion, cliente.RequiereFactura, cliente.RazonSocial, cliente.DomicilioFiscal, cliente.CondicionIva));
     }
 
     [HttpPut("{id}")]
@@ -89,6 +90,10 @@ public class ClientesController(KimarDbContext db) : ControllerBase
         var c = await db.Clientes.FindAsync(id);
         if (c is null) return NotFound();
 
+        if (req.RequiereFactura.HasValue) c.RequiereFactura = req.RequiereFactura.Value;
+        if (req.RazonSocial is not null) c.RazonSocial = req.RazonSocial;
+        if (req.DomicilioFiscal is not null) c.DomicilioFiscal = req.DomicilioFiscal;
+        if (req.CondicionIva.HasValue) c.CondicionIva = req.CondicionIva;
         if (req.Nombre is not null) c.Nombre = req.Nombre;
         if (req.Calle is not null) c.Calle = req.Calle;
         if (req.Altura is not null) c.Altura = req.Altura;
@@ -103,7 +108,7 @@ public class ClientesController(KimarDbContext db) : ControllerBase
 
         await db.SaveChangesAsync();
         return Ok(new ClienteDto(c.Id, c.Nombre, c.Calle, c.Altura, c.Localidad, c.Provincia,
-            c.Telefono1, c.Telefono2, c.Email, c.Cuit, c.VendedorId, null, c.Activo, c.FechaCreacion));
+            c.Telefono1, c.Telefono2, c.Email, c.Cuit, c.VendedorId, null, c.Activo, c.FechaCreacion, c.RequiereFactura, c.RazonSocial, c.DomicilioFiscal, c.CondicionIva));
     }
 
     [HttpDelete("{id}")]

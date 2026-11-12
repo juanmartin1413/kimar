@@ -5,6 +5,8 @@ namespace KimarApi.Data;
 
 public class KimarDbContext(DbContextOptions<KimarDbContext> options) : DbContext(options)
 {
+    public DbSet<ComprobanteFiscal> ComprobantesFiscales => Set<ComprobanteFiscal>();
+    public DbSet<IntentoFiscal> IntentosFiscales => Set<IntentoFiscal>();
     public DbSet<Usuario> Usuarios => Set<Usuario>();
     public DbSet<Vendedor> Vendedores => Set<Vendedor>();
     public DbSet<Cliente> Clientes => Set<Cliente>();
@@ -34,6 +36,13 @@ public class KimarDbContext(DbContextOptions<KimarDbContext> options) : DbContex
     protected override void OnModelCreating(ModelBuilder model)
     {
         base.OnModelCreating(model);
+        model.Entity<Venta>().HasIndex(v => v.OperacionId).IsUnique();
+        model.Entity<ComprobanteFiscal>().HasIndex(c => new { c.Ambiente, c.CuitEmisor, c.PuntoVenta, c.Tipo, c.Numero }).IsUnique();
+        model.Entity<ComprobanteFiscal>().HasIndex(c => new { c.Estado, c.ProximoIntento });
+        model.Entity<ComprobanteFiscal>().HasIndex(c => c.ComprobanteOrigenId).IsUnique();
+        model.Entity<ComprobanteFiscal>().HasIndex(c => c.ReemplazaId).IsUnique();
+        model.Entity<ComprobanteFiscal>().HasOne(c => c.Venta).WithMany(v => v.Comprobantes).HasForeignKey(c => c.VentaId).OnDelete(DeleteBehavior.Restrict);
+        model.Entity<IntentoFiscal>().HasOne(i => i.ComprobanteFiscal).WithMany(c => c.Historial).HasForeignKey(i => i.ComprobanteFiscalId).OnDelete(DeleteBehavior.Restrict);
 
         // Unique constraints
         model.Entity<Usuario>().HasIndex(u => u.Email).IsUnique();

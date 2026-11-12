@@ -4,6 +4,9 @@ using KimarApi.Models;
 using KimarApi.Models.DTOs;
 using KimarApi.Models.Entities;
 using KimarApi.Services;
+using KimarApi.Services.Facturacion;
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -13,7 +16,7 @@ namespace KimarApi.Controllers;
 [ApiController]
 [Route("api/ventas")]
 [Authorize]
-public class VentasController(KimarDbContext db, StockService stockSvc, VentaService ventaSvc) : ControllerBase
+public class VentasController(KimarDbContext db, StockService stockSvc, VentaService ventaSvc, FacturacionService fiscalSvc) : ControllerBase
 {
     [HttpGet]
     [Authorize(Roles = Roles.Comercial)]
@@ -23,7 +26,7 @@ public class VentasController(KimarDbContext db, StockService stockSvc, VentaSer
         var userId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value!);
 
         var query = db.Ventas
-            .Include(v => v.Cliente).Include(v => v.Vendedor).Include(v => v.Repartidor)
+            .Include(v => v.Cliente).Include(v => v.Vendedor).Include(v => v.Repartidor).Include(v => v.Comprobantes)
             .Include(v => v.Items).ThenInclude(i => i.Calidad)
             .Include(v => v.Cobranzas).ThenInclude(c => c.Cliente)
             .AsQueryable();
@@ -46,7 +49,7 @@ public class VentasController(KimarDbContext db, StockService stockSvc, VentaSer
     public async Task<IActionResult> GetById(Guid id)
     {
         var v = await db.Ventas
-            .Include(x => x.Cliente).Include(x => x.Vendedor).Include(x => x.Repartidor)
+            .Include(x => x.Cliente).Include(x => x.Vendedor).Include(x => x.Repartidor).Include(x => x.Comprobantes)
             .Include(x => x.Items).ThenInclude(i => i.Calidad)
             .Include(x => x.Cobranzas).ThenInclude(c => c.Cliente)
             .FirstOrDefaultAsync(x => x.Id == id);
@@ -83,6 +86,33 @@ public class VentasController(KimarDbContext db, StockService stockSvc, VentaSer
     public async Task<IActionResult> Create([FromBody] CreateVentaRequest req)
     {
         var userId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value!);
+        FiscalRules.ValidateItems(req.Items);
+        if (req.EmitirFactura && (req.OperacionId is null || req.BorradorFiscalId is null))
+            throw new FiscalException("Revisá y confirmá la factura antes de registrar la venta.");
+        var fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(FiscalRules.Serialize(req))));
+        await using var tx = await db.Database.BeginTransactionAsync();
+        if (req.OperacionId.HasValue)
+        {
+            var key = FiscalRules.LockKey("venta:" + req.OperacionId);
+            await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({key})");
+            var existing = await db.Ventas.FirstOrDefaultAsync(v => v.OperacionId == req.OperacionId);
+            if (existing is not null)
+            {
+                if (existing.HuellaOperacion != fingerprint) return Conflict(new { error = "Esta confirmación ya fue registrada con otros datos. Consultá la venta antes de volver a registrar." });
+                return Ok(new { id = existing.Id, estadoFiscal = existing.EmitirFactura ? "pendiente" : "sin_factura" });
+            }
+        }
+        if (!await db.Clientes.AnyAsync(c => c.Id == req.ClienteId && c.Activo) || !await db.Vendedores.AnyAsync(v => v.Id == req.VendedorId))
+            throw new FiscalException("Cliente o vendedor inválido.");
+        if (req.PedidoId.HasValue)
+        {
+            var key = FiscalRules.LockKey("pedido:" + req.PedidoId);
+            await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({key})");
+            var pedido = await db.Pedidos.FindAsync(req.PedidoId);
+            if (pedido is null || pedido.Estado != "pendiente" || await db.Ventas.AnyAsync(v => v.PedidoId == req.PedidoId))
+                throw new FiscalException("El pedido ya fue confirmado o no está disponible.");
+        }
+        ComprobanteFiscal? fiscal = req.EmitirFactura ? await fiscalSvc.ConfirmarBorradorAsync(req, userId) : null;
 
         var items = new List<ItemVenta>();
         foreach (var i in req.Items)
@@ -98,11 +128,14 @@ public class VentasController(KimarDbContext db, StockService stockSvc, VentaSer
                 Descripcion = i.Descripcion,
                 Cantidad = i.Cantidad,
                 PrecioUnitario = i.PrecioUnitario,
-                Subtotal = i.Cantidad * i.PrecioUnitario
+                Subtotal = FiscalRules.Money(i.Cantidad * i.PrecioUnitario)
             });
         }
 
-        var total = items.Sum(i => i.Subtotal);
+        var total = items.Sum(i => i.Subtotal) + (fiscal?.Iva ?? 0);
+        if (req.Cobranzas.Any(c => c.Monto <= 0 || c.Monto != FiscalRules.Money(c.Monto) ||
+            c.FormaPago is not ("efectivo" or "transferencia" or "cheque") || c.Estado is not ("pendiente" or "cobrado")) || req.Cobranzas.Sum(c => c.Monto) > total)
+            throw new FiscalException("El plan de cobro tiene importes inválidos o supera el total de la venta.");
 
         var cobranzas = req.Cobranzas.Select(c => new Cobranza
         {
@@ -122,7 +155,9 @@ public class VentasController(KimarDbContext db, StockService stockSvc, VentaSer
             VendedorId = req.VendedorId,
             FechaEntrega = req.FechaEntrega,
             NroRemito = await ventaSvc.SiguienteNumeroRemitoAsync(),
-            NroFactura = req.NroFactura,
+            NroFactura = req.EmitirFactura ? null : req.NroFactura,
+            EmitirFactura = req.EmitirFactura, Iva = fiscal?.Iva ?? 0,
+            OperacionId = req.OperacionId, HuellaOperacion = fingerprint,
             Total = total,
             Observaciones = req.Observaciones,
             Items = items,
@@ -132,6 +167,7 @@ public class VentasController(KimarDbContext db, StockService stockSvc, VentaSer
         venta.Estado = ventaSvc.CalcularEstado(total, cobranzas);
 
         db.Ventas.Add(venta);
+        if (fiscal is not null) fiscal.VentaId = venta.Id;
 
         // Mark pedido as confirmed
         if (req.PedidoId.HasValue)
@@ -144,8 +180,9 @@ public class VentasController(KimarDbContext db, StockService stockSvc, VentaSer
 
         // Register stock exits
         await stockSvc.RegistrarSalidaVentaAsync(venta, userId);
+        await tx.CommitAsync();
 
-        return CreatedAtAction(nameof(GetById), new { id = venta.Id }, new { id = venta.Id });
+        return CreatedAtAction(nameof(GetById), new { id = venta.Id }, new { id = venta.Id, estadoFiscal = req.EmitirFactura ? "pendiente" : "sin_factura" });
     }
 
     [HttpPut("{id}")]
@@ -154,6 +191,8 @@ public class VentasController(KimarDbContext db, StockService stockSvc, VentaSer
     {
         var v = await db.Ventas.FindAsync(id);
         if (v is null) return NotFound();
+        if (v.EmitirFactura && req.NroFactura is not null && req.NroFactura != v.NroFactura)
+            throw new FiscalException("La numeración fiscal es automática y no puede modificarse.");
         if (req.NroRemito is not null) v.NroRemito = req.NroRemito;
         if (req.NroFactura is not null) v.NroFactura = req.NroFactura;
         if (req.Observaciones is not null) v.Observaciones = req.Observaciones;
@@ -178,5 +217,7 @@ public class VentasController(KimarDbContext db, StockService stockSvc, VentaSer
         v.FechaEntrega, v.NroRemito, v.NroFactura, v.Total, v.Estado, v.Observaciones, v.FechaCreacion,
         v.Items.Select(i => new ItemVentaDto(i.Id, i.ProductoId, i.CalidadId, i.Calidad?.Nombre, i.Descripcion, i.Cantidad, i.PrecioUnitario, i.Subtotal)).ToList(),
         v.Cobranzas.Select(c => new CobranzaDto(c.Id, c.VentaId, c.ClienteId, c.Cliente?.Nombre ?? "", c.Fecha, c.Monto, c.FormaPago, c.Estado, c.Observaciones, c.FechaCreacion, c.FechaCobro)).ToList(),
-        v.EstadoEntrega, v.RepartidorId, v.Repartidor?.Nombre, v.FechaEntregado, v.MedioEnvio);
+        v.EstadoEntrega, v.RepartidorId, v.Repartidor?.Nombre, v.FechaEntregado, v.MedioEnvio,
+        v.EmitirFactura, v.Iva, v.CreditoAplicado,
+        v.Comprobantes.OrderByDescending(c => c.FechaCreacion).FirstOrDefault()?.Estado);
 }

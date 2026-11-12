@@ -46,7 +46,8 @@ public record VentaDto(
     Guid? RepartidorId,
     string? RepartidorNombre,
     DateTime? FechaEntregado,
-    string MedioEnvio);
+    string MedioEnvio,
+    bool EmitirFactura = false, decimal Iva = 0, decimal CreditoAplicado = 0, string? EstadoFiscal = null);
 
 public record ItemVentaRequest(
     Guid ProductoId,
@@ -70,7 +71,8 @@ public record CreateVentaRequest(
     string? NroFactura,
     string? Observaciones,
     IList<ItemVentaRequest> Items,
-    IList<CobranzaRequest> Cobranzas);
+    IList<CobranzaRequest> Cobranzas,
+    bool EmitirFactura = false, Guid? BorradorFiscalId = null, Guid? OperacionId = null);
 
 public record UpdateVentaRequest(
     string? NroRemito,

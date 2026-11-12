@@ -1,4 +1,5 @@
 import { Cliente, Cobranza, Compra, Producto, UnidadProducto, Vendedor, Venta } from './types'
+import { saldoVenta } from './cuentaCorriente'
 import { Periodo, obtenerUltimoPrecioCompraPorProducto } from './saludFinanciera'
 
 // ────────────────────────────── Vendedores comisionables ──────────────────────────────
@@ -62,7 +63,7 @@ export function ventaEnPeriodo(v: Venta, p: Periodo, modo: ModoPeriodo): boolean
 
 // Ventas del vendedor en el período, sin filtrar por cliente.
 export function ventasDelVendedor(ventas: Venta[], vendedorId: string, p: Periodo, modo: ModoPeriodo): Venta[] {
-  return ventas.filter(v => v.vendedorId === vendedorId && ventaEnPeriodo(v, p, modo))
+  return ventas.filter(v => v.vendedorId === vendedorId && ventaEnPeriodo(v, p, modo) && (v.creditoAplicado ?? 0) < v.total)
 }
 
 // ────────────────────────────── Clientes candidatos ──────────────────────────────
@@ -152,16 +153,18 @@ export function calcularComisiones(
         cobranzas.filter(c => modo === 'entrega' ? c.estado === 'cobrado' : cobranzaCobradaEnPeriodo(c, periodo)).map(c => c.id),
       )
       const cobradoTotal = cobranzas.filter(c => c.estado === 'cobrado').reduce((s, c) => s + c.monto, 0)
-      const cobradoEnPeriodo = cobranzas.filter(c => enPeriodoIds.has(c.id)).reduce((s, c) => s + c.monto, 0)
+      const cobradoBrutoEnPeriodo = cobranzas.filter(c => enPeriodoIds.has(c.id)).reduce((s, c) => s + c.monto, 0)
+      // El IVA cobrado no es margen comisionable.
+      const cobradoEnPeriodo = venta.total > 0 ? cobradoBrutoEnPeriodo * (venta.total - (venta.iva ?? 0)) / venta.total : 0
       return {
         venta,
         cliente: clientesPorId.get(venta.clienteId),
         cobranzas,
         cobradoTotal,
         cobradoEnPeriodo,
-        pendiente: venta.total - cobradoTotal,
+        pendiente: saldoVenta(venta),
         cobranzasEnPeriodoIds: enPeriodoIds,
-        ratioCobrado: venta.total > 0 ? Math.min(1, cobradoEnPeriodo / venta.total) : 0,
+        ratioCobrado: venta.total > 0 ? Math.min(1, cobradoBrutoEnPeriodo / venta.total) : 0,
       }
     })
 
@@ -194,7 +197,7 @@ export function calcularComisiones(
 
   const totales = ventas.reduce(
     (t, v) => ({
-      ventaTotal: t.ventaTotal + v.venta.total,
+      ventaTotal: t.ventaTotal + v.venta.total - (v.venta.iva ?? 0),
       cobrado: t.cobrado + v.cobradoEnPeriodo,
       pendiente: t.pendiente + v.pendiente,
     }),

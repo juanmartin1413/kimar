@@ -2,6 +2,7 @@
 
 import { useData } from '@/contexts/DataContext'
 import { formatPeso, formatFecha } from '@/lib/format'
+import { fiscalLabels } from '@/lib/facturacion'
 import { downloadRemito } from '@/lib/remitoPdf'
 import { estadoEntregaConfig } from '@/lib/entregas'
 import { Plus, ArrowRight, Pencil, Package, Download } from 'lucide-react'
@@ -103,8 +104,8 @@ export default function VentasPage() {
                     <td className="py-3 px-4 font-medium text-[oklch(0.25_0.06_240)]">{cliente?.nombre ?? '—'}</td>
                     <td className="py-3 px-4 text-[oklch(0.45_0.04_240)]">{vendedor?.nombre ?? '—'}</td>
                     <td className="py-3 px-4 text-[oklch(0.45_0.04_240)]">{v.nroRemito ?? '—'}</td>
-                    <td className="py-3 px-4 text-[oklch(0.45_0.04_240)]">{v.nroFactura ?? '—'}</td>
-                    <td className="py-3 px-4 font-semibold tabular-nums">{formatPeso(v.total)}</td>
+                    <td className="py-3 px-4 text-[oklch(0.45_0.04_240)]">{v.emitirFactura ? <Link href={`/interno/ventas/${v.id}`} className="text-blue-700 hover:underline">{v.nroFactura || 'Pendiente'}<span className="block text-xs">{v.creditoAplicado ? 'Venta acreditada' : fiscalLabels[v.estadoFiscal ?? 'pendiente']}</span></Link> : v.nroFactura ?? '—'}</td>
+                    <td className="py-3 px-4 font-semibold tabular-nums">{formatPeso(v.total - (v.creditoAplicado ?? 0))}</td>
                     <td className="py-3 px-4">
                       <span className={cn('text-xs font-semibold px-2.5 py-1 rounded-full', cfg.className)}>{cfg.label}</span>
                     </td>

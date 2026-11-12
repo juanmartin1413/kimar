@@ -34,7 +34,7 @@ interface DataContextValue {
   reorderProductos: (items: { id: string; orden: number }[]) => void
   addPedido: (p: Omit<Pedido, 'id' | 'fechaCreacion' | 'estado'>) => Promise<string>
   updatePedido: (id: string, p: Partial<Pedido>) => void
-  addVenta: (v: Omit<Venta, 'id' | 'fechaCreacion' | 'estado' | 'cobranzas' | 'estadoEntrega' | 'repartidorId' | 'repartidorNombre' | 'fechaEntregado' | 'medioEnvio'>, cobranzas: Omit<Cobranza, 'id' | 'fechaCreacion' | 'clienteId' | 'ventaId'>[]) => Promise<void>
+  addVenta: (v: Omit<Venta, 'id' | 'fechaCreacion' | 'estado' | 'cobranzas' | 'estadoEntrega' | 'repartidorId' | 'repartidorNombre' | 'fechaEntregado' | 'medioEnvio'>, cobranzas: Omit<Cobranza, 'id' | 'fechaCreacion' | 'clienteId' | 'ventaId'>[]) => Promise<{ id: string; estadoFiscal: string }>
   // Remito / factura / observaciones (admin y gestor)
   updateVentaDatos: (id: string, d: { nroRemito?: string; nroFactura?: string; observaciones?: string }) => Promise<void>
   // Ítems (con ajuste de stock), cabecera y plan de cobro (solo admin)
@@ -338,8 +338,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   async function addVenta(
     v: Omit<Venta, 'id' | 'fechaCreacion' | 'estado' | 'cobranzas' | 'estadoEntrega' | 'repartidorId' | 'repartidorNombre' | 'fechaEntregado' | 'medioEnvio'>,
     cobranzasInput: Omit<Cobranza, 'id' | 'fechaCreacion' | 'clienteId' | 'ventaId'>[]
-  ): Promise<void> {
-    await api.post('/api/ventas', {
+  ): Promise<{ id: string; estadoFiscal: string }> {
+    const result = await api.post<{ id: string; estadoFiscal: string }>('/api/ventas', {
+      emitirFactura: v.emitirFactura ?? false, borradorFiscalId: v.borradorFiscalId ?? null, operacionId: v.operacionId ?? null,
       pedidoId: v.pedidoId ?? null,
       clienteId: v.clienteId,
       vendedorId: v.vendedorId,
@@ -363,6 +364,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       })),
     })
     await Promise.all([rVentas(), rStock(), rPedidos()])
+    return result
   }
 
   async function updateVentaDatos(id: string, d: { nroRemito?: string; nroFactura?: string; observaciones?: string }): Promise<void> {

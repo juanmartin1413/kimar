@@ -80,7 +80,7 @@ export interface BalanceDevengado {
 export function calcularBalanceDevengado(ventas: Venta[], compras: Compra[], p: Periodo): BalanceDevengado {
   const totalVentas = ventas
     .filter(v => enPeriodo(v.fechaEntrega, p))
-    .reduce((s, v) => s + v.total, 0)
+    .reduce((s, v) => s + v.total - (v.creditoAplicado ?? 0), 0)
   const totalCompras = compras
     .filter(c => c.estado !== 'anulada' && enPeriodo(c.fechaRecepcion, p))
     .reduce((s, c) => s + c.total, 0)

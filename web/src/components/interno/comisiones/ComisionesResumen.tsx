@@ -21,6 +21,7 @@ export function ComisionesResumen({ resumen, costos, onCosto, totales }: Props) 
       <div className="px-5 py-4 border-b border-[oklch(0.93_0.01_240)] flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h2 className="font-bold text-lg text-[oklch(0.2_0.06_240)]">Resumen por producto</h2>
+          <p className="text-xs text-blue-800">Importes comisionables sin IVA. Se excluyen ventas anuladas comercialmente por NC; las correcciones fiscales conservan su margen.</p>
           <p className="text-xs text-[oklch(0.5_0.04_240)]">
             Cantidades vendidas en el período. El costo de adquisición es una calculadora: se prellena con el último precio de compra y <strong>no se guarda</strong>.
           </p>

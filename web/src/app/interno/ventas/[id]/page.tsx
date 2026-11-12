@@ -8,6 +8,7 @@ import { FormaPago, ItemVenta } from '@/lib/types'
 import { formatFecha, formatPeso, today } from '@/lib/format'
 import { esEnvioExterno, estadoEntregaConfig, formatFechaHora, medioEnvioLabels, parseApiError } from '@/lib/entregas'
 import { generateId } from '@/lib/storage'
+import { ComprobantesFiscales } from '@/components/interno/ComprobantesFiscales'
 import { AdjuntosVenta } from '@/components/interno/AdjuntosVenta'
 import { Trash2, ArrowLeft, AlertTriangle, Lock, Info } from 'lucide-react'
 import Link from 'next/link'
@@ -50,7 +51,7 @@ function EditVentaForm({ ventaId }: { ventaId: string }) {
 
   // Solo el administrador edita ítems, cliente, vendedor, fecha y plan de cobro.
   // El gestor conserva la edición de remito, factura y observaciones.
-  const puedeEditarTodo = isAdmin
+  const puedeEditarTodo = isAdmin && !venta.emitirFactura
 
   // Cobradas: intocables (el backend también lo garantiza)
   const cobradasExistentes = data.cobranzas.filter(c => c.ventaId === ventaId && c.estado === 'cobrado')
@@ -207,7 +208,7 @@ function EditVentaForm({ ventaId }: { ventaId: string }) {
       } else {
         await updateVentaDatos(ventaId, {
           nroRemito: nroRemito || undefined,
-          nroFactura: nroFactura || undefined,
+          nroFactura: venta.emitirFactura ? undefined : nroFactura || undefined,
           observaciones: observaciones || undefined,
         })
       }
@@ -313,7 +314,7 @@ function EditVentaForm({ ventaId }: { ventaId: string }) {
             </div>
             <div>
               <label className="block text-xs font-medium text-[oklch(0.35_0.06_240)] mb-1">N° Factura</label>
-              <input value={nroFactura} onChange={e => setNroFactura(e.target.value)} className={fieldClass} placeholder="Ej: 245" />
+              <input disabled={venta.emitirFactura} value={venta.emitirFactura ? (venta.nroFactura ?? '') : nroFactura} onChange={e => setNroFactura(e.target.value)} className={fieldClass} placeholder="Ej: 245" />
             </div>
           </div>
         </div>
@@ -563,6 +564,7 @@ function EditVentaForm({ ventaId }: { ventaId: string }) {
         )}
       </form>
 
+      {venta.emitirFactura && <ComprobantesFiscales ventaId={ventaId} />}
       {/* Fuera del form: los documentos se suben/eliminan al instante, no al guardar la venta */}
       <div className="bg-white rounded-xl border border-[oklch(0.9_0.01_240)] shadow-sm p-6 space-y-3">
         <h2 className="font-semibold text-[oklch(0.25_0.06_240)]">Documentos adjuntos</h2>
