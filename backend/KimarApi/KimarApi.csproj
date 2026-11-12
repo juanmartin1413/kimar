@@ -7,6 +7,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Assets/kimar-logo.jpg" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="QRCoder" Version="1.6.0" />
     <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.14" />
     <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />

@@ -35,6 +35,8 @@ Aplicar la migración `AddFacturacionArca` mediante el mecanismo existente (la A
 
 Los PDF se guardan bajo `Storage:UploadsPath/fiscal/{ambiente}/{cuit}`. El volumen debe persistir entre despliegues y respaldarse junto con PostgreSQL. Las descargas requieren autenticación; los documentos fiscales no se cargan ni borran por el endpoint genérico de adjuntos.
 
+El formato A4 incorpora el logo del login como recurso del backend, cabecera fiscal, bloque de receptor, tabla con precios netos e IVA, totales destacados y cierre con CAE/QR. Las filas normales se mantienen completas y las descripciones mayores que una página se continúan; se repiten cabecera y numeración de página. El diseño se aplica a los PDF generados desde el despliegue: los archivos ya guardados conservan su formato hasta una regeneración, sin volver a solicitar autorización a ARCA.
+
 Una venta de homologación también afecta stock y cuenta corriente en la base donde se registra. Para la fase de pruebas actual, el usuario autorizó usar el entorno y la base existentes de Railway con esos efectos. Al comenzar operación real, separar las pruebas de esa base. Usar un punto de venta dedicado a esta integración; los locks PostgreSQL coordinan instancias que comparten esta base, no otros programas emisores independientes.
 
 ## Operación
