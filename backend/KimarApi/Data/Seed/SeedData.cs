@@ -60,16 +60,16 @@ public static class SeedData
         var uAilin   = new Usuario { Nombre = "Ailin Trigo",    Email = "ailin.trigo@kimarcompany.com.ar",    PasswordHash = AuthService.HashPassword("Lango2026*"), Rol = "gestor" };
         var uJuan    = new Usuario { Nombre = "Juan Roldan",    Email = "juan.roldan@kimarcompany.com.ar",    PasswordHash = AuthService.HashPassword("Lango2026*"), Rol = "admin" };
         var uLuciano = new Usuario { Nombre = "Luciano",        Email = "luciano@kimarcompany.com.ar",        PasswordHash = AuthService.HashPassword("Lango2026*"), Rol = "vendedor" };
-        var uTiago   = new Usuario { Nombre = "Tiago Lopez",    Email = "tiago.lopez@kimarcompany.com.ar",    PasswordHash = AuthService.HashPassword("Lango2026*"), Rol = "vendedor" };
+        var uTiago   = new Usuario { Nombre = "Tiago Lopez",    Email = "tiago.lopez@kimarcompany.com.ar",    PasswordHash = AuthService.HashPassword("Lango2026*"), Rol = Roles.Deposito };
         var uManuel  = new Usuario { Nombre = "Manuel Gonzalez", Email = "manuel.gonzalez@kimarcompany.com.ar", PasswordHash = AuthService.HashPassword("Lango2026*"), Rol = "vendedor" };
 
         db.Usuarios.AddRange(uMarcos, uAilin, uJuan, uLuciano, uTiago, uManuel);
 
         // ── Vendedores ────────────────────────────────────────────────────────
         var vMarcos  = new Vendedor { Nombre = "Marcos",  UsuarioId = uMarcos.Id };
-        var vLuciano = new Vendedor { Nombre = "Luciano", UsuarioId = uLuciano.Id };
+        var vLuciano = new Vendedor { Nombre = "Luciano", UsuarioId = uLuciano.Id, ComisionPorKg = 500 };
         var vTiago   = new Vendedor { Nombre = "Tiago",   UsuarioId = uTiago.Id };
-        var vManuel  = new Vendedor { Nombre = "Manolo",  UsuarioId = uManuel.Id };
+        var vManuel  = new Vendedor { Nombre = "Manolo",  UsuarioId = uManuel.Id, ComisionPorKg = 500 };
 
         db.Vendedores.AddRange(vMarcos, vLuciano, vTiago, vManuel);
 

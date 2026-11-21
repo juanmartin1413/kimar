@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
+import { rutaPermitida } from '@/lib/permisos'
 import { Rol } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import {
@@ -21,14 +22,14 @@ interface NavItem {
 const navItems: NavItem[] = [
   { href: '/interno/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin'] },
   { href: '/interno/clientes', label: 'Clientes', icon: Users, roles: ['admin', 'gestor', 'vendedor'] },
-  { href: '/interno/cuenta-corriente', label: 'Cuenta Corriente', icon: BookOpen, roles: ['admin', 'gestor'] },
+  { href: '/interno/cuenta-corriente', label: 'Cuenta Corriente', icon: BookOpen, roles: ['admin', 'gestor', 'vendedor'] },
   { href: '/interno/pedidos', label: 'Pedidos', icon: ShoppingCart, roles: ['admin', 'gestor', 'vendedor'] },
-  { href: '/interno/ventas', label: 'Ventas', icon: Package, roles: ['admin', 'gestor'] },
+  { href: '/interno/ventas', label: 'Ventas', icon: Package, roles: ['admin', 'gestor', 'vendedor'] },
   { href: '/interno/facturacion', label: 'Facturación', icon: ReceiptText, roles: ['admin', 'gestor'] },
   { href: '/interno/cobranzas', label: 'Cobranzas', icon: CreditCard, roles: ['admin', 'gestor'] },
   { href: '/interno/productos', label: 'Productos & Precios', icon: Store, roles: ['admin', 'gestor', 'vendedor'] },
   { href: '/interno/vendedores', label: 'Vendedores', icon: ClipboardList, roles: ['admin', 'gestor'] },
-  { href: '/interno/comisiones', label: 'Comisiones', icon: BadgePercent, roles: ['admin'] },
+  { href: '/interno/comisiones', label: 'Comisiones', icon: BadgePercent, roles: ['admin', 'vendedor'] },
   { href: '/interno/stock', label: 'Stock', icon: Boxes, roles: ['admin', 'gestor', 'deposito'] },
   { href: '/interno/preparacion', label: 'Pedidos a preparar', icon: PackageCheck, roles: ['admin', 'gestor', 'deposito'] },
   { href: '/interno/entregas', label: 'Pedidos a entregar', icon: Bike, roles: ['admin', 'gestor', 'repartidor'] },
@@ -45,7 +46,7 @@ export function SidebarNav({ collapsed = false, onNavigate }: { collapsed?: bool
   const { usuario } = useAuth()
   const rol = usuario?.rol
 
-  const visibleItems = navItems.filter(item => !rol || item.roles.includes(rol))
+  const visibleItems = navItems.filter(item => !!rol && item.roles.includes(rol) && rutaPermitida(rol, item.href))
 
   return (
     <nav className="flex-1 py-4 overflow-y-auto space-y-0.5 px-2">
@@ -66,7 +67,7 @@ export function SidebarNav({ collapsed = false, onNavigate }: { collapsed?: bool
             )}
           >
             <Icon className="w-5 h-5 shrink-0" />
-            {!collapsed && <span className="truncate">{item.label}</span>}
+            {!collapsed && <span className="truncate">{item.href === '/interno/comisiones' && rol === 'vendedor' ? 'Mis liquidaciones' : item.label}</span>}
           </Link>
         )
       })}

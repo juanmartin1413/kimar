@@ -11,9 +11,9 @@ export function canSeeReportes(rol?: Rol): boolean {
   return rol === 'admin'
 }
 
-// "Comisiones de vendedores": información de costos y márgenes, solo el dueño.
+// El administrador liquida; el vendedor consulta sus propias constancias.
 export function canSeeComisiones(rol?: Rol): boolean {
-  return rol === 'admin'
+  return rol === 'admin' || rol === 'vendedor'
 }
 
 export function isDeposito(rol?: Rol): boolean {
@@ -66,11 +66,14 @@ export function homePorRol(rol?: Rol): string {
 
 // Roles con navegación acotada por URL (allowlist). Los roles sin entrada no tienen guard de ruta.
 export const RUTAS_PERMITIDAS_POR_ROL: Partial<Record<Rol, string[]>> = {
+  gestor: ['/interno/clientes', '/interno/cuenta-corriente', '/interno/ventas', '/interno/facturacion', '/interno/cobranzas', '/interno/gastos'],
+  vendedor: ['/interno/pedidos', '/interno/ventas', '/interno/cuenta-corriente', '/interno/comisiones'],
   deposito: ['/interno/preparacion', '/interno/stock'],
   repartidor: ['/interno/entregas'],
 }
 
 export function rutaPermitida(rol: Rol | undefined, pathname: string): boolean {
   const rutas = rol ? RUTAS_PERMITIDAS_POR_ROL[rol] : undefined
-  return !rutas || rutas.some(r => pathname.startsWith(r))
+  if (rol === 'vendedor' && (pathname === '/interno/ventas/nueva' || pathname.startsWith('/interno/ventas/nueva/'))) return false
+  return !rutas || rutas.some(r => pathname === r || pathname.startsWith(`${r}/`))
 }

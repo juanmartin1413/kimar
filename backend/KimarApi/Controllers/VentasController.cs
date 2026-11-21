@@ -20,7 +20,7 @@ public class VentasController(KimarDbContext db, StockService stockSvc, VentaSer
 {
     [HttpGet]
     [Authorize(Roles = Roles.Comercial)]
-    public async Task<IActionResult> GetAll([FromQuery] string? estado, [FromQuery] Guid? clienteId)
+    public async Task<IActionResult> GetAll([FromQuery] string? estado, [FromQuery] Guid? clienteId, [FromQuery] bool cuentaCorriente = false)
     {
         var rol = User.FindFirst("rol")?.Value;
         var userId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value!);
@@ -34,7 +34,9 @@ public class VentasController(KimarDbContext db, StockService stockSvc, VentaSer
         if (rol == "vendedor")
         {
             var vendedor = await db.Vendedores.FirstOrDefaultAsync(v => v.UsuarioId == userId);
-            if (vendedor is not null) query = query.Where(v => v.VendedorId == vendedor.Id);
+            query = vendedor is null ? query.Where(v => false)
+                : cuentaCorriente ? query.Where(v => v.Cliente.VendedorId == vendedor.Id)
+                : query.Where(v => v.VendedorId == vendedor.Id);
         }
 
         if (estado is not null) query = query.Where(v => v.Estado == estado);
@@ -54,6 +56,11 @@ public class VentasController(KimarDbContext db, StockService stockSvc, VentaSer
             .Include(x => x.Cobranzas).ThenInclude(c => c.Cliente)
             .FirstOrDefaultAsync(x => x.Id == id);
         if (v is null) return NotFound();
+        if (User.FindFirst("rol")?.Value == "vendedor")
+        {
+            var userId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            if (!await db.Vendedores.AnyAsync(x => x.UsuarioId == userId && x.Id == v.VendedorId)) return NotFound();
+        }
         return Ok(Map(v));
     }
 
@@ -124,6 +131,7 @@ public class VentasController(KimarDbContext db, StockService stockSvc, VentaSer
             items.Add(new ItemVenta
             {
                 ProductoId = i.ProductoId,
+                Unidad = await db.Productos.Where(p => p.Id == i.ProductoId).Select(p => p.Unidad).SingleAsync(),
                 CalidadId = resolucion.CalidadId,
                 Descripcion = i.Descripcion,
                 Cantidad = i.Cantidad,

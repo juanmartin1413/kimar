@@ -1,229 +1,160 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { Download, Printer, AlertTriangle, BadgePercent } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
-import { useData } from '@/contexts/DataContext'
-import { homePorRol } from '@/lib/permisos'
-import { formatPeso } from '@/lib/format'
-import { Periodo, periodoMensualActual } from '@/lib/saludFinanciera'
-import {
-  CostosPorProducto, ModoPeriodo, aplicarCostos, calcularComisiones, clientesCandidatos,
-  costosIniciales, margenesPorVenta, periodoValido, totalesComisiones, vendedoresComisionables,
-} from '@/lib/comisiones'
-import { abrirReporteComisiones } from '@/lib/comisionesPdf'
-import { ComisionesFiltros } from '@/components/interno/comisiones/ComisionesFiltros'
-import { ClientesSelector } from '@/components/interno/comisiones/ClientesSelector'
+import { api } from '@/lib/api'
+import { formatFecha } from '@/lib/format'
+import { ComisionDocumento, ComisionFiltro, ComisionPreview, ComisionSaldo, hoyComisiones, numeroDocumento, tipoDocumento, formatComision as formatPeso } from '@/lib/comisiones'
 import { VentaComisionCard } from '@/components/interno/comisiones/VentaComisionCard'
-import { ComisionesResumen } from '@/components/interno/comisiones/ComisionesResumen'
-import { cn } from '@/lib/utils'
+import { PagoAccion, PagoComisionDialog, PagoPendiente } from '@/components/interno/comisiones/PagoComisionDialog'
+
+type Vendedor = { id: string; nombre: string; tarifa: number }
+const field = 'border rounded-lg px-3 py-2 bg-white text-sm'
+const button = 'border rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-40 hover:bg-slate-50'
 
 export default function ComisionesPage() {
-  const { usuario, canSeeComisiones } = useAuth()
-  const router = useRouter()
-  const { data, isLoading } = useData()
-
+  const { usuario, isAdmin, canSeeComisiones } = useAuth()
+  const [vendedores, setVendedores] = useState<Vendedor[]>([])
   const [vendedorId, setVendedorId] = useState('')
-  const [modo, setModo] = useState<ModoPeriodo>('entrega')
-  const [periodo, setPeriodo] = useState<Periodo>(() => periodoMensualActual())
-  const [clienteIds, setClienteIds] = useState<string[] | null>(null)
-  const [costos, setCostos] = useState<CostosPorProducto>({})
+  const [desde, setDesde] = useState('')
+  const [hasta, setHasta] = useState(hoyComisiones)
+  const [clienteId, setClienteId] = useState('')
+  const [ventasIds, setVentasIds] = useState<string[] | null>(null)
+  const [tab, setTab] = useState('calculo')
+  const [preview, setPreview] = useState<{ key: string; data: ComisionPreview } | null>(null)
+  const [saldo, setSaldo] = useState<ComisionSaldo | null>(null)
+  const [historial, setHistorial] = useState<{ total: number; documentos: ComisionDocumento[] }>({ total: 0, documentos: [] })
+  const [pagina, setPagina] = useState(1)
+  const [cargando, setCargando] = useState(true)
+  const [expanded, setExpanded] = useState<string[]>([])
+  const [detalle, setDetalle] = useState<ComisionDocumento | null>(null)
+  const [accion, setAccion] = useState<PagoAccion | null>(null)
+  const [pendiente, setPendiente] = useState<PagoPendiente>()
+  const [refresh, setRefresh] = useState(0)
+  const [error, setError] = useState('')
+  const [mensaje, setMensaje] = useState('')
+  const storageKey = `kimar_comision_pendiente_${usuario?.id}`
+  const filtro: ComisionFiltro = useMemo(() => ({ vendedorId, hasta, desde: desde || null, clienteIds: clienteId ? [clienteId] : null, ventaIds: ventasIds }), [vendedorId, hasta, desde, clienteId, ventasIds])
+  const filterKey = JSON.stringify(filtro)
+  const p = preview?.key === filterKey ? preview.data : null
 
   useEffect(() => {
-    if (usuario && !canSeeComisiones) router.replace(homePorRol(usuario.rol))
-  }, [usuario, canSeeComisiones, router])
+    if (!canSeeComisiones) return
+    const abort = new AbortController()
+    setCargando(true)
+    api.get<Vendedor[]>('/api/comisiones/vendedores', abort.signal).then(rows => {
+      setVendedores(rows); setVendedorId(rows[0]?.id ?? '')
+    }).catch(e => { if (!abort.signal.aborted) setError(e.message) }).finally(() => { if (!abort.signal.aborted) setCargando(false) })
+    return () => abort.abort()
+  }, [canSeeComisiones, usuario?.id])
 
-  const vendedores = useMemo(() => vendedoresComisionables(data.vendedores), [data.vendedores])
-
-  // Primer vendedor comisionable por defecto, apenas cargan los datos.
   useEffect(() => {
-    if (!vendedorId && vendedores.length > 0) setVendedorId(vendedores[0].id)
-  }, [vendedorId, vendedores])
+    if (!isAdmin) return
+    const raw = localStorage.getItem(storageKey)
+    if (raw) {
+      try { const pending = JSON.parse(raw) as PagoPendiente; setPendiente(pending); setAccion(pending.accion) }
+      catch { setError('No se pudo recuperar la confirmación pendiente. Revisá el historial antes de registrar otro pago.') }
+    }
+  }, [storageKey, isAdmin])
 
-  const vendedor = vendedores.find(v => v.id === vendedorId)
-  const periodoOk = periodoValido(periodo)
-
-  const candidatos = useMemo(
-    () => (periodoOk ? clientesCandidatos(data.ventas, data.clientes, vendedorId, periodo, modo) : []),
-    [data.ventas, data.clientes, vendedorId, periodo, modo, periodoOk],
-  )
-
-  // Si cambian los candidatos (vendedor/período/modo), se podan los ids que ya no aplican; si la lista
-  // vuelve a cubrir a todos, se normaliza a null ("todos") para que un cliente nuevo entre solo.
   useEffect(() => {
-    setClienteIds(prev => {
-      if (prev === null) return null
-      const ids = candidatos.map(c => c.cliente.id)
-      const podados = prev.filter(id => ids.includes(id))
-      return ids.every(id => podados.includes(id)) ? null : podados
-    })
-  }, [candidatos])
+    if (!isAdmin || !vendedorId) return
+    let active = true
+    setPreview(null); setError('')
+    api.post<ComisionPreview>('/api/comisiones/preview', filtro).then(data => { if (active) setPreview({ key: filterKey, data }) })
+      .catch(e => { if (active) setError(e.message) })
+    return () => { active = false }
+  }, [isAdmin, vendedorId, filtro, filterKey, refresh])
+
+  useEffect(() => {
+    if (!canSeeComisiones || !vendedorId) return
+    const abort = new AbortController()
+    setHistorial({ total: 0, documentos: [] }); setSaldo(null); setCargando(true)
+    Promise.all([
+      api.get<{ total: number; documentos: ComisionDocumento[] }>(`/api/comisiones/historial?vendedorId=${vendedorId}&pagina=${pagina}`, abort.signal),
+      api.get<ComisionSaldo>(`/api/comisiones/saldos?vendedorId=${vendedorId}`, abort.signal),
+    ]).then(([history, balance]) => { setHistorial(history); setSaldo(balance) })
+      .catch(e => { if (!abort.signal.aborted) setError(e.message) }).finally(() => { if (!abort.signal.aborted) setCargando(false) })
+    return () => abort.abort()
+  }, [canSeeComisiones, vendedorId, pagina, refresh])
 
   function cambiarVendedor(id: string) {
-    setVendedorId(id)
-    setClienteIds(null)
+    setVendedorId(id); setClienteId(''); setVentasIds(null); setExpanded([]); setPagina(1); setDetalle(null); setMensaje('')
   }
-
-  const resultado = useMemo(
-    () => calcularComisiones(data, { vendedorId, periodo, modo, clienteIds }),
-    [data, vendedorId, periodo, modo, clienteIds],
-  )
-
-  // Prellenar costos solo para productos nuevos en el resumen; lo tipeado se conserva.
-  useEffect(() => {
-    setCostos(prev => costosIniciales(resultado.resumen, data.compras, prev))
-  }, [resultado.resumen, data.compras])
-
-  const resumenConCosto = useMemo(() => aplicarCostos(resultado.resumen, costos), [resultado.resumen, costos])
-  const totales = useMemo(() => totalesComisiones(resultado, resumenConCosto), [resultado, resumenConCosto])
-  const margenes = useMemo(() => margenesPorVenta(resultado.ventas, costos), [resultado.ventas, costos])
-
-  if (!usuario || !canSeeComisiones) return null
-
-  const hayVentas = resultado.ventas.length > 0
-
-  function abrirReporte(autoPrint: boolean) {
-    if (!vendedor) return
-    const nombresPorId = new Map(candidatos.map(c => [c.cliente.id, c.cliente.nombre]))
-    abrirReporteComisiones({
-      vendedor,
-      periodo,
-      modo,
-      clientesFiltro: clienteIds === null ? null : clienteIds.map(id => nombresPorId.get(id) ?? '').filter(Boolean),
-      ventas: resultado.ventas,
-      resumen: resumenConCosto,
-      totales,
-      productos: data.productos,
-      margenes,
-    }, { autoPrint })
+  function toggle(id: string) { setExpanded(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]) }
+  async function descargar(d: ComisionDocumento) {
+    try { await api.download(`/api/comisiones/${d.id}/pdf`, `Kimar-Comisiones-${numeroDocumento(d.numero)}.pdf`) }
+    catch (e) { setError(e instanceof Error ? e.message : 'No se pudo descargar el PDF.') }
   }
-
-  const neutro = 'bg-white border-[oklch(0.9_0.01_240)] text-[oklch(0.2_0.06_240)]'
-  const kpis: { label: string; valor: number; className: string; destacado?: boolean }[] = [
-    { label: 'Venta total', valor: totales.ventaTotal, className: neutro },
-    { label: modo === 'cobro' ? 'Cobrado en el período' : 'Cobrado', valor: totales.cobrado, className: 'bg-green-50 border-green-200 text-green-700' },
-    { label: 'Pendiente de cobro', valor: totales.pendiente, className: 'bg-red-50 border-red-200 text-red-700' },
-    { label: 'Costo de adquisición', valor: totales.costoTotal, className: neutro },
-    { label: 'Margen total', valor: totales.margenBruto, className: totales.margenBruto < 0 ? 'bg-red-50 border-red-200 text-red-700' : neutro },
-    {
-      label: 'Margen sobre lo cobrado',
-      valor: totales.margenCobrado,
-      destacado: true,
-      className: totales.margenCobrado < 0
-        ? 'bg-red-50 border-red-300 text-red-700'
-        : 'bg-[oklch(0.42_0.14_240)] border-transparent text-white',
-    },
-  ]
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-[oklch(0.2_0.06_240)]">Comisiones de vendedores</h1>
-          <p className="text-sm text-[oklch(0.5_0.04_240)]">Ventas, cobranzas y kilos por producto para liquidar comisiones</p>
+  function success(d: ComisionDocumento) {
+    setAccion(null); setPendiente(undefined); setDetalle(d); setTab('historial'); setPagina(1)
+    setMensaje(`${tipoDocumento[d.tipo]} N° ${numeroDocumento(d.numero)} registrada.`); setRefresh(n => n + 1)
+  }
+  if (!canSeeComisiones) return <p>No tenés acceso a esta sección.</p>
+  const clientes = [...new Map((p?.ventas ?? []).map(v => [v.clienteId, v.cliente])).entries()]
+  const visibles = (p?.ventas ?? []).filter(v => v.pendiente < 0 || (v.fecha <= hasta && (!desde || v.fecha >= desde) && (!clienteId || v.clienteId === clienteId)))
+  return <div className="space-y-6">
+    <header className="flex justify-between flex-wrap gap-3"><div><h1 className="text-2xl font-bold text-slate-900">{isAdmin ? 'Comisiones de vendedores' : 'Mis liquidaciones'}</h1>
+      <p className="text-sm text-slate-500">{isAdmin ? 'Liquidaciones, pagos a cuenta y comisiones por kilo' : 'Constancias de pago y compensación de anticipos'}</p></div>
+      <button className={button} onClick={() => setRefresh(n => n + 1)}>Actualizar</button>
+    </header>
+    {error && <p role="alert" className="bg-red-50 text-red-800 border border-red-200 rounded-lg p-4">{error}</p>}
+    {mensaje && <p role="status" className="bg-green-50 text-green-800 rounded-lg p-4">{mensaje}</p>}
+    {vendedores.length === 0 ? <p>{cargando ? 'Cargando…' : 'No hay un esquema de comisión habilitado para esta cuenta.'}</p> : <>
+      {isAdmin && <div className="flex gap-3 items-center flex-wrap"><label className="text-sm">Vendedor <select className={field} value={vendedorId} onChange={e => cambiarVendedor(e.target.value)}>{vendedores.map(v => <option key={v.id} value={v.id}>{v.nombre} · {formatPeso(v.tarifa)}/kg</option>)}</select></label>
+        <button className={button} aria-pressed={tab === 'calculo'} onClick={() => setTab('calculo')}>Calcular y liquidar</button>
+        <button className={button} aria-pressed={tab === 'historial'} onClick={() => setTab('historial')}>Historial de pagos</button></div>}
+      {isAdmin && tab === 'calculo' ? <>
+        <div className="flex gap-4 flex-wrap bg-white border rounded-xl p-4">
+          <label className="text-sm">Entrega desde (opcional)<input aria-label="Entrega desde" type="date" max={hasta} className={`${field} block`} value={desde} onChange={e => { setDesde(e.target.value); setVentasIds(null) }} /></label>
+          <label className="text-sm">Corte de entrega y cobros<input aria-label="Fecha de corte" type="date" max={hoyComisiones()} className={`${field} block`} value={hasta} onChange={e => { setHasta(e.target.value); setVentasIds(null) }} /></label>
+          <label className="text-sm">Cliente<select className={`${field} block`} value={clienteId} onChange={e => { setClienteId(e.target.value); setVentasIds(null) }}><option value="">Todos los clientes</option>{clientes.map(([id, nombre]) => <option key={id} value={id}>{nombre}</option>)}</select></label>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => abrirReporte(true)}
-            disabled={!hayVentas}
-            className="flex items-center gap-2 border border-[oklch(0.88_0.02_240)] hover:bg-[oklch(0.95_0.01_240)] disabled:opacity-40 disabled:cursor-not-allowed text-[oklch(0.3_0.06_240)] text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors"
-            title={hayVentas ? 'Abrir el diálogo de impresión' : 'No hay ventas para imprimir'}
-          >
-            <Printer className="w-4 h-4" /> Imprimir
-          </button>
-          <button
-            type="button"
-            onClick={() => abrirReporte(false)}
-            disabled={!hayVentas}
-            className="flex items-center gap-2 bg-[oklch(0.42_0.14_240)] hover:bg-[oklch(0.52_0.14_240)] disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors"
-            title={hayVentas ? 'Previsualizar y guardar como PDF' : 'No hay ventas para descargar'}
-          >
-            <Download className="w-4 h-4" /> Descargar
-          </button>
-        </div>
-      </div>
-
-      {isLoading ? (
-        <div className="py-16 text-center text-sm text-[oklch(0.55_0.04_240)]">Cargando datos…</div>
-      ) : vendedores.length === 0 ? (
-        <div className="flex flex-col items-center justify-center text-center py-24 space-y-3">
-          <div className="w-14 h-14 bg-[oklch(0.92_0.04_240)] rounded-2xl flex items-center justify-center">
-            <BadgePercent className="w-7 h-7 text-[oklch(0.42_0.14_240)]" />
+        {!p ? <p>{error ? 'Revisá los filtros y actualizá el cálculo.' : 'Calculando…'}</p> : <>
+          <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">{[
+            ['Comisión total', p.total], ['Comisión sobre lo cobrado', p.habilitada], ['Ya liquidado (histórico)', p.liquidada],
+            ['Dinero pagado (histórico)', p.pagado], ['Anticipos pendientes de compensar', p.anticiposPendientes],
+            ['Otros pagos a recuperar', p.ajusteAnterior], ['Comisión de esta liquidación', p.comision], ['Neto a pagar', p.neto],
+          ].map(([label, value]) => <div key={label} className="bg-white border rounded-xl p-4"><p className="text-xs text-slate-500">{label}</p><strong className="text-xl">{formatPeso(Number(value))}</strong></div>)}</div>
+          <p className="text-sm text-slate-600">Se habilitan $500 por kg en proporción a lo cobrado. Los productos por unidad no generan comisión. Los ajustes negativos se incluyen aunque estén fuera de los filtros.</p>
+          <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl flex items-center justify-between gap-3 flex-wrap">
+            <div><strong>A compensar: {formatPeso(p.compensado)}</strong><p className="text-sm">Neto a pagar: {formatPeso(p.neto)}</p></div>
+            <div className="flex gap-2 flex-wrap"><button className={button} disabled={p.limiteAnticipo <= 0} onClick={() => setAccion({ titulo: 'Registrar pago a cuenta', path: '/api/comisiones/anticipos', body: { vendedorId }, monto: 0, manual: true, limite: p.limiteAnticipo, requiereMotivo: true, advertencia: 'Registrá dinero efectivamente entregado. Se descontará automáticamente de futuras liquidaciones.' })}>Pago a cuenta</button>
+              <button className="bg-slate-900 text-white rounded-lg px-4 py-2 disabled:opacity-40" disabled={!p.ventas.some(v => v.incluida && v.pendiente !== 0)} onClick={() => setAccion({ titulo: 'Confirmar liquidación y pago', path: '/api/comisiones/liquidaciones', body: { filtro, huella: p.huella }, monto: p.neto, minimoFecha: hasta, advertencia: `Comisión: ${formatPeso(p.comision)}. Compensaciones: ${formatPeso(p.compensado)}. Se registrará el pago neto indicado y se generará la constancia.` })}>Revisar y confirmar</button></div>
           </div>
-          <p className="text-[oklch(0.5_0.04_240)] max-w-sm">No hay vendedores habilitados para comisiones.</p>
-        </div>
-      ) : (
-        <>
-          <ComisionesFiltros
-            vendedores={vendedores}
-            vendedorId={vendedorId}
-            onVendedor={cambiarVendedor}
-            modo={modo}
-            onModo={setModo}
-            periodo={periodo}
-            onPeriodo={setPeriodo}
-            periodoInvalido={!periodoOk}
-          />
-
-          <div className="bg-white rounded-xl border border-[oklch(0.9_0.01_240)] shadow-sm p-5 space-y-3">
-            <h2 className="text-sm font-semibold text-[oklch(0.3_0.06_240)]">Clientes incluidos</h2>
-            <ClientesSelector candidatos={candidatos} seleccionados={clienteIds} onChange={setClienteIds} />
-          </div>
-
-          <div className="space-y-2">
-            <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
-              {kpis.map(k => (
-                <div key={k.label} className={cn('rounded-xl border px-4 py-3', k.className, k.destacado && 'shadow-md')}>
-                  <p className="text-xs font-medium opacity-80">{k.label}{k.destacado && ' · a liquidar'}</p>
-                  <p className="text-xl font-bold tabular-nums">{formatPeso(k.valor)}</p>
-                </div>
-              ))}
-            </div>
-            {hayVentas && (
-              <p className="text-xs text-[oklch(0.5_0.04_240)] px-1">
-                De lo cobrado ({formatPeso(totales.cobrado)}): <strong className="text-[oklch(0.3_0.06_240)]">{formatPeso(totales.costoCobrado)}</strong> corresponde a costo (KIMAR)
-                y <strong className="text-[oklch(0.3_0.06_240)]">{formatPeso(totales.margenCobrado)}</strong> a margen del vendedor.
-                Cada venta aporta su margen en la proporción en que fue cobrada.
-                {totales.productosSinCosto > 0 && <span className="text-amber-700"> Hay productos sin costo: el margen está sobreestimado.</span>}
-              </p>
-            )}
-          </div>
-
-          {resultado.cobranzasSinVenta.length > 0 && (
-            <div className="flex items-start gap-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
-              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-              <p>
-                Hay {resultado.cobranzasSinVenta.length} cobranza{resultado.cobranzasSinVenta.length !== 1 ? 's' : ''} cobrada{resultado.cobranzasSinVenta.length !== 1 ? 's' : ''} en el período sin venta asociada
-                ({formatPeso(resultado.cobranzasSinVenta.reduce((s, c) => s + c.monto, 0))}). No se incluyen porque no pueden atribuirse a una venta del vendedor.
-              </p>
-            </div>
-          )}
-
-          <section className="space-y-3">
-            <h2 className="text-sm font-semibold text-[oklch(0.3_0.06_240)]">
-              Ventas incluidas <span className="text-[oklch(0.55_0.04_240)] font-normal">({resultado.ventas.length})</span>
-            </h2>
-            {!hayVentas ? (
-              <div className="bg-white rounded-xl border border-[oklch(0.9_0.01_240)] py-12 text-center text-sm text-[oklch(0.55_0.04_240)]">
-                {clienteIds?.length === 0
-                  ? 'No hay clientes seleccionados.'
-                  : `${vendedor?.nombre ?? 'El vendedor'} no tiene ventas para este período y estos clientes.`}
-              </div>
-            ) : resultado.ventas.map(item => (
-              <VentaComisionCard key={item.venta.id} item={item} modo={modo} vendedor={vendedor!} productos={data.productos} margen={margenes.get(item.venta.id)} />
-            ))}
+          <section className="space-y-3"><div className="flex gap-3 items-center flex-wrap"><h2 className="font-semibold">Ventas incluidas ({visibles.length})</h2><button className={button} onClick={() => setExpanded(visibles.map(v => v.ventaId))}>Expandir todas</button><button className={button} onClick={() => setExpanded([])}>Colapsar todas</button><button className={button} onClick={() => setVentasIds(null)}>Seleccionar todas</button></div>
+            {visibles.length === 0 && <p className="text-sm text-slate-500">No hay ventas en este período.</p>}
+            {visibles.map(v => <VentaComisionCard key={v.ventaId} venta={v} expanded={expanded.includes(v.ventaId)} onToggle={() => toggle(v.ventaId)} selected={v.incluida} onSelect={() => setVentasIds(prev => { const ids = prev ?? p.ventas.filter(x => x.incluida).map(x => x.ventaId); return ids.includes(v.ventaId) ? ids.filter(id => id !== v.ventaId) : [...ids, v.ventaId] })} />)}
           </section>
-
-          <ComisionesResumen
-            resumen={resumenConCosto}
-            costos={costos}
-            onCosto={(productoId, valor) => setCostos(prev => ({ ...prev, [productoId]: valor }))}
-            totales={totales}
-          />
-        </>
-      )}
-    </div>
-  )
+        </>}
+      </> : <>
+        {saldo && <div className="bg-white border rounded-xl p-4 space-y-2"><p>Dinero pagado: <strong>{formatPeso(saldo.pagado)}</strong> · Anticipos sin compensar: <strong>{formatPeso(saldo.anticiposPendientes)}</strong></p>
+          {saldo.ajusteAnterior > 0 && <p>Otros pagos a recuperar: {formatPeso(saldo.ajusteAnterior)}</p>}
+          {saldo.anticipos.map(a => <p className="text-sm" key={a.id}>Pago a cuenta N° {numeroDocumento(a.numero)} · {formatFecha(a.fecha)} · Pendiente: {formatPeso(a.pendiente)}</p>)}</div>}
+        <div className="space-y-3 md:hidden">{historial.documentos.map(d => <article key={d.id} className="bg-white border rounded-xl p-4 space-y-3">
+          <div><strong>{tipoDocumento[d.tipo]} N° {numeroDocumento(d.numero)}</strong><p className="text-sm text-slate-500">{formatFecha(d.fecha)}</p></div>
+          <dl className="grid grid-cols-2 gap-2 text-sm"><dt>Comisión</dt><dd className="text-right">{formatPeso(d.comision)}</dd><dt>Compensado</dt><dd className="text-right">{formatPeso(d.compensado)}</dd><dt>Pago</dt><dd className="text-right font-bold">{formatPeso(d.pago)}</dd><dt>Forma de pago</dt><dd className="text-right">{d.formaPago ?? 'Sin pago'}</dd></dl>
+          <div className="flex gap-2"><button className={button} onClick={() => { setDetalle(d); setExpanded([]) }}>Detalle</button><button className={button} onClick={() => descargar(d)}>PDF</button></div>
+        </article>)}</div>
+        <div className="hidden md:block bg-white border rounded-xl overflow-x-auto"><table className="w-full min-w-[760px] text-sm [&_th]:px-3 [&_td]:px-3"><thead><tr className="text-left bg-slate-50"><th className="p-3">Constancia</th><th>Fecha</th><th>Comisión</th><th>Compensado</th><th>Pago</th><th>Acciones</th></tr></thead><tbody>
+          {historial.documentos.map(d => <tr key={d.id} className="border-t"><td className="p-3">{tipoDocumento[d.tipo]}<strong className="block">N° {numeroDocumento(d.numero)}</strong></td><td>{formatFecha(d.fecha)}</td><td>{formatPeso(d.comision)}</td><td>{formatPeso(d.compensado)}</td><td>{formatPeso(d.pago)}<span className="block text-xs">{d.formaPago ?? 'Sin pago'}</span></td><td><button className={button} onClick={() => { setDetalle(d); setExpanded([]) }}>Detalle</button> <button className={button} onClick={() => descargar(d)}>PDF</button></td></tr>)}
+        </tbody></table></div>
+        {!historial.documentos.length && <p className="p-6 text-slate-500">{cargando ? 'Cargando…' : 'Todavía no hay movimientos registrados.'}</p>}
+        <div className="flex items-center gap-3"><button className={button} disabled={pagina === 1 || cargando} onClick={() => setPagina(n => n - 1)}>Anterior</button><span className="text-sm">Página {pagina} · {historial.total} movimientos</span><button className={button} disabled={pagina * 30 >= historial.total || cargando} onClick={() => setPagina(n => n + 1)}>Siguiente</button></div>
+      </>}
+      {detalle && <section className="bg-white rounded-xl border p-5 space-y-4">
+        <div className="flex justify-between gap-3"><h2 className="font-bold">{tipoDocumento[detalle.tipo]} N° {numeroDocumento(detalle.numero)} · {detalle.datos.vendedor}</h2><button className={button} onClick={() => setDetalle(null)}>Cerrar detalle</button></div>
+        <p className="text-sm">{formatFecha(detalle.fecha)} · {detalle.formaPago ?? 'Sin movimiento de dinero'} · Referencia: {detalle.referencia ?? '—'}</p>
+        <p>Comisión: {formatPeso(detalle.comision)} · Compensado: {formatPeso(detalle.compensado)} · Pago: <strong>{formatPeso(detalle.pago)}</strong></p>
+        {detalle.motivo && <p className="text-sm whitespace-pre-wrap">{detalle.motivo}</p>}
+        {detalle.origenId && <p className="text-xs">Documento relacionado: {detalle.origenId}</p>}
+        {detalle.datos.aplicaciones.map(a => <p key={a.id} className="text-sm">Anticipo N° {numeroDocumento(a.numero)}: aplicado {formatPeso(a.monto)} · Saldo al emitir: {formatPeso(a.pendiente)}</p>)}
+        {detalle.datos.ventas.map(v => <VentaComisionCard key={v.ventaId} venta={v} expanded={expanded.includes(v.ventaId)} onToggle={() => toggle(v.ventaId)} />)}
+        <div className="flex gap-3"><button className={button} onClick={() => descargar(detalle)}>Descargar constancia PDF</button>
+          {isAdmin && pagina === 1 && historial.documentos[0]?.id === detalle.id && ['liquidacion', 'anticipo'].includes(detalle.tipo) && <button className={button} onClick={() => setAccion({ titulo: detalle.tipo === 'anticipo' ? 'Registrar devolución recibida' : 'Registrar contrapartida', path: `/api/comisiones/${detalle.id}/contrapartida`, body: {}, monto: detalle.tipo === 'anticipo' ? -(saldo?.anticipos.find(a => a.id === detalle.id)?.pendiente ?? 0) : 0, minimoFecha: detalle.fecha, requiereMotivo: true, advertencia: detalle.tipo === 'anticipo' ? 'Confirmá únicamente si el vendedor devolvió efectivamente el saldo pendiente de este anticipo.' : 'Revierte la comisión liquidada, conserva el documento original y deja el dinero entregado a cuenta. No registra devolución de dinero.' })}>{detalle.tipo === 'anticipo' ? 'Registrar devolución' : 'Corregir liquidación'}</button>}
+        </div>
+      </section>}
+    </>}
+    {accion && <PagoComisionDialog accion={accion} pendiente={pendiente} storageKey={storageKey} onClose={() => { setAccion(null); setPendiente(undefined); setRefresh(n => n + 1) }} onSuccess={success} />}
+  </div>
 }

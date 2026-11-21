@@ -14,6 +14,7 @@ public class Vendedor
     public Guid? UsuarioId { get; set; }
 
     public bool Activo { get; set; } = true;
+    public decimal? ComisionPorKg { get; set; }
 
     // Navigation
     [ForeignKey(nameof(UsuarioId))]

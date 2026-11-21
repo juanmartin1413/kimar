@@ -19,6 +19,7 @@ public class ItemVenta
     public string Descripcion { get; set; } = string.Empty;
 
     public decimal Cantidad { get; set; }
+    [MaxLength(20)] public string Unidad { get; set; } = "kg";
 
     public decimal PrecioUnitario { get; set; }
 

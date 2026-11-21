@@ -1,5 +1,6 @@
 'use client'
 
+import { useAuth } from '@/contexts/AuthContext'
 import { useData } from '@/contexts/DataContext'
 import { Suspense } from 'react'
 import { ResultadoRegistroVenta } from '@/components/interno/ResultadoRegistroVenta'
@@ -19,6 +20,7 @@ const estadoConfig = {
 
 export default function VentasPage() {
   const { data } = useData()
+  const { canManageData } = useAuth()
 
   const sorted = [...data.ventas].sort((a, b) => b.fechaCreacion.localeCompare(a.fechaCreacion))
 
@@ -35,16 +37,16 @@ export default function VentasPage() {
           <h1 className="text-2xl font-bold text-[oklch(0.2_0.06_240)]">Ventas</h1>
           <p className="text-sm text-[oklch(0.5_0.04_240)]">{data.ventas.length} ventas registradas</p>
         </div>
-        <Link
+        {canManageData && <Link
           href="/interno/ventas/nueva"
           className="flex items-center gap-2 bg-[oklch(0.42_0.14_240)] hover:bg-[oklch(0.52_0.14_240)] text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors"
         >
           <Plus className="w-4 h-4" /> Nueva venta
-        </Link>
+        </Link>}
       </div>
 
       {/* Pedidos pendientes section */}
-      {pedidosPendientes.length > 0 && (
+      {canManageData && pedidosPendientes.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
           <div className="flex items-center gap-2">
             <Package className="w-5 h-5 text-amber-600" />
@@ -131,7 +133,7 @@ export default function VentasPage() {
                         <Link
                           href={`/interno/ventas/${v.id}`}
                           className="text-[oklch(0.55_0.04_240)] hover:text-[oklch(0.42_0.14_240)] transition-colors"
-                          title="Editar venta"
+                          title={canManageData ? "Editar venta" : "Ver venta"}
                         >
                           <Pencil className="w-4 h-4" />
                         </Link>

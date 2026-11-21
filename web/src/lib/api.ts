@@ -27,7 +27,7 @@ async function request<T>(method: string, path: string, body?: unknown, signal?:
     const text = await res.text().catch(() => '')
     let message = text
     try { message = JSON.parse(text).error || text } catch { /* respuesta sin JSON */ }
-    throw new Error(message || `HTTP ${res.status}`)
+    throw Object.assign(new Error(message || `HTTP ${res.status}`), { status: res.status })
   }
 
   if (res.status === 204) return undefined as T

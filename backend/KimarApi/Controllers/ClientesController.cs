@@ -27,8 +27,7 @@ public class ClientesController(KimarDbContext db) : ControllerBase
         if (rol == "vendedor")
         {
             var vendedor = await db.Vendedores.FirstOrDefaultAsync(v => v.UsuarioId == userId);
-            if (vendedor is not null)
-                query = query.Where(c => c.VendedorId == vendedor.Id);
+            query = vendedor is null ? query.Where(c => false) : query.Where(c => c.VendedorId == vendedor.Id);
         }
         else if (vendedorId.HasValue)
         {
@@ -52,6 +51,11 @@ public class ClientesController(KimarDbContext db) : ControllerBase
     {
         var c = await db.Clientes.Include(x => x.Vendedor).FirstOrDefaultAsync(x => x.Id == id);
         if (c is null) return NotFound();
+        if (User.FindFirst("rol")?.Value == "vendedor")
+        {
+            var userId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            if (!await db.Vendedores.AnyAsync(v => v.UsuarioId == userId && v.Id == c.VendedorId)) return NotFound();
+        }
         return Ok(new ClienteDto(c.Id, c.Nombre, c.Calle, c.Altura, c.Localidad, c.Provincia,
             c.Telefono1, c.Telefono2, c.Email, c.Cuit,
             c.VendedorId, c.Vendedor?.Nombre, c.Activo, c.FechaCreacion, c.RequiereFactura, c.RazonSocial, c.DomicilioFiscal, c.CondicionIva));

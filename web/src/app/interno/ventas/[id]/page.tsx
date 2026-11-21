@@ -45,7 +45,7 @@ export default function EditarVentaPage() {
 
 function EditVentaForm({ ventaId }: { ventaId: string }) {
   const { data, updateVentaCompleta, updateVentaDatos, getCalidadesDelProducto } = useData()
-  const { isAdmin } = useAuth()
+  const { isAdmin, canManageData } = useAuth()
   const router = useRouter()
   const venta = data.ventas.find(v => v.id === ventaId)!
 
@@ -179,6 +179,7 @@ function EditVentaForm({ ventaId }: { ventaId: string }) {
   }
 
   async function doSave() {
+    if (!canManageData) return
     setSaving(true)
     setError('')
     try {
@@ -310,11 +311,11 @@ function EditVentaForm({ ventaId }: { ventaId: string }) {
             </div>
             <div>
               <label className="block text-xs font-medium text-[oklch(0.35_0.06_240)] mb-1">N° Remito</label>
-              <input value={nroRemito} onChange={e => setNroRemito(e.target.value)} className={fieldClass} placeholder="Ej: 3520" />
+              <input disabled={!canManageData} value={nroRemito} onChange={e => setNroRemito(e.target.value)} className={fieldClass} placeholder="Ej: 3520" />
             </div>
             <div>
               <label className="block text-xs font-medium text-[oklch(0.35_0.06_240)] mb-1">N° Factura</label>
-              <input disabled={venta.emitirFactura} value={venta.emitirFactura ? (venta.nroFactura ?? '') : nroFactura} onChange={e => setNroFactura(e.target.value)} className={fieldClass} placeholder="Ej: 245" />
+              <input disabled={!canManageData || venta.emitirFactura} value={venta.emitirFactura ? (venta.nroFactura ?? '') : nroFactura} onChange={e => setNroFactura(e.target.value)} className={fieldClass} placeholder="Ej: 245" />
             </div>
           </div>
         </div>
@@ -514,7 +515,7 @@ function EditVentaForm({ ventaId }: { ventaId: string }) {
         {/* Observaciones */}
         <div className="bg-white rounded-xl border border-[oklch(0.9_0.01_240)] shadow-sm p-6">
           <label className="block text-xs font-medium text-[oklch(0.35_0.06_240)] mb-1">Observaciones</label>
-          <textarea value={observaciones} onChange={e => setObservaciones(e.target.value)} rows={3} className={fieldClass} placeholder="Notas de la venta…" />
+          <textarea disabled={!canManageData} value={observaciones} onChange={e => setObservaciones(e.target.value)} rows={3} className={fieldClass} placeholder="Notas de la venta…" />
         </div>
 
         {error && (
@@ -547,7 +548,7 @@ function EditVentaForm({ ventaId }: { ventaId: string }) {
           </div>
         )}
 
-        {!showWarning && (
+        {canManageData && !showWarning && (
           <div className="flex gap-3">
             <Link href="/interno/ventas" className="flex-1 text-center border border-[oklch(0.88_0.02_240)] text-[oklch(0.4_0.04_240)] py-3 rounded-lg text-sm font-medium hover:bg-[oklch(0.96_0.01_240)] transition-colors">
               Cancelar
@@ -564,12 +565,12 @@ function EditVentaForm({ ventaId }: { ventaId: string }) {
         )}
       </form>
 
-      {venta.emitirFactura && <ComprobantesFiscales ventaId={ventaId} />}
+      {canManageData && venta.emitirFactura && <ComprobantesFiscales ventaId={ventaId} />}
       {/* Fuera del form: los documentos se suben/eliminan al instante, no al guardar la venta */}
-      <div className="bg-white rounded-xl border border-[oklch(0.9_0.01_240)] shadow-sm p-6 space-y-3">
+      {canManageData && <div className="bg-white rounded-xl border border-[oklch(0.9_0.01_240)] shadow-sm p-6 space-y-3">
         <h2 className="font-semibold text-[oklch(0.25_0.06_240)]">Documentos adjuntos</h2>
         <AdjuntosVenta ventaId={ventaId} />
-      </div>
+      </div>}
     </div>
   )
 }

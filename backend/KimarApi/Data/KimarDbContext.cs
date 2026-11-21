@@ -5,6 +5,9 @@ namespace KimarApi.Data;
 
 public class KimarDbContext(DbContextOptions<KimarDbContext> options) : DbContext(options)
 {
+    public DbSet<ComisionDocumento> ComisionDocumentos => Set<ComisionDocumento>();
+    public DbSet<ComisionDetalle> ComisionDetalles => Set<ComisionDetalle>();
+    public DbSet<ComisionAplicacion> ComisionAplicaciones => Set<ComisionAplicacion>();
     public DbSet<ComprobanteFiscal> ComprobantesFiscales => Set<ComprobanteFiscal>();
     public DbSet<IntentoFiscal> IntentosFiscales => Set<IntentoFiscal>();
     public DbSet<Usuario> Usuarios => Set<Usuario>();
@@ -37,6 +40,15 @@ public class KimarDbContext(DbContextOptions<KimarDbContext> options) : DbContex
     {
         base.OnModelCreating(model);
         model.Entity<Venta>().HasIndex(v => v.OperacionId).IsUnique();
+        model.Entity<ComisionDocumento>().HasIndex(d => d.Numero).IsUnique();
+        model.Entity<ComisionDocumento>().HasIndex(d => d.OperacionId).IsUnique();
+        model.Entity<ComisionDocumento>().HasOne(d => d.Vendedor).WithMany().HasForeignKey(d => d.VendedorId).OnDelete(DeleteBehavior.Restrict);
+        model.Entity<ComisionDocumento>().HasOne<ComisionDocumento>().WithMany().HasForeignKey(d => d.OrigenId).OnDelete(DeleteBehavior.Restrict);
+        model.Entity<ComisionDocumento>().HasOne<Usuario>().WithMany().HasForeignKey(d => d.UsuarioId).OnDelete(DeleteBehavior.Restrict);
+        model.Entity<ComisionDetalle>().HasOne(d => d.Documento).WithMany(d => d.Detalles).HasForeignKey(d => d.DocumentoId).OnDelete(DeleteBehavior.Restrict);
+        model.Entity<ComisionDetalle>().HasOne(d => d.Venta).WithMany().HasForeignKey(d => d.VentaId).OnDelete(DeleteBehavior.Restrict);
+        model.Entity<ComisionAplicacion>().HasOne(a => a.Documento).WithMany(d => d.Aplicaciones).HasForeignKey(a => a.DocumentoId).OnDelete(DeleteBehavior.Restrict);
+        model.Entity<ComisionAplicacion>().HasOne(a => a.Anticipo).WithMany().HasForeignKey(a => a.AnticipoId).OnDelete(DeleteBehavior.Restrict);
         model.Entity<ComprobanteFiscal>().HasIndex(c => new { c.Ambiente, c.CuitEmisor, c.PuntoVenta, c.Tipo, c.Numero }).IsUnique();
         model.Entity<ComprobanteFiscal>().HasIndex(c => new { c.Estado, c.ProximoIntento });
         model.Entity<ComprobanteFiscal>().HasIndex(c => c.ComprobanteOrigenId).IsUnique();

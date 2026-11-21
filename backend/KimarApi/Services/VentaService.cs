@@ -66,11 +66,15 @@ public class VentaService(KimarDbContext db, StockService stockSvc)
     public async Task<ResultadoEdicionVenta> ActualizarVentaCompletaAsync(
         Guid ventaId, UpdateVentaCompletaRequest req, Guid usuarioId)
     {
+        await using var tx = await db.Database.BeginTransactionAsync();
+        await db.Database.ExecuteSqlRawAsync("LOCK TABLE \"Ventas\", \"ItemsVenta\", \"Cobranzas\", \"Vendedores\" IN SHARE ROW EXCLUSIVE MODE");
         var venta = await db.Ventas
             .Include(v => v.Items)
             .Include(v => v.Cobranzas)
             .FirstOrDefaultAsync(v => v.Id == ventaId);
         if (venta is null) return new ResultadoEdicionVenta(false, null, NotFound: true);
+        if (venta.VendedorId != req.VendedorId && await db.ComisionDetalles.AnyAsync(d => d.VentaId == ventaId))
+            return new ResultadoEdicionVenta(false, "La venta tiene movimientos de comisión. No se puede cambiar el vendedor.");
         if (venta.EmitirFactura)
             return new ResultadoEdicionVenta(false, "Esta venta tiene una solicitud fiscal. Sus datos comerciales están protegidos; usá Facturación para corregir o acreditar.");
 
@@ -90,6 +94,8 @@ public class VentaService(KimarDbContext db, StockService stockSvc)
             {
                 VentaId = venta.Id,
                 ProductoId = i.ProductoId,
+                Unidad = venta.Items.FirstOrDefault(x => x.ProductoId == i.ProductoId)?.Unidad
+                    ?? await db.Productos.Where(p => p.Id == i.ProductoId).Select(p => p.Unidad).SingleAsync(),
                 CalidadId = resolucion.CalidadId,
                 Descripcion = i.Descripcion,
                 Cantidad = i.Cantidad,
@@ -130,8 +136,6 @@ public class VentaService(KimarDbContext db, StockService stockSvc)
                 $"El plan de cobro ({totalPlan:N0}) supera el total de la venta ({nuevoTotal:N0}).");
 
         // ── Persistencia atómica ──
-        await using var tx = await db.Database.BeginTransactionAsync();
-
         // Stock: se ajusta por diferencia agrupando por (producto, calidad). Se conserva el historial de
         // movimientos previos; los deltas quedan asociados a la venta para poder auditarlos.
         var viejos = venta.Items

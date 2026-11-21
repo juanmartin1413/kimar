@@ -51,6 +51,7 @@ builder.Services.AddAuthorization();
 
 // ── Services ──────────────────────────────────────────────────────────────────
 builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<ComisionService>();
 builder.Services.AddScoped<StockService>();
 builder.Services.AddScoped<VentaService>();
 builder.Services.AddScoped<FormaPagoProveedorService>();
@@ -122,6 +123,12 @@ app.UseExceptionHandler(errorApp => errorApp.Run(async context =>
         context.Response.Headers["Access-Control-Allow-Origin"] = origin;
 
     var error = context.Features.Get<IExceptionHandlerFeature>()?.Error;
+    if (error is ComisionException comisionError)
+    {
+        context.Response.StatusCode = comisionError.Status;
+        await context.Response.WriteAsJsonAsync(new { error = comisionError.Message });
+        return;
+    }
     if (error is FiscalException fiscalError)
     {
         context.Response.StatusCode = StatusCodes.Status400BadRequest;

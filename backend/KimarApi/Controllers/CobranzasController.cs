@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using KimarApi.Data;
 using KimarApi.Models;
 using KimarApi.Models.DTOs;
@@ -20,6 +21,11 @@ public class CobranzasController(KimarDbContext db, VentaService ventaSvc) : Con
     public async Task<IActionResult> GetAll([FromQuery] string? estado, [FromQuery] Guid? clienteId)
     {
         var query = db.Cobranzas.Include(c => c.Cliente).AsQueryable();
+        if (User.FindFirst("rol")?.Value == Roles.Vendedor)
+        {
+            var userId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            query = query.Where(c => db.Vendedores.Any(v => v.UsuarioId == userId && v.Id == c.Cliente.VendedorId));
+        }
         if (estado is not null) query = query.Where(c => c.Estado == estado);
         if (clienteId.HasValue) query = query.Where(c => c.ClienteId == clienteId);
 
@@ -33,6 +39,11 @@ public class CobranzasController(KimarDbContext db, VentaService ventaSvc) : Con
     {
         var c = await db.Cobranzas.Include(x => x.Cliente).FirstOrDefaultAsync(x => x.Id == id);
         if (c is null) return NotFound();
+        if (User.FindFirst("rol")?.Value == Roles.Vendedor)
+        {
+            var userId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            if (!await db.Vendedores.AnyAsync(v => v.UsuarioId == userId && v.Id == c.Cliente.VendedorId)) return NotFound();
+        }
         return Ok(Map(c));
     }
 

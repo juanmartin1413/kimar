@@ -219,6 +219,141 @@ namespace KimarApi.Migrations
                     b.ToTable("Cobranzas");
                 });
 
+            modelBuilder.Entity("KimarApi.Models.Entities.ComisionAplicacion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AnticipoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("DocumentoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Importe")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AnticipoId");
+
+                    b.HasIndex("DocumentoId");
+
+                    b.ToTable("ComisionAplicaciones");
+                });
+
+            modelBuilder.Entity("KimarApi.Models.Entities.ComisionDetalle", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("DocumentoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Importe")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<Guid>("VentaId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DocumentoId");
+
+                    b.HasIndex("VentaId");
+
+                    b.ToTable("ComisionDetalles");
+                });
+
+            modelBuilder.Entity("KimarApi.Models.Entities.ComisionDocumento", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Comision")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("Compensado")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateTime>("Creado")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DatosJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateOnly>("Fecha")
+                        .HasColumnType("date");
+
+                    b.Property<string>("FormaPago")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("Huella")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Motivo")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<long>("Numero")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Numero"));
+
+                    b.Property<Guid>("OperacionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("OrigenId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Pago")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("Referencia")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Tipo")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<Guid>("UsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("VendedorId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Numero")
+                        .IsUnique();
+
+                    b.HasIndex("OperacionId")
+                        .IsUnique();
+
+                    b.HasIndex("OrigenId");
+
+                    b.HasIndex("UsuarioId");
+
+                    b.HasIndex("VendedorId");
+
+                    b.ToTable("ComisionDocumentos");
+                });
+
             modelBuilder.Entity("KimarApi.Models.Entities.Compra", b =>
                 {
                     b.Property<Guid>("Id")
@@ -756,6 +891,11 @@ namespace KimarApi.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
+                    b.Property<string>("Unidad")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.Property<Guid>("VentaId")
                         .HasColumnType("uuid");
 
@@ -1131,6 +1271,10 @@ namespace KimarApi.Migrations
                     b.Property<bool>("Activo")
                         .HasColumnType("boolean");
 
+                    b.Property<decimal?>("ComisionPorKg")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
                     b.Property<string>("Nombre")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -1294,6 +1438,66 @@ namespace KimarApi.Migrations
                     b.Navigation("Cliente");
 
                     b.Navigation("Venta");
+                });
+
+            modelBuilder.Entity("KimarApi.Models.Entities.ComisionAplicacion", b =>
+                {
+                    b.HasOne("KimarApi.Models.Entities.ComisionDocumento", "Anticipo")
+                        .WithMany()
+                        .HasForeignKey("AnticipoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("KimarApi.Models.Entities.ComisionDocumento", "Documento")
+                        .WithMany("Aplicaciones")
+                        .HasForeignKey("DocumentoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Anticipo");
+
+                    b.Navigation("Documento");
+                });
+
+            modelBuilder.Entity("KimarApi.Models.Entities.ComisionDetalle", b =>
+                {
+                    b.HasOne("KimarApi.Models.Entities.ComisionDocumento", "Documento")
+                        .WithMany("Detalles")
+                        .HasForeignKey("DocumentoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("KimarApi.Models.Entities.Venta", "Venta")
+                        .WithMany()
+                        .HasForeignKey("VentaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Documento");
+
+                    b.Navigation("Venta");
+                });
+
+            modelBuilder.Entity("KimarApi.Models.Entities.ComisionDocumento", b =>
+                {
+                    b.HasOne("KimarApi.Models.Entities.ComisionDocumento", null)
+                        .WithMany()
+                        .HasForeignKey("OrigenId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("KimarApi.Models.Entities.Usuario", null)
+                        .WithMany()
+                        .HasForeignKey("UsuarioId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("KimarApi.Models.Entities.Vendedor", "Vendedor")
+                        .WithMany()
+                        .HasForeignKey("VendedorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Vendedor");
                 });
 
             modelBuilder.Entity("KimarApi.Models.Entities.Compra", b =>
@@ -1666,6 +1870,13 @@ namespace KimarApi.Migrations
                     b.Navigation("Pedidos");
 
                     b.Navigation("Ventas");
+                });
+
+            modelBuilder.Entity("KimarApi.Models.Entities.ComisionDocumento", b =>
+                {
+                    b.Navigation("Aplicaciones");
+
+                    b.Navigation("Detalles");
                 });
 
             modelBuilder.Entity("KimarApi.Models.Entities.Compra", b =>

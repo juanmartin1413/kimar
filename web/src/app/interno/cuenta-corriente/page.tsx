@@ -1,6 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useAuth } from '@/contexts/AuthContext'
+import { api } from '@/lib/api'
 import { useData } from '@/contexts/DataContext'
 import { Cliente, Venta } from '@/lib/types'
 import { formatPeso, formatFecha } from '@/lib/format'
@@ -137,6 +139,26 @@ function ClienteCard({ cliente, ventas, vendedorNombre }: { cliente: Cliente; ve
 
 export default function CuentaCorrientePage() {
   const { data } = useData()
+  const { usuario, isVendedor } = useAuth()
+  const [cuenta, setCuenta] = useState<{ usuarioId: string; ventas: Venta[] } | null>(null)
+  const [error, setError] = useState(false)
+  useEffect(() => {
+    if (!isVendedor || !usuario?.id) return
+    let vigente = true
+    setError(false)
+    api.get<Venta[]>('/api/ventas?cuentaCorriente=true')
+      .then(ventas => { if (vigente) setCuenta({ usuarioId: usuario.id, ventas }) })
+      .catch(() => { if (vigente) setError(true) })
+    return () => { vigente = false }
+  }, [isVendedor, usuario, data.ventas])
+  const vendedorId = data.vendedores.find(v => v.usuarioId === usuario?.id)?.id
+  const clientesVisibles = isVendedor
+    ? data.clientes.filter(c => !!vendedorId && c.vendedorId === vendedorId)
+    : data.clientes
+  const clientesIds = new Set(clientesVisibles.map(c => c.id))
+  const ventasVisibles = isVendedor
+    ? (cuenta?.usuarioId === usuario?.id ? cuenta?.ventas ?? [] : []).filter(v => clientesIds.has(v.clienteId))
+    : data.ventas
   const [search, setSearch] = useState('')
   const [vendedorFilter, setVendedorFilter] = useState('')
   const [mostrarTodos, setMostrarTodos] = useState(false)
@@ -145,19 +167,22 @@ export default function CuentaCorrientePage() {
     return data.vendedores.find(v => v.id === vendedorId)?.nombre ?? '—'
   }
 
-  const totalGeneral = data.ventas.reduce((s, v) => s + saldoVenta(v), 0)
+  const totalGeneral = ventasVisibles.reduce((s, v) => s + saldoVenta(v), 0)
 
-  const clientesConSaldo = data.clientes
+  const clientesConSaldo = clientesVisibles
     .filter(c => c.activo)
     .filter(c => !vendedorFilter || c.vendedorId === vendedorFilter)
     .filter(c => !search || c.nombre.toLowerCase().includes(search.toLowerCase()))
     .map(cliente => ({
       cliente,
-      ventas: ventasConSaldo(data.ventas, cliente.id),
-      saldo: saldoCliente(data.ventas, cliente.id),
+      ventas: ventasConSaldo(ventasVisibles, cliente.id),
+      saldo: saldoCliente(ventasVisibles, cliente.id),
     }))
     .filter(({ saldo }) => mostrarTodos || Math.abs(saldo) > 0.005)
     .sort((a, b) => b.saldo - a.saldo)
+
+  if (isVendedor && error) return <p role="alert">No se pudo cargar la cuenta corriente. Ingresá nuevamente a esta sección para reintentar.</p>
+  if (isVendedor && cuenta?.usuarioId !== usuario?.id) return <p>Cargando cuenta corriente...</p>
 
   return (
     <div className="space-y-6">
@@ -182,7 +207,7 @@ export default function CuentaCorrientePage() {
           placeholder="Buscar cliente..."
           className="border border-[oklch(0.88_0.02_240)] rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[oklch(0.42_0.14_240)] min-w-[220px]"
         />
-        <select
+        {!isVendedor && <select
           value={vendedorFilter}
           onChange={e => setVendedorFilter(e.target.value)}
           className="border border-[oklch(0.88_0.02_240)] rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[oklch(0.42_0.14_240)]"
@@ -191,7 +216,7 @@ export default function CuentaCorrientePage() {
           {data.vendedores.map(v => (
             <option key={v.id} value={v.id}>{v.nombre}</option>
           ))}
-        </select>
+        </select>}
         <label className="flex items-center gap-2 text-sm text-[oklch(0.4_0.04_240)] cursor-pointer select-none">
           <input
             type="checkbox"

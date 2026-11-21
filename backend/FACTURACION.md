@@ -49,7 +49,7 @@ Una venta de homologación también afecta stock y cuenta corriente en la base d
 - Una emisión incierta se consulta antes de reenviarla; la serie no avanza hasta resolver su número. Datos rechazados o configuración inválida requieren intervención. Las fechas vencidas no se cambian silenciosamente.
 - Admin/gestor revisan y reintentan. Solo admin emite NC y reemplazos. La NC total exige elegir entre anular venta (reduce deuda y conserva cobros como saldo a favor) y corrección fiscal (conserva deuda para refacturar).
 - La NC no devuelve stock ni reintegra dinero automáticamente. Las devoluciones físicas se registran mediante el circuito de stock. Aplicación de créditos a otras ventas y reintegros monetarios no forman parte de esta entrega.
-- Las comisiones se calculan sobre netos, prorrateando el cobro bruto; las ventas anuladas comercialmente se excluyen. El módulo existente es una calculadora, no un libro de liquidaciones históricas.
+- Las comisiones de Luciano y Manolo son de $500 por kg y se habilitan proporcionalmente al cobro bruto de la venta. Las liquidaciones y anticipos se guardan con detalle histórico; una anulación comercial genera un ajuste recuperable si ya se liquidó, y una corrección exclusivamente fiscal conserva la comisión. Ver `COMISIONES.md`.
 - Un error al crear el PDF reintenta solo el documento; nunca vuelve a emitir la factura.
 
 ## Interfaces
