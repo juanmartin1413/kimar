@@ -14,29 +14,82 @@ public static class ComisionPdf
     {
         var datos = JsonSerializer.Deserialize<ComisionSnapshot>(d.DatosJson, ComisionService.Json)!;
         var titulo = d.Tipo switch { "anticipo" => "PAGO A CUENTA DE COMISIONES", "devolucion" => "DEVOLUCION DE ANTICIPO", "contrapartida" => "CONTRAPARTIDA DE LIQUIDACION", _ => "LIQUIDACION DE COMISIONES" };
-        var lines = new List<string>();
-        void Add(string text)
+        const string ink = "0.06 0.18 0.20", muted = "0.35 0.42 0.44";
+        var pages = new List<StringBuilder>();
+        StringBuilder content = null!;
+        var y = 0;
+        void Text(string text, int x, int atY, int size, bool bold = false, string color = ink) =>
+            content.Append($"{color} rg BT /F{(bold ? 2 : 1)} {size} Tf {x} {atY} Td ({Escape(text)}) Tj ET\n");
+        void Box(int x, int bottom, int width, int height, string color) => content.Append($"{color} rg {x} {bottom} {width} {height} re f\n");
+        void NewPage()
         {
-            // Máximo conservador aun para caracteres anchos; los nombres largos continúan en otra línea.
-            text = text.Replace("\r", " ").Replace("\n", " ");
-            while (text.Length > 64) { var cut = text.LastIndexOf(' ', 64, 64); if (cut < 20) cut = 64; lines.Add(text[..cut]); text = text[cut..].TrimStart(); }
-            lines.Add(text);
+            content = new StringBuilder(); pages.Add(content);
+            content.Append("q 76 0 0 76 36 744 cm /Logo Do Q\n");
+            Text(titulo, 128, 793, 14, true);
+            Text($"Constancia N° {d.Numero:D8}", 128, 768, 11, false, muted);
+            Box(36, 729, 523, 2, "0.72 0.62 0.35"); y = 704;
         }
-        Add($"Vendedor: {datos.Vendedor}");
-        Add($"Fecha del movimiento: {d.Fecha:dd/MM/yyyy}");
-        Add($"Forma de pago: {d.FormaPago ?? "Sin movimiento de dinero"}");
-        Add($"Referencia: {d.Referencia ?? "-"}");
-        if (d.OrigenId.HasValue) Add($"Documento relacionado: {d.OrigenId}");
-        Add($"Tarifa: {Pesos(datos.Tarifa)} por kg. Productos por unidad excluidos.");
-        Add($"Comisión de este movimiento: {Pesos(d.Comision)}");
-        Add($"Compensado con pagos anteriores: {Pesos(d.Compensado)}");
-        Add($"Importe pagado (negativo: devolución): {Pesos(d.Pago)}");
-        if (d.Tipo == "contrapartida") Add("Esta contrapartida no revierte dinero entregado: queda a cuenta.");
-        Add($"Motivo / observaciones: {d.Motivo ?? "-"}");
-        Add("");
+        void Ensure(int height) { if (y - height < 62) NewPage(); }
+        IEnumerable<string> Wrap(string text, int max = 56)
+        {
+            foreach (var paragraph in text.Replace("\r", "").Split('\n'))
+            {
+                var remaining = paragraph;
+                while (remaining.Length > max)
+                {
+                    var cut = remaining.LastIndexOf(' ', max, max); if (cut < 15) cut = max;
+                    yield return remaining[..cut]; remaining = remaining[cut..].TrimStart();
+                }
+                yield return remaining;
+            }
+        }
+        void Add(string text, bool bold = false)
+        {
+            foreach (var line in Wrap(text)) { Ensure(16); Text(line, 48, y, 10, bold); y -= 16; }
+        }
+        void Section(string text)
+        {
+            Ensure(76); Box(36, y - 23, 523, 29, "0.94 0.96 0.96");
+            Text(text, 48, y - 13, 10, true); y -= 47;
+        }
+        void Field(string label, string value)
+        {
+            var lines = Wrap(value, 46).ToArray(); Ensure(22 + lines.Length * 16);
+            Text(label, 48, y, 8, true, muted); y -= 19;
+            foreach (var line in lines) { Text(line, 48, y, 11, true); y -= 16; }
+            y -= 12;
+        }
+        NewPage();
+        Section("DATOS DEL VENDEDOR Y DEL PAGO");
+        Field("VENDEDOR", datos.Vendedor);
+        Field("FECHA DE PAGO", d.Fecha.ToString("dd/MM/yyyy"));
+        var forma = d.FormaPago switch { "transferencia" => "Transferencia", "efectivo" => "Efectivo", "cheque" => "Cheque", _ => "Sin movimiento de dinero" };
+        Field("FORMA DE PAGO", forma);
+        if (!string.IsNullOrWhiteSpace(d.Referencia)) Field("REFERENCIA", d.Referencia);
+        Ensure(100);
+        Box(36, y - 72, 523, 82, ink);
+        var importeLabel = d.Tipo switch { "anticipo" => "Comisión adelantada", "devolucion" => "Importe devuelto", _ => "Importe pagado" };
+        Text(importeLabel, 52, y - 12, 11, true, "1 1 1");
+        Text(Pesos(Math.Abs(d.Pago)), 52, y - 48, 26, true, "1 1 1"); y -= 101;
+        if (d.Tipo is "liquidacion" or "contrapartida")
+        {
+            Section("RESUMEN DE LA LIQUIDACIÓN");
+            Add($"Comisión de este movimiento: {Pesos(d.Comision)}");
+            Add($"Compensado con pagos anteriores: {Pesos(d.Compensado)}");
+            if (!datos.CompensarAdelantos) Add("Adelantos sin compensar: conservan su saldo pendiente.");
+            Add($"Tarifa por kg: {Pesos(datos.Tarifa)}");
+        }
+        if (d.Tipo == "contrapartida") Add("El dinero entregado se conserva como saldo a cuenta.");
+        if (!string.IsNullOrWhiteSpace(d.Motivo)) { Section("MOTIVO / OBSERVACIONES"); Add(d.Motivo); y -= 12; }
+        if (d.Tipo == "anticipo")
+        {
+            Add("Este adelanto queda registrado a cuenta de futuras");
+            Add("liquidaciones de comisiones del vendedor.");
+        }
         foreach (var v in datos.Ventas)
         {
-            Add($"VENTA | {v.Fecha:dd/MM/yyyy} | {v.Cliente}");
+            Section($"VENTA DEL {v.Fecha:dd/MM/yyyy}");
+            Add(v.Cliente, true);
             Add($"Remito: {v.Remito ?? "-"} | Factura: {v.Factura ?? "-"}");
             Add($"Operación: {v.VentaId}");
             Add($"Total venta: {Pesos(v.TotalVenta)} | Cobrado: {Pesos(v.Cobrado)}");
@@ -48,8 +101,6 @@ public static class ComisionPdf
             Add("");
         }
         foreach (var a in datos.Aplicaciones) Add($"Anticipo N° {a.Numero:D8}: aplicado {Pesos(a.Monto)}; saldo {Pesos(a.Pendiente)}");
-        Add($"Registrado: {d.Creado:yyyy-MM-dd HH:mm} UTC | Usuario: {d.UsuarioId}");
-        Add("Constancia interna de comisiones. No es una factura.");
         using var logoStream = typeof(ComisionPdf).Assembly.GetManifestResourceStream("KimarApi.Assets.kimar-logo.jpg")!;
         using var logoBuffer = new MemoryStream(); logoStream.CopyTo(logoBuffer);
         var hex = Convert.ToHexString(logoBuffer.ToArray()) + ">";
@@ -57,20 +108,19 @@ public static class ComisionPdf
             "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
             "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>",
             $"<< /Type /XObject /Subtype /Image /Width 1024 /Height 1024 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter [/ASCIIHexDecode /DCTDecode] /Length {hex.Length} >>\nstream\n{hex}\nendstream" };
-        var pages = lines.Chunk(47).ToArray(); var ids = new List<int>();
-        for (var p = 0; p < pages.Length; p++)
+        var ids = new List<int>();
+        for (var p = 0; p < pages.Count; p++)
         {
-            var content = new StringBuilder("q 64 0 0 64 36 754 cm /Logo Do Q\n0.08 0.18 0.18 rg\n");
-            void Text(string t, int x, int y, int size, bool bold = false) => content.Append($"BT /F{(bold ? 2 : 1)} {size} Tf {x} {y} Td ({Escape(t)}) Tj ET\n");
-            Text(titulo, 112, 790, 13, true); Text($"N° {d.Numero:D8}", 112, 770, 12);
-            for (var n = 0; n < pages[p].Length; n++) Text(pages[p][n], 40, 730 - n * 14, 9);
-            Text($"KIMAR | {d.Numero:D8} | Página {p + 1} de {pages.Length}", 40, 28, 8);
+            content = pages[p];
+            Box(36, 51, 523, 1, "0.80 0.84 0.84");
+            Text("Constancia interna de comisiones. No es una factura.", 36, 36, 8, false, muted);
+            Text($"N° {d.Numero:D8} | Página {p + 1} de {pages.Count}", 36, 22, 8, false, muted);
             var id = objects.Count + 1; ids.Add(id);
             objects.Add($"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> /XObject << /Logo 5 0 R >> >> /Contents {id + 1} 0 R >>");
             var text = content.ToString(); objects.Add($"<< /Length {Encoding.Latin1.GetByteCount(text)} >>\nstream\n{text}endstream");
         }
         objects[0] = "<< /Type /Catalog /Pages 2 0 R >>";
-        objects[1] = $"<< /Type /Pages /Count {pages.Length} /Kids [{string.Join(" ", ids.Select(id => $"{id} 0 R"))}] >>";
+        objects[1] = $"<< /Type /Pages /Count {pages.Count} /Kids [{string.Join(" ", ids.Select(id => $"{id} 0 R"))}] >>";
         using var output = new MemoryStream(); void Write(string s) => output.Write(Encoding.Latin1.GetBytes(s));
         Write("%PDF-1.4\n"); var offsets = new List<long>();
         for (var i = 0; i < objects.Count; i++) { offsets.Add(output.Position); Write($"{i + 1} 0 obj\n{objects[i]}\nendobj\n"); }

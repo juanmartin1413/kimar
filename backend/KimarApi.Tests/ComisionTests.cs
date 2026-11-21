@@ -89,6 +89,40 @@ public class ComisionTests
     }
 
     [TestMethod]
+    public async Task LiquidarSinCompensarConservaAdelantoParaLaProximaLiquidacion()
+    {
+        await using var f = await Setup(); var s = new ComisionService(f.Db); var id = f.Venta.VendedorId;
+        await s.Anticipar(new(id, Guid.NewGuid(), 20000, ComisionService.Hoy, "efectivo", null, "Adelanto"), f.User);
+        var req = (await Solicitud(s, id)) with { CompensarAdelantos = false };
+        var d = await s.Confirmar(req, f.User);
+        Assert.AreEqual(25000m, d.Pago); Assert.AreEqual(0m, d.Compensado); Assert.AreEqual(0, d.Aplicaciones.Count);
+        Assert.IsFalse(JsonSerializer.Deserialize<ComisionSnapshot>(d.DatosJson, ComisionService.Json)!.CompensarAdelantos);
+        Assert.AreEqual(d.Id, (await s.Confirmar(req, f.User)).Id);
+        await Assert.ThrowsExceptionAsync<ComisionException>(() => s.Confirmar(req with { CompensarAdelantos = true }, f.User));
+        var p = await s.Preview(new(id, ComisionService.Hoy));
+        Assert.AreEqual(20000m, p.AnticiposPendientes); Assert.AreEqual(0m, p.Comision);
+        f.Db.Add(new Cobranza { VentaId = f.Venta.Id, ClienteId = f.Cliente.Id, Monto = 500, Estado = "cobrado", FechaCobro = ComisionService.Hoy, Fecha = ComisionService.Hoy });
+        await f.Db.SaveChangesAsync();
+        d = await s.Confirmar(await Solicitud(s, id), f.User);
+        Assert.AreEqual(5000m, d.Pago); Assert.AreEqual(20000m, d.Compensado);
+        Assert.AreEqual(0m, (await s.Preview(new(id, ComisionService.Hoy))).AnticiposPendientes);
+    }
+
+    [TestMethod]
+    public void PdfAdelantoDestacaImporteYOcultalosDatosQueNoAplican()
+    {
+        var d = new ComisionDocumento { Numero = 1, Tipo = "anticipo", Pago = 10000, Fecha = ComisionService.Hoy,
+            FormaPago = "transferencia", Motivo = "Solicita un adelanto por vacaciones",
+            DatosJson = ComisionService.Serialize(new ComisionSnapshot("Manolo", 500, [], 0, [])) };
+        var bytes = ComisionPdf.Render(d); var text = Encoding.Latin1.GetString(bytes);
+        StringAssert.Contains(text, "Comisión adelantada"); StringAssert.Contains(text, "$ 10.000,00");
+        Assert.IsFalse(text.Contains("negativo:")); Assert.IsFalse(text.Contains("Tarifa"));
+        Assert.IsFalse(text.Contains("Compensado con")); Assert.IsFalse(text.Contains(d.UsuarioId.ToString()));
+        Assert.AreEqual(1, Regex.Matches(text, @"/Type /Page\b").Count);
+        File.WriteAllBytes(Path.Combine(Path.GetTempPath(), "kimar-adelanto-test.pdf"), bytes);
+    }
+
+    [TestMethod]
     public async Task CambiosRechazanPreviewYAnulacionRecuperaLoPagadoSinReescribirHistoria()
     {
         await using var f = await Setup(); var s = new ComisionService(f.Db); var id = f.Venta.VendedorId;

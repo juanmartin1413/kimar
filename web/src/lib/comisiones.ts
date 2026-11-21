@@ -15,7 +15,7 @@ export interface ComisionPreview {
 export interface ComisionDocumento {
   id: string; numero: number; vendedorId: string; tipo: string; fecha: string; creado: string; usuarioId: string
   origenId?: string; comision: number; pago: number; compensado: number; formaPago?: string; referencia?: string; motivo?: string
-  datos: { vendedor: string; tarifa: number; ventas: ComisionVenta[]; saldoAnterior: number; aplicaciones: ComisionAnticipo[] }
+  datos: { vendedor: string; tarifa: number; ventas: ComisionVenta[]; saldoAnterior: number; aplicaciones: ComisionAnticipo[]; compensarAdelantos?: boolean }
 }
 export interface ComisionSaldo { pagado: number; liquidada: number; anticiposPendientes: number; ajusteAnterior: number; anticipos: ComisionAnticipo[] }
 export const tipoDocumento: Record<string, string> = {

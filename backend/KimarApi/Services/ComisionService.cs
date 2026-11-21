@@ -9,7 +9,7 @@ namespace KimarApi.Services;
 
 public class ComisionException(string message, int status = 400) : Exception(message) { public int Status { get; } = status; }
 public record ComisionFiltro(Guid VendedorId, DateOnly Hasta, DateOnly? Desde = null, Guid[]? ClienteIds = null, Guid[]? VentaIds = null);
-public record ComisionConfirmar(ComisionFiltro Filtro, Guid OperacionId, string Huella, DateOnly Fecha, string? FormaPago, string? Referencia, string? Motivo);
+public record ComisionConfirmar(ComisionFiltro Filtro, Guid OperacionId, string Huella, DateOnly Fecha, string? FormaPago, string? Referencia, string? Motivo, bool CompensarAdelantos = true);
 public record ComisionAnticipo(Guid VendedorId, Guid OperacionId, decimal Monto, DateOnly Fecha, string FormaPago, string? Referencia, string Motivo);
 public record ComisionCorreccion(Guid OperacionId, DateOnly Fecha, string Motivo, string? FormaPago = null, string? Referencia = null);
 public record ComisionItem(string Nombre, string Unidad, decimal Cantidad, decimal Tarifa, decimal Comision);
@@ -23,7 +23,7 @@ public record ComisionPreview(Guid VendedorId, string Vendedor, decimal Tarifa, 
     decimal AjusteAnterior, decimal Comision, decimal Compensado, decimal Neto, decimal LimiteAnticipo,
     List<ComisionSaldoAnticipo> Anticipos, string Huella);
 public record ComisionSnapshot(string Vendedor, decimal Tarifa, List<ComisionVenta> Ventas, decimal SaldoAnterior,
-    List<ComisionSaldoAnticipo> Aplicaciones);
+    List<ComisionSaldoAnticipo> Aplicaciones, bool CompensarAdelantos = true);
 
 public class ComisionService(KimarDbContext db)
 {
@@ -112,7 +112,9 @@ public class ComisionService(KimarDbContext db)
 
     public async Task<ComisionDocumento> Confirmar(ComisionConfirmar req, Guid usuario)
     {
-        var hash = Hash(req);
+        // Mantener compatibles los reintentos de solicitudes anteriores a la opción.
+        var hash = req.CompensarAdelantos
+            ? Hash(new { req.Filtro, req.OperacionId, req.Huella, req.Fecha, req.FormaPago, req.Referencia, req.Motivo }) : Hash(req);
         await using var tx = await db.Database.BeginTransactionAsync();
         await Bloquear(req.Filtro.VendedorId);
         var repetida = await Repetida(req.OperacionId, hash);
@@ -121,13 +123,15 @@ public class ComisionService(KimarDbContext db)
         if (p.Huella != req.Huella) throw new ComisionException("Los importes cambiaron. Actualizá y revisá la preliquidación.", 409);
         var filas = p.Ventas.Where(v => v.Incluida && v.Pendiente != 0).ToList();
         if (filas.Count == 0) throw new ComisionException("No hay comisiones pendientes para liquidar.");
-        ValidarPago(req.Fecha, p.Neto, req.FormaPago, req.Referencia, req.Motivo);
+        var compensado = req.CompensarAdelantos ? p.Compensado : Math.Min(Math.Max(0, p.Comision), p.AjusteAnterior);
+        var neto = Math.Max(0, Money(p.Comision - compensado));
+        ValidarPago(req.Fecha, neto, req.FormaPago, req.Referencia, req.Motivo);
         if (req.Fecha < req.Filtro.Hasta) throw new ComisionException("La fecha de pago debe ser igual o posterior al corte.");
         var doc = new ComisionDocumento { VendedorId = p.VendedorId, UsuarioId = usuario, OperacionId = req.OperacionId, Huella = hash,
-            Fecha = req.Fecha, Comision = p.Comision, Pago = p.Neto, Compensado = p.Compensado,
-            FormaPago = p.Neto > 0 ? req.FormaPago : null, Referencia = req.Referencia, Motivo = req.Motivo };
+            Fecha = req.Fecha, Comision = p.Comision, Pago = neto, Compensado = compensado,
+            FormaPago = neto > 0 ? req.FormaPago : null, Referencia = req.Referencia, Motivo = req.Motivo };
         doc.Detalles = filas.Select(v => new ComisionDetalle { VentaId = v.VentaId, Importe = v.Pendiente }).ToList();
-        decimal restante = Math.Min(p.Compensado, p.AnticiposPendientes);
+        decimal restante = req.CompensarAdelantos ? Math.Min(compensado, p.AnticiposPendientes) : 0;
         var aplicados = new List<ComisionSaldoAnticipo>();
         foreach (var a in p.Anticipos)
         {
@@ -137,7 +141,7 @@ public class ComisionService(KimarDbContext db)
             aplicados.Add(a with { Monto = monto, Pendiente = a.Pendiente - monto });
             restante -= monto;
         }
-        doc.DatosJson = Serialize(new ComisionSnapshot(p.Vendedor, p.Tarifa, filas, p.Pagado - p.Liquidada, aplicados));
+        doc.DatosJson = Serialize(new ComisionSnapshot(p.Vendedor, p.Tarifa, filas, p.Pagado - p.Liquidada, aplicados, req.CompensarAdelantos));
         db.Add(doc); await db.SaveChangesAsync(); await tx.CommitAsync(); return doc;
     }
 
