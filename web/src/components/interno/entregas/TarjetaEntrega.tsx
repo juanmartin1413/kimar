@@ -1,5 +1,6 @@
 'use client'
 
+import { horarioEntrega } from '@/components/interno/EntregaPactada'
 import { VentaEntrega } from '@/lib/types'
 import { formatFecha } from '@/lib/format'
 import { direccionCliente, esEnvioExterno, estadoEntregaConfig, formatFechaHora, mapsUrl, medioEnvioLabels, TIPO_REMITO_FIRMADO } from '@/lib/entregas'
@@ -58,7 +59,7 @@ export function TarjetaEntrega({ venta, usuarioId, esGestion, esRepartidor, ocup
           </p>
         </div>
         <div className="flex flex-wrap gap-1.5 items-center">
-          <Badge variant="secondary">{formatFecha(venta.fechaEntrega)}</Badge>
+          <Badge variant="secondary">{formatFecha(venta.fechaEntrega)} · {horarioEntrega(venta.horaEntregaDesde, venta.horaEntregaHasta)}</Badge>
           <span className={cn('text-xs font-semibold px-2.5 py-1 rounded-full', estado.className)}>{estado.label}</span>
         </div>
       </div>

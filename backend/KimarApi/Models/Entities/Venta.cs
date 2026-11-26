@@ -11,6 +11,9 @@ public class Venta
     public decimal Iva { get; set; }
     public decimal CreditoAplicado { get; set; }
     public ICollection<ComprobanteFiscal> Comprobantes { get; set; } = [];
+    public TimeOnly? HoraEntregaDesde { get; set; }
+    public TimeOnly? HoraEntregaHasta { get; set; }
+    public int DiasPlazoPago { get; set; } = 15;
     [Key]
     public Guid Id { get; set; } = Guid.NewGuid();
 

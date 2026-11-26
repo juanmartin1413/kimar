@@ -1,29 +1,24 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { useData } from '@/contexts/DataContext'
 import { useAuth } from '@/contexts/AuthContext'
-import { FormaPago, ItemVenta } from '@/lib/types'
-import { formatFecha, formatPeso, today } from '@/lib/format'
+import { api } from '@/lib/api'
+import { roundMoney } from '@/lib/facturacion'
+import { ItemVenta } from '@/lib/types'
+import { formatFecha, formatPeso, addDaysIso } from '@/lib/format'
 import { esEnvioExterno, estadoEntregaConfig, formatFechaHora, medioEnvioLabels, parseApiError } from '@/lib/entregas'
 import { generateId } from '@/lib/storage'
 import { ComprobantesFiscales } from '@/components/interno/ComprobantesFiscales'
 import { AdjuntosVenta } from '@/components/interno/AdjuntosVenta'
 import { Trash2, ArrowLeft, AlertTriangle, Lock, Info } from 'lucide-react'
 import Link from 'next/link'
+import { EstadoCuentaCliente } from '@/components/interno/EstadoCuentaCliente'
+import { EntregaPactada } from '@/components/interno/EntregaPactada'
+import { AdjuntosPago } from '@/components/interno/AdjuntosPago'
 import { cn } from '@/lib/utils'
 
-// Cuota pendiente en edición. `key` es solo para React (generateId no es un Guid);
-// `serverId` identifica una cobranza existente en el backend (undefined = cuota nueva).
-type CobranzaDraft = {
-  key: string
-  serverId?: string
-  fecha: string
-  monto: number
-  formaPago: FormaPago
-  observaciones?: string
-}
 
 export default function EditarVentaPage() {
   const { data } = useData()
@@ -49,9 +44,15 @@ function EditVentaForm({ ventaId }: { ventaId: string }) {
   const router = useRouter()
   const venta = data.ventas.find(v => v.id === ventaId)!
 
-  // Solo el administrador edita ítems, cliente, vendedor, fecha y plan de cobro.
+  // Solo el administrador edita ítems, cliente, vendedor, fecha y entrega pactada.
   // El gestor conserva la edición de remito, factura y observaciones.
   const puedeEditarTodo = isAdmin && !venta.emitirFactura
+  const [correccionFiscal, setCorreccionFiscal] = useState(false)
+  const revisarPermiso = useCallback(() => {
+    if (venta.emitirFactura && canManageData) api.get<{ editable: boolean }>('/api/facturacion/venta/' + ventaId + '/editable').then(r => setCorreccionFiscal(r.editable)).catch(() => setCorreccionFiscal(false))
+  }, [venta.emitirFactura, ventaId, canManageData])
+  useEffect(() => { revisarPermiso(); const timer = setInterval(revisarPermiso, 15000); return () => clearInterval(timer) }, [revisarPermiso])
+  const puedeEditarProductos = puedeEditarTodo || (canManageData && correccionFiscal)
 
   // Cobradas: intocables (el backend también lo garantiza)
   const cobradasExistentes = data.cobranzas.filter(c => c.ventaId === ventaId && c.estado === 'cobrado')
@@ -60,29 +61,23 @@ function EditVentaForm({ ventaId }: { ventaId: string }) {
   const [clienteId, setClienteId] = useState(venta.clienteId)
   const [vendedorId, setVendedorId] = useState(venta.vendedorId)
   const [fechaEntrega, setFechaEntrega] = useState(venta.fechaEntrega)
+  const [horaEntregaDesde, setDesde] = useState(venta.horaEntregaDesde ?? '')
+  const [horaEntregaHasta, setHasta] = useState(venta.horaEntregaHasta ?? '')
   const [nroRemito, setNroRemito] = useState(venta.nroRemito ?? '')
   const [nroFactura, setNroFactura] = useState(venta.nroFactura ?? '')
   const [observaciones, setObservaciones] = useState(venta.observaciones ?? '')
   const [items, setItems] = useState<ItemVenta[]>(venta.items)
 
-  const pendingCobs = data.cobranzas.filter(c => c.ventaId === ventaId && c.estado === 'pendiente')
-  const [cobranzas, setCobranzas] = useState<CobranzaDraft[]>(
-    pendingCobs.map(c => ({
-      key: c.id, serverId: c.id, fecha: c.fecha, monto: c.monto, formaPago: c.formaPago, observaciones: c.observaciones,
-    }))
-  )
-
   const [productoId, setProductoId] = useState('')
   const [cantidad, setCantidad] = useState('')
   const [precio, setPrecio] = useState('')
   const [calidadId, setCalidadId] = useState('')
-  const [showWarning, setShowWarning] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [guardado, setGuardado] = useState(false)
 
-  const total = puedeEditarTodo ? items.reduce((s, i) => s + i.subtotal, 0) : venta.total
-  const totalNewCobranzas = cobranzas.reduce((s, c) => s + c.monto, 0)
-  const totalPlanCompleto = totalCobrado + totalNewCobranzas
+  const neto = items.reduce((s, i) => s + (venta.emitirFactura ? roundMoney(i.cantidad * i.precioUnitario) : i.subtotal), 0)
+  const total = puedeEditarProductos ? neto + (venta.emitirFactura ? roundMoney(neto * 0.21) : 0) : venta.total
   const selectedProduct = data.productos.find(p => p.id === productoId)
   const unidadLabel = selectedProduct?.unidad === 'unidad' ? 'Unidades' : 'Kg'
   const calidadesActivas = selectedProduct ? getCalidadesDelProducto(selectedProduct.id).filter(c => c.activo) : []
@@ -94,19 +89,13 @@ function EditVentaForm({ ventaId }: { ventaId: string }) {
     return activasProd.length > 1
   })
 
-  const itemsCambiaron = puedeEditarTodo && (
-    items.length !== venta.items.length ||
-    items.some((it, i) => {
-      const o = venta.items[i]
-      return !o || o.productoId !== it.productoId || o.calidadId !== it.calidadId || o.cantidad !== it.cantidad
-    })
-  )
+  const firmaItems = (rows: ItemVenta[]) => JSON.stringify(rows.map(i =>
+    JSON.stringify([i.productoId, i.calidadId ?? null, i.descripcion, i.cantidad, i.precioUnitario])
+  ).sort())
+  const itemsCambiaron = puedeEditarProductos && firmaItems(items) !== firmaItems(venta.items)
 
-  // Validaciones bloqueantes del plan de cobro (espejo de las del backend)
-  const cuotaSinMonto = cobranzas.some(c => c.monto <= 0)
-  const planExcedeTotal = totalPlanCompleto > total + 0.01
-  const totalMenorACobrado = total < totalCobrado
-  const bloqueoPlan = puedeEditarTodo && (cuotaSinMonto || planExcedeTotal || totalMenorACobrado)
+  // No se puede reducir el total por debajo de lo cobrado
+  const bloqueoPlan = puedeEditarProductos && total < totalCobrado
 
   useEffect(() => {
     if (calidadesActivas.length === 1) setCalidadId(calidadesActivas[0].id)
@@ -157,39 +146,19 @@ function EditVentaForm({ ventaId }: { ventaId: string }) {
     }))
   }
 
-  function addCobranza() {
-    setCobranzas(prev => [...prev, { key: generateId(), fecha: today(), monto: 0, formaPago: 'efectivo' }])
-  }
-
-  function updateCobranzaDraft(key: string, changes: Partial<CobranzaDraft>) {
-    setCobranzas(prev => prev.map(c => c.key === key ? { ...c, ...changes } : c))
-  }
-
-  function removeCobranza(key: string) {
-    setCobranzas(prev => prev.filter(c => c.key !== key))
-  }
-
-  // Completa la cuota con lo que falta para cubrir el total (reemplaza al viejo toggle "Total",
-  // que ignoraba lo ya cobrado).
-  function completarSaldo(key: string) {
-    const c = cobranzas.find(x => x.key === key)
-    if (!c) return
-    const restante = total - (totalPlanCompleto - c.monto)
-    updateCobranzaDraft(key, { monto: Math.max(0, Math.round(restante * 100) / 100) })
-  }
-
   async function doSave() {
     if (!canManageData) return
     setSaving(true)
     setError('')
+    setGuardado(false)
     try {
-      if (puedeEditarTodo) {
+      if (puedeEditarProductos) {
         await updateVentaCompleta(ventaId, {
           clienteId,
           vendedorId,
-          fechaEntrega,
+          fechaEntrega, horaEntregaDesde, horaEntregaHasta,
           nroRemito: nroRemito || null,
-          nroFactura: nroFactura || null,
+          nroFactura: venta.emitirFactura ? venta.nroFactura ?? null : nroFactura || null,
           observaciones: observaciones || null,
           items: items.map(i => ({
             productoId: i.productoId,
@@ -197,13 +166,6 @@ function EditVentaForm({ ventaId }: { ventaId: string }) {
             descripcion: i.descripcion,
             cantidad: i.cantidad,
             precioUnitario: i.precioUnitario,
-          })),
-          cobranzas: cobranzas.map(c => ({
-            id: c.serverId ?? null,
-            fecha: c.fecha,
-            monto: c.monto,
-            formaPago: c.formaPago,
-            observaciones: c.observaciones ?? null,
           })),
         })
       } else {
@@ -213,24 +175,20 @@ function EditVentaForm({ ventaId }: { ventaId: string }) {
           observaciones: observaciones || undefined,
         })
       }
-      router.push('/interno/ventas')
+      if (venta.emitirFactura) { setSaving(false); setGuardado(true); revisarPermiso() } else router.push('/interno/ventas')
     } catch (e) {
       setError(parseApiError(e, 'No se pudo guardar la venta.'))
-      setShowWarning(false)
       setSaving(false)
     }
   }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (puedeEditarTodo) {
+    if (puedeEditarProductos) {
       if (!clienteId || items.length === 0) return
       if (itemsPendientesCalidad.length > 0) return
       if (bloqueoPlan) return
-      if (totalPlanCompleto < total - 0.01) {
-        setShowWarning(true)
-        return
-      }
+      if (horaEntregaHasta && horaEntregaHasta <= horaEntregaDesde) { setError('Revisá el horario de entrega.'); return }
     }
     doSave()
   }
@@ -250,8 +208,8 @@ function EditVentaForm({ ventaId }: { ventaId: string }) {
         <div>
           <h1 className="text-2xl font-bold text-[oklch(0.2_0.06_240)]">Editar venta</h1>
           <p className="text-sm text-[oklch(0.5_0.04_240)]">
-            {puedeEditarTodo
-              ? 'Modificá los datos de la venta, los productos y el plan de cobro'
+            {puedeEditarProductos
+              ? (correccionFiscal ? 'Ajustá los productos para emitir la factura de reemplazo' : 'Modificá los datos de la venta, los productos y el plan de cobro')
               : 'Modificá remito, factura y observaciones. Solo un administrador puede cambiar productos y plan de cobro.'}
           </p>
         </div>
@@ -276,7 +234,7 @@ function EditVentaForm({ ventaId }: { ventaId: string }) {
             <div>
               <label className="block text-xs font-medium text-[oklch(0.35_0.06_240)] mb-1">Cliente *</label>
               {puedeEditarTodo ? (
-                <select value={clienteId} onChange={e => onClienteChange(e.target.value)} required className={fieldClass}>
+                <select disabled={totalCobrado > 0} value={clienteId} onChange={e => onClienteChange(e.target.value)} required className={fieldClass}>
                   <option value="">Seleccionar…</option>
                   {data.clientes.filter(c => c.activo || c.id === venta.clienteId).map(c => (
                     <option key={c.id} value={c.id}>{c.nombre}</option>
@@ -302,14 +260,6 @@ function EditVentaForm({ ventaId }: { ventaId: string }) {
 
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="block text-xs font-medium text-[oklch(0.35_0.06_240)] mb-1">Fecha entrega</label>
-              {puedeEditarTodo ? (
-                <input type="date" value={fechaEntrega} onChange={e => setFechaEntrega(e.target.value)} className={fieldClass} />
-              ) : (
-                <div className={readOnlyClass}>{formatFecha(venta.fechaEntrega)}</div>
-              )}
-            </div>
-            <div>
               <label className="block text-xs font-medium text-[oklch(0.35_0.06_240)] mb-1">N° Remito</label>
               <input disabled={!canManageData} value={nroRemito} onChange={e => setNroRemito(e.target.value)} className={fieldClass} placeholder="Ej: 3520" />
             </div>
@@ -320,16 +270,19 @@ function EditVentaForm({ ventaId }: { ventaId: string }) {
           </div>
         </div>
 
+        <EstadoCuentaCliente clienteId={clienteId} />
+        <EntregaPactada disabled={!puedeEditarTodo} fecha={fechaEntrega} desde={horaEntregaDesde} hasta={horaEntregaHasta} onChange={(f,d,h) => { setFechaEntrega(f); setDesde(d); setHasta(h) }} />
+        {venta.emitirFactura && <p className="rounded-lg bg-blue-50 p-3 text-sm">{correccionFiscal ? 'NC total autorizada: ajustá los productos, guardá los cambios y emití la factura de reemplazo al pie de esta página.' : 'Para corregir productos, emití una NC total por corrección fiscal y esperá su autorización.'}</p>}
         {/* Productos */}
-        <div className="bg-white rounded-xl border border-[oklch(0.9_0.01_240)] shadow-sm p-6 space-y-4">
+        <div id="productos" className="bg-white rounded-xl border border-[oklch(0.9_0.01_240)] shadow-sm p-6 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="font-semibold text-[oklch(0.25_0.06_240)]">Productos</h2>
-            {!puedeEditarTodo && (
-              <span className="text-xs text-[oklch(0.5_0.04_240)] flex items-center gap-1"><Lock className="w-3 h-3" /> Solo administrador</span>
+            {!puedeEditarProductos && (
+              <span className="text-xs text-[oklch(0.5_0.04_240)] flex items-center gap-1"><Lock className="w-3 h-3" /> {venta.emitirFactura ? 'Requiere NC autorizada' : 'Solo administrador'}</span>
             )}
           </div>
 
-          {puedeEditarTodo && (
+          {puedeEditarProductos && (
             <div className="border border-dashed border-[oklch(0.85_0.03_240)] rounded-lg p-4 space-y-3">
               <p className="text-xs font-medium text-[oklch(0.45_0.04_240)]">Agregar producto</p>
               <div className="grid grid-cols-3 gap-2">
@@ -369,9 +322,9 @@ function EditVentaForm({ ventaId }: { ventaId: string }) {
                     )}
                   >
                     <span className="flex-1">
-                      {item.cantidad} × {item.descripcion}{item.calidadNombre ? ` (${item.calidadNombre})` : ''}
+                      {puedeEditarProductos ? <input aria-label={'Cantidad de ' + item.descripcion} type="number" min="0.01" step="0.01" required className="w-24 rounded border bg-white p-1 mr-2" value={item.cantidad} onChange={e => setItems(prev => prev.map(i => i.id === item.id ? { ...i, cantidad: Number(e.target.value), subtotal: Number(e.target.value) * i.precioUnitario } : i))} /> : item.cantidad} × {item.descripcion}{item.calidadNombre ? ` (${item.calidadNombre})` : ''}
                       <span className="text-xs text-[oklch(0.5_0.04_240)] ml-2">{formatPeso(item.precioUnitario)} c/u</span>
-                      {pendienteCalidad && puedeEditarTodo && (
+                      {pendienteCalidad && puedeEditarProductos && (
                         <div className="flex items-center gap-2 mt-1">
                           <span className="text-xs text-orange-700 font-medium whitespace-nowrap">⚠️ Elegí la calidad:</span>
                           <select
@@ -389,7 +342,7 @@ function EditVentaForm({ ventaId }: { ventaId: string }) {
                     </span>
                     <div className="flex items-center gap-3">
                       <span className="font-semibold tabular-nums">{formatPeso(item.subtotal)}</span>
-                      {puedeEditarTodo && (
+                      {puedeEditarProductos && (
                         <button type="button" onClick={() => setItems(p => p.filter((_, i) => i !== idx))}>
                           <Trash2 className="w-3.5 h-3.5 text-red-400 hover:text-red-600" />
                         </button>
@@ -414,102 +367,12 @@ function EditVentaForm({ ventaId }: { ventaId: string }) {
           )}
         </div>
 
-        {/* Plan de cobro */}
-        <div className="bg-white rounded-xl border border-[oklch(0.9_0.01_240)] shadow-sm p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="font-semibold text-[oklch(0.25_0.06_240)]">Plan de cobro</h2>
-              {total > 0 && (
-                <p className={cn('text-xs mt-0.5', planExcedeTotal ? 'text-red-600' : totalPlanCompleto >= total - 0.01 ? 'text-green-600' : 'text-orange-500')}>
-                  Cubierto: {formatPeso(totalPlanCompleto)} de {formatPeso(total)}
-                </p>
-              )}
-            </div>
-            {puedeEditarTodo ? (
-              <button type="button" onClick={addCobranza} className="text-xs text-[oklch(0.42_0.14_240)] hover:underline font-medium">
-                + Agregar cuota
-              </button>
-            ) : (
-              <span className="text-xs text-[oklch(0.5_0.04_240)] flex items-center gap-1"><Lock className="w-3 h-3" /> Solo administrador</span>
-            )}
-          </div>
-
-          {/* Cobradas existentes (read-only) */}
-          {cobradasExistentes.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-green-700 flex items-center gap-1"><Lock className="w-3 h-3" /> Cobranzas ya cobradas (no se modifican)</p>
-              {cobradasExistentes.map(c => (
-                <div key={c.id} className="flex items-center justify-between bg-green-50 rounded-lg px-4 py-2.5 text-sm border border-green-200">
-                  <span className="text-green-800">{formatFecha(c.fecha)} · {c.formaPago}</span>
-                  <span className="font-semibold text-green-700 tabular-nums">{formatPeso(c.monto)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Pendientes */}
-          {cobranzas.length === 0 && cobradasExistentes.length === 0 ? (
-            <p className="text-center py-4 text-sm text-[oklch(0.55_0.04_240)]">Sin plan de cobro pendiente</p>
-          ) : cobranzas.length === 0 ? null : !puedeEditarTodo ? (
-            <div className="space-y-2">
-              {cobranzas.map(c => (
-                <div key={c.key} className="flex items-center justify-between bg-[oklch(0.97_0.01_240)] rounded-lg px-4 py-2.5 text-sm border border-[oklch(0.9_0.01_240)]">
-                  <span className="text-[oklch(0.35_0.04_240)]">{formatFecha(c.fecha)} · {c.formaPago}</span>
-                  <span className="font-semibold tabular-nums">{formatPeso(c.monto)}</span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {cobranzas.map(c => (
-                <div key={c.key} className={cn('border rounded-lg p-4 space-y-3', c.monto <= 0 ? 'border-red-300' : 'border-[oklch(0.9_0.01_240)]')}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3 text-xs">
-                      <span className="text-[oklch(0.5_0.04_240)]">{c.serverId ? 'Cuota existente' : 'Cuota nueva'}</span>
-                      <button type="button" onClick={() => completarSaldo(c.key)} className="text-[oklch(0.42_0.14_240)] hover:underline font-medium">
-                        Completar saldo
-                      </button>
-                    </div>
-                    <button type="button" onClick={() => removeCobranza(c.key)} className="text-gray-300 hover:text-red-500 transition-colors" title="Eliminar cuota">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <div>
-                      <label className="block text-xs text-[oklch(0.5_0.04_240)] mb-0.5">Fecha cobro</label>
-                      <input type="date" value={c.fecha} onChange={e => updateCobranzaDraft(c.key, { fecha: e.target.value })} className={fieldClass} />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-[oklch(0.5_0.04_240)] mb-0.5">Monto</label>
-                      <input type="number" value={c.monto || ''} onChange={e => updateCobranzaDraft(c.key, { monto: parseFloat(e.target.value) || 0 })} placeholder="0" min="0" className={fieldClass} />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-[oklch(0.5_0.04_240)] mb-0.5">Forma de pago</label>
-                      <select value={c.formaPago} onChange={e => updateCobranzaDraft(c.key, { formaPago: e.target.value as FormaPago })} className={fieldClass}>
-                        <option value="efectivo">Efectivo</option>
-                        <option value="transferencia">Transferencia</option>
-                        <option value="cheque">Cheque</option>
-                      </select>
-                    </div>
-                  </div>
-                  <input
-                    value={c.observaciones ?? ''}
-                    onChange={e => updateCobranzaDraft(c.key, { observaciones: e.target.value || undefined })}
-                    placeholder="Observaciones de la cuota (opcional)"
-                    className={fieldClass}
-                  />
-                </div>
-              ))}
-            </div>
-          )}
-
-          {puedeEditarTodo && (cuotaSinMonto || planExcedeTotal || totalMenorACobrado) && (
-            <div className="text-xs text-red-600 space-y-0.5">
-              {cuotaSinMonto && <p>Todas las cuotas deben tener un monto mayor a 0.</p>}
-              {planExcedeTotal && <p>El plan de cobro supera el total de la venta.</p>}
-              {totalMenorACobrado && <p>El total de la venta no puede ser menor a lo ya cobrado ({formatPeso(totalCobrado)}).</p>}
-            </div>
-          )}
+        <div className="rounded-xl border bg-white p-5 space-y-3">
+          <h2 className="font-semibold">Compromiso de cobro</h2>
+          <p>Plazo aplicado: {venta.diasPlazoPago ?? 15} días · Vencimiento: {fechaEntrega && formatFecha(addDaysIso(fechaEntrega, venta.diasPlazoPago ?? 15))}</p>
+          <p>Cobrado: {formatPeso(totalCobrado)} · Saldo: {formatPeso(total - (venta.creditoAplicado ?? 0) - totalCobrado)}</p>
+          {bloqueoPlan && <p className="text-red-700">El total no puede ser menor a lo ya cobrado.</p>}
+          {cobradasExistentes.map(c => <div className="border-t pt-2" key={c.id}><p>{formatFecha(c.fechaCobro ?? c.fecha)} · {c.formaPago} · {formatPeso(c.monto)}</p>{canManageData && c.pagoId && <AdjuntosPago pagoId={c.pagoId} />}</div>)}
         </div>
 
         {/* Observaciones */}
@@ -525,37 +388,14 @@ function EditVentaForm({ ventaId }: { ventaId: string }) {
           </div>
         )}
 
-        {/* Warning */}
-        {showWarning && (
-          <div className="bg-orange-50 border border-orange-200 rounded-xl p-5 space-y-3">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="font-semibold text-orange-700">Plan de cobro incompleto</p>
-                <p className="text-sm text-orange-600 mt-0.5">
-                  El plan cubre {formatPeso(totalPlanCompleto)} de {formatPeso(total)}. Falta registrar {formatPeso(total - totalPlanCompleto)}.
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <button type="button" onClick={() => setShowWarning(false)} className="flex-1 border border-orange-300 text-orange-700 py-2 rounded-lg text-sm font-medium hover:bg-orange-100 transition-colors">
-                Completar ahora
-              </button>
-              <button type="button" onClick={doSave} disabled={saving} className="flex-1 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white py-2 rounded-lg text-sm font-semibold transition-colors">
-                {saving ? 'Guardando…' : 'Guardar igual'}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {canManageData && !showWarning && (
+        {canManageData && (
           <div className="flex gap-3">
             <Link href="/interno/ventas" className="flex-1 text-center border border-[oklch(0.88_0.02_240)] text-[oklch(0.4_0.04_240)] py-3 rounded-lg text-sm font-medium hover:bg-[oklch(0.96_0.01_240)] transition-colors">
               Cancelar
             </Link>
             <button
               type="submit"
-              disabled={saving || (puedeEditarTodo && (!clienteId || items.length === 0 || itemsPendientesCalidad.length > 0 || bloqueoPlan))}
+              disabled={saving || (puedeEditarProductos && (!clienteId || items.length === 0 || itemsPendientesCalidad.length > 0 || bloqueoPlan))}
               title={itemsPendientesCalidad.length > 0 ? 'Hay ítems que requieren elegir una calidad' : undefined}
               className="flex-1 bg-[oklch(0.42_0.14_240)] hover:bg-[oklch(0.52_0.14_240)] disabled:opacity-50 text-white py-3 rounded-lg text-sm font-semibold transition-colors"
             >
@@ -565,7 +405,8 @@ function EditVentaForm({ ventaId }: { ventaId: string }) {
         )}
       </form>
 
-      {canManageData && venta.emitirFactura && <ComprobantesFiscales ventaId={ventaId} />}
+      {guardado && !itemsCambiaron && <p role="status" className="rounded-lg bg-green-50 p-3 text-green-800">Cambios guardados. Podés revisar y emitir la factura de reemplazo.</p>}
+      {canManageData && venta.emitirFactura && <ComprobantesFiscales ventaId={ventaId} onFiscalChange={revisarPermiso} cambiosSinGuardar={itemsCambiaron || saving} />}
       {/* Fuera del form: los documentos se suben/eliminan al instante, no al guardar la venta */}
       {canManageData && <div className="bg-white rounded-xl border border-[oklch(0.9_0.01_240)] shadow-sm p-6 space-y-3">
         <h2 className="font-semibold text-[oklch(0.25_0.06_240)]">Documentos adjuntos</h2>

@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Assets/kimar-logo.jpg" />
+    <EmbeddedResource Include="Data/Seed/clientes-2026-11-26.json" />
   </ItemGroup>
 
   <ItemGroup>

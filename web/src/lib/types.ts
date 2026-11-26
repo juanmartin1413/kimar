@@ -17,6 +17,7 @@ export interface Vendedor {
 }
 
 export interface Cliente {
+  diasPlazoPago?: number
   requiereFactura?: boolean
   razonSocial?: string
   domicilioFiscal?: string
@@ -25,6 +26,7 @@ export interface Cliente {
   nombre: string
   calle?: string
   altura?: string
+  codigoPostal?: string
   localidad?: string
   provincia?: string
   telefono1?: string
@@ -68,6 +70,9 @@ export interface ItemPedido {
 export type EstadoPedido = 'pendiente' | 'confirmado' | 'cancelado'
 
 export interface Pedido {
+  horaEntregaDesde?: string
+  horaEntregaHasta?: string
+  fechaEntrega: string
   id: string
   clienteId: string
   vendedorId: string
@@ -94,12 +99,13 @@ export type FormaPago = 'efectivo' | 'transferencia' | 'cheque'
 export type EstadoCobranza = 'pendiente' | 'cobrado' | 'vencido'
 
 export interface Cobranza {
+  pagoId?: string
   id: string
   ventaId?: string
   clienteId: string
   fecha: string
   monto: number
-  formaPago: FormaPago
+  formaPago: FormaPago | ''
   estado: EstadoCobranza
   observaciones?: string
   fechaCreacion: string
@@ -107,6 +113,7 @@ export interface Cobranza {
 }
 
 export interface Venta {
+  diasPlazoPago?: number
   emitirFactura?: boolean
   iva?: number
   creditoAplicado?: number
@@ -117,6 +124,8 @@ export interface Venta {
   pedidoId?: string
   clienteId: string
   vendedorId: string
+  horaEntregaDesde?: string
+  horaEntregaHasta?: string
   fechaEntrega: string
   nroRemito?: string
   nroFactura?: string
@@ -271,7 +280,7 @@ export interface Adjunto {
 
 // Catálogo cerrado de tipos de documento. 'remito' y 'factura' son los comprobantes de una Compra;
 // 'remito_firmado' es la constancia de entrega que sube el repartidor sobre una Venta.
-export type TipoAdjunto = 'remito' | 'factura' | 'otro' | 'remito_firmado'
+export type TipoAdjunto = 'remito' | 'factura' | 'otro' | 'remito_firmado' | 'comprobante_pago'
 
 // Stock management types
 export interface ProductoProveedor {
@@ -326,6 +335,8 @@ export interface ItemPreparacion {
 
 export interface VentaPreparacion {
   id: string
+  horaEntregaDesde?: string
+  horaEntregaHasta?: string
   fechaEntrega: string
   clienteNombre: string
   vendedorNombre: string
@@ -347,6 +358,8 @@ export interface RepartidorLite {
 
 export interface VentaEntrega {
   id: string
+  horaEntregaDesde?: string
+  horaEntregaHasta?: string
   fechaEntrega: string
   clienteNombre: string
   calle?: string
@@ -368,18 +381,11 @@ export interface VentaEntrega {
 }
 
 // ── Edición completa de venta (solo admin) ──────────────────────────────────
-// id null/undefined = cuota nueva. Solo se envían las cuotas pendientes; las cobradas no se tocan.
-export interface PlanCobroItemPayload {
-  id?: string | null
-  fecha: string
-  monto: number
-  formaPago: FormaPago
-  observaciones?: string | null
-}
-
 export interface UpdateVentaCompletaPayload {
   clienteId: string
   vendedorId: string
+  horaEntregaDesde?: string
+  horaEntregaHasta?: string
   fechaEntrega: string
   nroRemito?: string | null
   nroFactura?: string | null
@@ -391,7 +397,6 @@ export interface UpdateVentaCompletaPayload {
     cantidad: number
     precioUnitario: number
   }[]
-  cobranzas: PlanCobroItemPayload[]
 }
 
 export type TipoMovimientoStock = 'entrada' | 'salida'

@@ -3,11 +3,14 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useData } from '@/contexts/DataContext'
-import { Cobranza, FormaPago, ItemVenta } from '@/lib/types'
-import { formatPeso, formatFecha, today } from '@/lib/format'
+import { ItemVenta } from '@/lib/types'
+import { formatPeso, formatFecha, today, addDaysIso } from '@/lib/format'
 import { generateId } from '@/lib/storage'
 import { Trash2, ArrowLeft, Loader2 } from 'lucide-react'
 import Link from 'next/link'
+import { EstadoCuentaCliente } from '@/components/interno/EstadoCuentaCliente'
+import { EntregaPactada } from '@/components/interno/EntregaPactada'
+
 import { cn } from '@/lib/utils'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { FacturaEditor, FacturaResumen } from '@/components/interno/FacturaEditor'
@@ -15,13 +18,6 @@ import { ComprobanteFiscal, roundMoney } from '@/lib/facturacion'
 import { api } from '@/lib/api'
 import { esperarFactura } from '@/lib/esperarFactura'
 
-type CobranzaDraft = {
-  id: string
-  fecha: string
-  tipo: 'total' | 'parcial'
-  monto: number
-  formaPago: FormaPago
-}
 
 export default function NuevaVentaPage() {
   const { data, addVenta, getStockActual, getStockTotal, getCalidadesDelProducto } = useData()
@@ -32,6 +28,8 @@ export default function NuevaVentaPage() {
   const [vendedorId, setVendedorId] = useState(data.vendedores[0]?.id ?? '')
   const [pedidoId, setPedidoId] = useState('')
   const [fechaEntrega, setFechaEntrega] = useState(today())
+  const [horaEntregaDesde, setDesde] = useState('')
+  const [horaEntregaHasta, setHasta] = useState('')
   const [emitirFactura, setEmitirFactura] = useState(false)
   const [preview, setPreview] = useState<ComprobanteFiscal | null>(null)
   const [saving, setSaving] = useState(false)
@@ -43,9 +41,6 @@ export default function NuevaVentaPage() {
   const [operacionId] = useState(() => crypto.randomUUID())
   const [observaciones, setObservaciones] = useState('')
   const [items, setItems] = useState<ItemVenta[]>([])
-  const [cobranzas, setCobranzas] = useState<CobranzaDraft[]>([
-    { id: generateId(), fecha: today(), tipo: 'total', monto: 0, formaPago: 'efectivo' }
-  ])
   const [productoId, setProductoId] = useState('')
   const [cantidad, setCantidad] = useState('')
   const [precio, setPrecio] = useState('')
@@ -55,17 +50,16 @@ export default function NuevaVentaPage() {
   // Auto-select pedido from URL query param
   useEffect(() => {
     const pid = searchParams.get('pedidoId')
-    if (pid && !pedidoId) {
+    if (pid && !pedidoId && data.pedidos.some(p => p.id === pid)) {
       onPedidoSelect(pid)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams])
+  }, [searchParams, data.pedidos])
 
   const neto = roundMoney(items.reduce((s, i) => s + roundMoney(i.cantidad * i.precioUnitario), 0))
   const iva = emitirFactura ? roundMoney(neto * 0.21) : 0
   const total = roundMoney(neto + iva)
   useEffect(() => { setPreview(null) }, [clienteId, items, emitirFactura])
-  const totalCobranzas = cobranzas.reduce((s, c) => s + (c.tipo === 'total' ? total : c.monto), 0)
   const pendingPedidos = data.pedidos.filter(p => p.estado === 'pendiente')
   const selectedProduct = data.productos.find(p => p.id === productoId)
   const unidadLabel = selectedProduct?.unidad === 'unidad' ? 'Unidades' : 'Kg'
@@ -107,6 +101,8 @@ export default function NuevaVentaPage() {
     if (!p) return
     onClienteChange(p.clienteId)
     setVendedorId(p.vendedorId)
+    setFechaEntrega(p.fechaEntrega)
+    setDesde(p.horaEntregaDesde ?? ''); setHasta(p.horaEntregaHasta ?? '')
     setItems(p.items.map(i => ({ ...i, descripcion: i.productoNombre })))
   }
 
@@ -147,21 +143,6 @@ export default function NuevaVentaPage() {
     }))
   }
 
-  function addCobranza() {
-    setCobranzas(prev => [
-      ...prev,
-      { id: generateId(), fecha: today(), tipo: 'parcial', monto: 0, formaPago: 'efectivo' }
-    ])
-  }
-
-  function updateCobranza(id: string, changes: Partial<CobranzaDraft>) {
-    setCobranzas(prev => prev.map(c => c.id === id ? { ...c, ...changes } : c))
-  }
-
-  function removeCobranza(id: string) {
-    setCobranzas(prev => prev.filter(c => c.id !== id))
-  }
-
   async function doSave() {
     if (savingRef.current) return
     savingRef.current = true
@@ -169,25 +150,18 @@ export default function NuevaVentaPage() {
     waitController.current = controller
     setSaving(true); setError('')
     try {
-    const cobsInput: Omit<Cobranza, 'id' | 'fechaCreacion' | 'clienteId' | 'ventaId'>[] = cobranzas.map(c => ({
-      fecha: c.fecha,
-      monto: c.tipo === 'total' ? total : c.monto,
-      formaPago: c.formaPago,
-      estado: 'pendiente' as const,
-    }))
 
     const result = await addVenta(
       {
         clienteId,
         vendedorId,
         pedidoId: pedidoId || undefined,
-        fechaEntrega,
+        fechaEntrega, horaEntregaDesde, horaEntregaHasta,
         emitirFactura, borradorFiscalId: emitirFactura ? preview?.id : undefined, operacionId,
         items,
         total,
         observaciones: observaciones || undefined,
-      },
-      cobsInput
+      }
     )
 
     if (controller.signal.aborted) return
@@ -215,7 +189,7 @@ export default function NuevaVentaPage() {
     if (itemsPendientesCalidad.length > 0) return
 
     if (emitirFactura && !preview) { setError('Revisá la vista previa de la factura antes de confirmar.'); return }
-    if (totalCobranzas > total) { setError('El plan de cobro supera el total de la venta.'); return }
+    if (horaEntregaHasta && horaEntregaHasta <= horaEntregaDesde) { setError('Revisá el horario de entrega.'); return }
     setError(''); setShowWarning(true)
   }
 
@@ -229,7 +203,7 @@ export default function NuevaVentaPage() {
         </Link>
         <div>
           <h1 className="text-2xl font-bold text-[oklch(0.2_0.06_240)]">Registrar venta</h1>
-          <p className="text-sm text-[oklch(0.5_0.04_240)]">Completá los datos de la venta y el plan de cobro</p>
+          <p className="text-sm text-[oklch(0.5_0.04_240)]">Completá los datos de la venta</p>
         </div>
       </div>
 
@@ -272,6 +246,8 @@ export default function NuevaVentaPage() {
             </div>
           </div>
 
+        <EstadoCuentaCliente clienteId={clienteId} />
+        <EntregaPactada fecha={fechaEntrega} desde={horaEntregaDesde} hasta={horaEntregaHasta} onChange={(f,d,h) => { setFechaEntrega(f); setDesde(d); setHasta(h) }} />
           {(selectedCliente || selectedVendedor) && (
             <div className="bg-[oklch(0.96_0.02_240)] rounded-lg px-4 py-2.5 text-sm text-[oklch(0.35_0.08_240)]">
               {selectedCliente && <span className="font-medium">{selectedCliente.nombre}</span>}
@@ -281,10 +257,6 @@ export default function NuevaVentaPage() {
           )}
 
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-[oklch(0.35_0.06_240)] mb-1">Fecha entrega</label>
-              <input type="date" value={fechaEntrega} onChange={e => setFechaEntrega(e.target.value)} className={fieldClass} />
-            </div>
             <div>
               <label className="block text-xs font-medium text-[oklch(0.35_0.06_240)] mb-1">Emitir factura</label>
               <select value={String(emitirFactura)} onChange={e => setEmitirFactura(e.target.value === 'true')} className={fieldClass}><option value="false">No</option><option value="true">Sí</option></select>
@@ -335,8 +307,9 @@ export default function NuevaVentaPage() {
               </select>
             )}
             {selectedProduct && (
-              <div className={`text-xs px-3 py-2 rounded ${stockActual === 0 ? 'bg-red-100 text-red-800' : stockInsuficiente ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'}`}>
+              <div className={`text-xs px-3 py-2 rounded ${stockActual < 0 ? 'bg-amber-100 text-amber-900' : stockActual === 0 ? 'bg-red-100 text-red-800' : stockInsuficiente ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'}`}>
                 <span className="font-semibold">Stock {calidadId ? 'de esta calidad' : 'actual'}: {stockActual.toFixed(2)} {unidadLabel.toLowerCase()}</span>
+                {stockActual < 0 && <span> — ⚠ Stock negativo</span>}
                 {stockActual === 0 && <span> — ⚠️ SIN STOCK DISPONIBLE</span>}
                 {stockInsuficiente && <span> — ⚠️ Stock insuficiente: solicitadas {cantidadNum.toFixed(2)}, disponibles {stockActual.toFixed(2)}</span>}
               </div>
@@ -401,99 +374,10 @@ export default function NuevaVentaPage() {
 
         {emitirFactura && selectedCliente && <FacturaEditor key={clienteId} cliente={selectedCliente} items={items} onPreview={setPreview} />}
         <p className="text-sm font-semibold">Neto: {formatPeso(neto)}{emitirFactura && <> · IVA 21%: {formatPeso(iva)}</>} · Total a cobrar: {formatPeso(total)}</p>
-        {/* Plan de cobro */}
-        <div className="bg-white rounded-xl border border-[oklch(0.9_0.01_240)] shadow-sm p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="font-semibold text-[oklch(0.25_0.06_240)]">Plan de cobro</h2>
-              {cobranzas.length > 0 && total > 0 && (
-                <p className={cn('text-xs mt-0.5', totalCobranzas >= total ? 'text-green-600' : 'text-orange-500')}>
-                  Cubierto: {formatPeso(totalCobranzas)} de {formatPeso(total)}
-                </p>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={addCobranza}
-              className="text-xs text-[oklch(0.42_0.14_240)] hover:underline font-medium"
-            >
-              + Agregar cuota
-            </button>
-          </div>
-
-          {cobranzas.length === 0 ? (
-            <p className="text-center py-4 text-sm text-[oklch(0.55_0.04_240)]">Sin plan de cobro — podés agregarlo luego desde Cobranzas</p>
-          ) : (
-            <div className="space-y-3">
-              {cobranzas.map(c => (
-                <div key={c.id} className="border border-[oklch(0.9_0.01_240)] rounded-lg p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    {/* Total / Parcial toggle */}
-                    <div className="flex rounded-lg border border-[oklch(0.88_0.02_240)] overflow-hidden text-xs font-semibold">
-                      <button
-                        type="button"
-                        onClick={() => updateCobranza(c.id, { tipo: 'total' })}
-                        className={cn('px-3 py-1.5 transition-colors', c.tipo === 'total' ? 'bg-[oklch(0.42_0.14_240)] text-white' : 'text-[oklch(0.5_0.04_240)] hover:bg-[oklch(0.95_0.01_240)]')}
-                      >
-                        Total {total > 0 && c.tipo === 'total' && `(${formatPeso(total)})`}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => updateCobranza(c.id, { tipo: 'parcial' })}
-                        className={cn('px-3 py-1.5 transition-colors', c.tipo === 'parcial' ? 'bg-[oklch(0.42_0.14_240)] text-white' : 'text-[oklch(0.5_0.04_240)] hover:bg-[oklch(0.95_0.01_240)]')}
-                      >
-                        Parcial
-                      </button>
-                    </div>
-                    <button type="button" onClick={() => removeCobranza(c.id)} className="text-gray-300 hover:text-red-500 transition-colors">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-2">
-                    <div>
-                      <label className="block text-xs text-[oklch(0.5_0.04_240)] mb-0.5">Fecha cobro</label>
-                      <input
-                        type="date"
-                        value={c.fecha}
-                        onChange={e => updateCobranza(c.id, { fecha: e.target.value })}
-                        className={fieldClass}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-[oklch(0.5_0.04_240)] mb-0.5">Monto</label>
-                      {c.tipo === 'total' ? (
-                        <div className={cn(fieldClass, 'bg-[oklch(0.96_0.01_240)] text-[oklch(0.45_0.04_240)] tabular-nums cursor-not-allowed')}>
-                          {total > 0 ? formatPeso(total) : '—'}
-                        </div>
-                      ) : (
-                        <input
-                          type="number"
-                          value={c.monto || ''}
-                          onChange={e => updateCobranza(c.id, { monto: parseFloat(e.target.value) || 0 })}
-                          placeholder="0"
-                          min="0"
-                          className={fieldClass}
-                        />
-                      )}
-                    </div>
-                    <div>
-                      <label className="block text-xs text-[oklch(0.5_0.04_240)] mb-0.5">Forma de pago</label>
-                      <select
-                        value={c.formaPago}
-                        onChange={e => updateCobranza(c.id, { formaPago: e.target.value as FormaPago })}
-                        className={fieldClass}
-                      >
-                        <option value="efectivo">Efectivo</option>
-                        <option value="transferencia">Transferencia</option>
-                        <option value="cheque">Cheque</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+        <div className="rounded-xl border bg-white p-5 space-y-3">
+          <h2 className="font-semibold">Condición de pago</h2>
+          <p>{selectedCliente?.diasPlazoPago ?? 15} días desde la entrega pactada. Vencimiento: {fechaEntrega && formatFecha(addDaysIso(fechaEntrega, selectedCliente?.diasPlazoPago ?? 15))}</p>
+          <p className="text-sm">Se generará un compromiso por {formatPeso(total)}. El medio de pago se registra al cobrar.</p>
         </div>
 
         {/* Observaciones */}
@@ -525,7 +409,6 @@ export default function NuevaVentaPage() {
             {!emitirFactura && selectedCliente?.requiereFactura && <p className="text-amber-800">Este cliente tiene configurado que requiere factura. Elegiste No para esta operación.</p>}
             {emitirFactura && preview && <FacturaResumen comprobante={preview} />}
             {emitirFactura && <p className="text-sm">Si ARCA no responde, la venta continúa y la emisión se reintenta automáticamente. Podés consultar su estado desde Facturación.</p>}
-            {totalCobranzas < total && <p className="text-amber-800">Plan de cobro incompleto: cubre {formatPeso(totalCobranzas)} de {formatPeso(total)}. Podés completar el resto desde Cobranzas.</p>}
             {error && <p role="alert" className="text-red-700">{error}</p>}
             <div className="flex gap-3">
               <button type="button" disabled={saving} onClick={() => setShowWarning(false)} className="rounded-lg border px-4 py-2">Volver y corregir</button>

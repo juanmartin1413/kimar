@@ -25,7 +25,7 @@ public class FacturacionService(KimarDbContext db, FiscalConfig config)
         if (products.Count != productIds.Count) throw new FiscalException("Hay productos inexistentes o inactivos.");
         var items = req.Items.Select((i, index) => {
             var neto = FiscalRules.Money(i.Cantidad * i.PrecioUnitario);
-            return new ItemFiscal(req.Descripciones[index].Trim(), i.Cantidad, products[i.ProductoId].Unidad, i.PrecioUnitario, neto, FiscalRules.Money(neto * .21m));
+            return new ItemFiscal(req.Descripciones[index].Trim(), i.Cantidad, products[i.ProductoId].Unidad, i.PrecioUnitario, neto, FiscalRules.Money(neto * .21m), i.ProductoId);
         }).ToList();
         var c = new ComprobanteFiscal {
             UsuarioId = user, ClienteId = req.ClienteId, EmisorId = emisor.Id, CuitEmisor = emisor.Cuit,
@@ -80,6 +80,36 @@ public class FacturacionService(KimarDbContext db, FiscalConfig config)
         if (descriptions.Count != count || descriptions.Any(s => string.IsNullOrWhiteSpace(s) || s.Length > 300) || notes?.Length > 500)
             throw new FiscalException("Ingresá una descripción de hasta 300 caracteres por ítem y observaciones de hasta 500.");
     }
+    public static Task<bool> PuedeEditarProductosAsync(KimarDbContext db, Guid ventaId) =>
+        db.ComprobantesFiscales.AnyAsync(c => c.VentaId == ventaId && c.Tipo == 1 && c.Estado == "autorizado"
+            && db.ComprobantesFiscales.Any(n => n.ComprobanteOrigenId == c.Id && n.Estado == "autorizado" && n.EfectoComercial == "correccion_fiscal")
+            && !db.ComprobantesFiscales.Any(r => r.ReemplazaId == c.Id));
+
+    public async Task<(ComprobanteFiscal Documento, string Huella, bool SinCambios)> PreviewReemplazoAsync(Guid id, CancellationToken ct)
+    {
+        var original = await db.ComprobantesFiscales.AsNoTracking().FirstOrDefaultAsync(c => c.Id == id, ct)
+            ?? throw new FiscalException("Comprobante inexistente.");
+        if (original.VentaId is null || original.Tipo != 1 || original.Estado != "autorizado" ||
+            !await db.ComprobantesFiscales.AnyAsync(n => n.ComprobanteOrigenId == id && n.Estado == "autorizado" && n.EfectoComercial == "correccion_fiscal", ct) ||
+            await db.ComprobantesFiscales.AnyAsync(r => r.ReemplazaId == id, ct))
+            throw new FiscalException("Se necesita una NC total autorizada por corrección fiscal sin reemplazo solicitado.");
+        var venta = await db.Ventas.AsNoTracking().Include(v => v.Items).SingleAsync(v => v.Id == original.VentaId, ct);
+        var rows = venta.Items.OrderBy(i => i.Id).ToList();
+        var requests = rows.Select(i => new ItemVentaRequest(i.ProductoId, i.Descripcion, i.Cantidad, i.PrecioUnitario, i.CalidadId)).ToList();
+        FiscalRules.ValidateItems(requests);
+        var huella = FiscalRules.Fingerprint(venta.ClienteId, requests);
+        var data = FiscalRules.Deserialize<DatosFiscales>(original.DatosJson);
+        var items = rows.Select(i => new ItemFiscal(i.Descripcion, i.Cantidad, i.Unidad, i.PrecioUnitario,
+            FiscalRules.Money(i.Cantidad * i.PrecioUnitario), FiscalRules.Money(FiscalRules.Money(i.Cantidad * i.PrecioUnitario) * .21m), i.ProductoId)).ToList();
+        var tieneProductos = data.Items.All(i => i.ProductoId.HasValue);
+        var sinCambios = data.Items.Select(i => (Producto: tieneProductos ? i.ProductoId : null, i.Cantidad, i.Unidad, i.Precio)).OrderBy(i => i).SequenceEqual(
+            items.Select(i => (Producto: tieneProductos ? i.ProductoId : null, i.Cantidad, i.Unidad, i.Precio)).OrderBy(i => i));
+        original.DatosJson = FiscalRules.Serialize(data with { Items = items });
+        original.Neto = items.Sum(i => i.Neto); original.Iva = FiscalRules.Money(original.Neto * .21m);
+        original.Total = original.Neto + original.Iva; original.Numero = null; original.Cae = null;
+        return (original, huella, sinCambios);
+    }
+
     public async Task<ComprobanteFiscal> CorregirAsync(Guid id, CorregirFiscalRequest req, Guid user, bool reemplazo, CancellationToken ct)
     {
         var c = await db.ComprobantesFiscales.FindAsync([id], ct) ?? throw new FiscalException("Comprobante inexistente.");
@@ -89,7 +119,9 @@ public class FacturacionService(KimarDbContext db, FiscalConfig config)
         var data = FiscalRules.Deserialize<DatosFiscales>(c.DatosJson);
         FiscalRules.ValidateReceptor(req.Receptor);
         FiscalRules.ValidateDate(req.Fecha);
-        ValidateDescriptions(req.Descripciones, data.Items.Count, req.Observaciones);
+
+        await using var saleGate = new FiscalLock(db, FiscalRules.LockKey("editar-venta:" + c.VentaId));
+        if (!await saleGate.TryAcquireAsync(ct)) throw new FiscalException("La venta está siendo editada. Volvé a consultar.");
         if (reemplazo)
         {
             if (c.Tipo != 1 || c.Estado != "autorizado" || !await db.ComprobantesFiscales.AnyAsync(n =>
@@ -97,13 +129,18 @@ public class FacturacionService(KimarDbContext db, FiscalConfig config)
                 throw new FiscalException("Primero debe autorizarse una NC total por corrección fiscal.");
             var existing = await db.ComprobantesFiscales.FirstOrDefaultAsync(n => n.ReemplazaId == id, ct);
             if (existing is not null) return existing;
+            var preview = await PreviewReemplazoAsync(id, ct);
+            if (req.HuellaVenta != preview.Huella) throw new FiscalException("La venta cambió. Volvé a revisar la factura de reemplazo.");
+            if (preview.SinCambios && !req.ConfirmarSinCambios) throw new FiscalException("La venta no ha sido modificada. Confirmá emitir de todas formas o editá la venta.");
+            data = FiscalRules.Deserialize<DatosFiscales>(preview.Documento.DatosJson);
             c = new ComprobanteFiscal { VentaId = c.VentaId, ClienteId = c.ClienteId, UsuarioId = user,
                 EmisorId = c.EmisorId, Ambiente = c.Ambiente, CuitEmisor = c.CuitEmisor, PuntoVenta = c.PuntoVenta,
-                Tipo = 1, Neto = c.Neto, Iva = c.Iva, Total = c.Total, ReemplazaId = id, Estado = "pendiente" };
+                Tipo = 1, Neto = preview.Documento.Neto, Iva = preview.Documento.Iva, Total = preview.Documento.Total, HuellaVenta = preview.Huella, ReemplazaId = id, Estado = "pendiente" };
             db.ComprobantesFiscales.Add(c);
         }
         else if (c.Numero is not null || c.Estado is not ("rechazado" or "requiere_atencion"))
             throw new FiscalException("Solo se corrigen solicitudes sin número y sin autorización. Una emisión incierta debe conciliarse primero.");
+        ValidateDescriptions(req.Descripciones, data.Items.Count, req.Observaciones);
         if (c.Tipo == 3 && req.Receptor != data.Receptor)
             throw new FiscalException("La NC conserva el receptor de su factura original.");
         c.DatosJson = FiscalRules.Serialize(data with { Receptor = req.Receptor with { Cuit = FiscalRules.NormalizeCuit(req.Receptor.Cuit) },

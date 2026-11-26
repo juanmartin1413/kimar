@@ -43,6 +43,7 @@ interface Props {
 export default function ClienteForm({ initial, vendedores, onSave, onCancel }: Props) {
   const { addCliente, updateCliente } = useData()
   const [form, setForm] = useState({
+    diasPlazoPago: initial?.diasPlazoPago ?? 15,
     nombre: initial?.nombre ?? '',
     requiereFactura: initial?.requiereFactura ?? false,
     razonSocial: initial?.razonSocial ?? '',
@@ -50,6 +51,7 @@ export default function ClienteForm({ initial, vendedores, onSave, onCancel }: P
     condicionIva: initial?.condicionIva ?? 0,
     calle: initial?.calle ?? '',
     altura: initial?.altura ?? '',
+    codigoPostal: initial?.codigoPostal ?? '',
     localidad: initial?.localidad ?? '',
     provincia: initial?.provincia ?? 'Buenos Aires',
     telefono1: initial?.telefono1 ?? '',
@@ -78,6 +80,9 @@ export default function ClienteForm({ initial, vendedores, onSave, onCancel }: P
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      <label className={labelClass}>Plazo de pago (días desde la entrega pactada)
+        <input required type="number" min="0" max="3650" step="1" value={form.diasPlazoPago} onChange={e => setForm(p => ({ ...p, diasPlazoPago: Number(e.target.value) }))} className={fieldClass} />
+      </label>
       <fieldset className="space-y-3 rounded-lg border p-3">
         <legend className="font-semibold text-sm">Facturación</legend>
         <label className={labelClass}>¿Requiere factura?
@@ -106,6 +111,10 @@ export default function ClienteForm({ initial, vendedores, onSave, onCancel }: P
       </div>
 
       <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={labelClass}>Código postal</label>
+          <input name="codigoPostal" value={form.codigoPostal} maxLength={20} onChange={handleChange} className={fieldClass} placeholder="B1636" />
+        </div>
         <div>
           <label className={labelClass}>Localidad</label>
           <input name="localidad" value={form.localidad} onChange={handleChange} className={fieldClass} placeholder="Olivos" />

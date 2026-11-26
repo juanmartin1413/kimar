@@ -40,7 +40,7 @@ export default function InternalTopBar() {
         </SheetContent>
       </Sheet>
 
-      <div className="flex items-center gap-3 md:gap-4">
+      <div className="ml-auto flex items-center gap-3 md:gap-4">
         <div className="text-right">
           <p className="text-sm font-semibold text-[oklch(0.25_0.06_240)] truncate max-w-[40vw] sm:max-w-none">{usuario?.nombre}</p>
           <p className="text-xs text-[oklch(0.55_0.04_240)]">{rolLabels[usuario?.rol ?? 'vendedor']}</p>

@@ -1,5 +1,7 @@
 'use client'
 
+import { PdfButton } from '@/components/interno/PdfButton'
+
 import { useAuth } from '@/contexts/AuthContext'
 import { useData } from '@/contexts/DataContext'
 import { Suspense } from 'react'
@@ -8,7 +10,7 @@ import { formatPeso, formatFecha } from '@/lib/format'
 import { fiscalLabels } from '@/lib/facturacion'
 import { downloadRemito } from '@/lib/remitoPdf'
 import { estadoEntregaConfig } from '@/lib/entregas'
-import { Plus, ArrowRight, Pencil, Package, Download } from 'lucide-react'
+import { Plus, ArrowRight, Pencil, Package } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
 
@@ -121,15 +123,12 @@ export default function VentasPage() {
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-3">
-                        <button
-                          type="button"
-                          onClick={() => puedeDescargarRemito && downloadRemito(v, cliente!, vendedor!, data.productos)}
+                        <PdfButton onClick={() => puedeDescargarRemito && downloadRemito(v, cliente!, vendedor!, data.productos)}
                           disabled={!puedeDescargarRemito}
-                          className="text-[oklch(0.55_0.04_240)] hover:text-[oklch(0.42_0.14_240)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                           title={puedeDescargarRemito ? 'Descargar remito' : 'Sin N° de remito asignado'}
                         >
-                          <Download className="w-4 h-4" />
-                        </button>
+
+                        Remito PDF</PdfButton>
                         <Link
                           href={`/interno/ventas/${v.id}`}
                           className="text-[oklch(0.55_0.04_240)] hover:text-[oklch(0.42_0.14_240)] transition-colors"

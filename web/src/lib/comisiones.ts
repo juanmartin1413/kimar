@@ -24,3 +24,18 @@ export const tipoDocumento: Record<string, string> = {
 export const numeroDocumento = (numero: number) => String(numero).padStart(8, '0')
 export const formatComision = (valor: number) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(valor)
 export const hoyComisiones = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+
+// Una venta puede no tener nada liquidable hoy y seguir pendiente de cobro.
+// Los ajustes negativos siguen visibles aunque la comisión total haya sido pagada.
+export function tieneComisionPendiente(v: ComisionVenta): boolean {
+  return v.pendiente !== 0 || v.total - v.liquidada > 0.005
+}
+
+export function resumenComisionesPendientes(ventas: ComisionVenta[]) {
+  const seleccionadas = ventas.filter(v => v.incluida)
+  return {
+    total: seleccionadas.reduce((s, v) => s + Math.max(0, v.total - v.liquidada), 0),
+    disponible: seleccionadas.reduce((s, v) => s + Math.max(0, v.pendiente), 0),
+    porCobrar: seleccionadas.reduce((s, v) => s + Math.max(0, v.total - Math.max(v.habilitada, v.liquidada)), 0),
+  }
+}

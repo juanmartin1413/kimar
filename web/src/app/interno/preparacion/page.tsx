@@ -1,5 +1,7 @@
 'use client'
 
+import { horarioEntrega } from '@/components/interno/EntregaPactada'
+
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { api } from '@/lib/api'
@@ -275,7 +277,7 @@ export default function PreparacionPage() {
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
                         <span className={cn('text-xs font-semibold px-2.5 py-1 rounded-full', estado.className)}>{estado.label}</span>
-                        <Badge variant="secondary">{formatFecha(v.fechaEntrega)}</Badge>
+                        <Badge variant="secondary">{formatFecha(v.fechaEntrega)} · {horarioEntrega(v.horaEntregaDesde, v.horaEntregaHasta)}</Badge>
                       </div>
                     </div>
                     <Table>

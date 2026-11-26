@@ -1,5 +1,8 @@
 'use client'
 
+import { horarioEntrega } from '@/components/interno/EntregaPactada'
+import { EstadoCuentaCliente } from '@/components/interno/EstadoCuentaCliente'
+
 import { use, useState } from 'react'
 import { useData } from '@/contexts/DataContext'
 import { useAuth } from '@/contexts/AuthContext'
@@ -113,6 +116,7 @@ function PedidoDetalleForm({ pedido, clienteNombre, vendedorNombre }: {
         </div>
       </div>
 
+      <EstadoCuentaCliente clienteId={pedido.clienteId} />
       {/* Info card */}
       <div className="bg-white rounded-xl border border-[oklch(0.9_0.01_240)] shadow-sm p-6">
         <div className="grid grid-cols-2 gap-4 text-sm">
@@ -126,7 +130,7 @@ function PedidoDetalleForm({ pedido, clienteNombre, vendedorNombre }: {
           </div>
           <div>
             <p className="text-xs font-medium text-[oklch(0.5_0.04_240)] mb-0.5">Fecha del pedido</p>
-            <p className="font-semibold text-[oklch(0.25_0.06_240)]">{formatFecha(pedido.fecha)}</p>
+            <p className="font-semibold text-[oklch(0.25_0.06_240)]">{formatFecha(pedido.fecha)}</p><p>Entrega: {formatFecha(pedido.fechaEntrega)} · {horarioEntrega(pedido.horaEntregaDesde, pedido.horaEntregaHasta)}</p>
           </div>
           <div>
             <p className="text-xs font-medium text-[oklch(0.5_0.04_240)] mb-0.5">Total estimado</p>

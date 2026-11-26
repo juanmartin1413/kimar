@@ -115,12 +115,20 @@ namespace KimarApi.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<string>("CodigoPostal")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.Property<int?>("CondicionIva")
                         .HasColumnType("integer");
 
                     b.Property<string>("Cuit")
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
+
+                    b.Property<int>("DiasPlazoPago")
+                        .HasColumnType("integer")
+                        .HasDefaultValue(15);
 
                     b.Property<string>("DomicilioFiscal")
                         .HasMaxLength(300)
@@ -718,6 +726,32 @@ namespace KimarApi.Migrations
                     b.ToTable("GastosFijos");
                 });
 
+            modelBuilder.Entity("KimarApi.Models.Entities.ImputacionPago", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CobranzaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Monto")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<Guid>("PagoId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CobranzaId");
+
+                    b.HasIndex("PagoId", "CobranzaId")
+                        .IsUnique();
+
+                    b.ToTable("ImputacionesPago");
+                });
+
             modelBuilder.Entity("KimarApi.Models.Entities.InstanciaGasto", b =>
                 {
                     b.Property<Guid>("Id")
@@ -975,6 +1009,57 @@ namespace KimarApi.Migrations
                     b.ToTable("MovimientosStock");
                 });
 
+            modelBuilder.Entity("KimarApi.Models.Entities.PagoCliente", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClienteId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("Fecha")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime>("FechaCreacion")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FormaPago")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Huella")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<decimal>("Monto")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("Observaciones")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("OperacionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClienteId");
+
+                    b.HasIndex("OperacionId")
+                        .IsUnique();
+
+                    b.HasIndex("UsuarioId");
+
+                    b.ToTable("PagosCliente");
+                });
+
             modelBuilder.Entity("KimarApi.Models.Entities.Pedido", b =>
                 {
                     b.Property<Guid>("Id")
@@ -994,6 +1079,15 @@ namespace KimarApi.Migrations
 
                     b.Property<DateTime>("FechaCreacion")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateOnly>("FechaEntrega")
+                        .HasColumnType("date");
+
+                    b.Property<TimeOnly?>("HoraEntregaDesde")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<TimeOnly?>("HoraEntregaHasta")
+                        .HasColumnType("time without time zone");
 
                     b.Property<string>("Observaciones")
                         .HasMaxLength(500)
@@ -1304,6 +1398,9 @@ namespace KimarApi.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
+                    b.Property<int>("DiasPlazoPago")
+                        .HasColumnType("integer");
+
                     b.Property<bool>("EmitirFactura")
                         .HasColumnType("boolean");
 
@@ -1328,6 +1425,12 @@ namespace KimarApi.Migrations
 
                     b.Property<DateTime?>("FechaListo")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<TimeOnly?>("HoraEntregaDesde")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<TimeOnly?>("HoraEntregaHasta")
+                        .HasColumnType("time without time zone");
 
                     b.Property<string>("HuellaOperacion")
                         .HasMaxLength(64)
@@ -1577,6 +1680,25 @@ namespace KimarApi.Migrations
                     b.Navigation("Proveedor");
                 });
 
+            modelBuilder.Entity("KimarApi.Models.Entities.ImputacionPago", b =>
+                {
+                    b.HasOne("KimarApi.Models.Entities.Cobranza", "Cobranza")
+                        .WithMany("Imputaciones")
+                        .HasForeignKey("CobranzaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("KimarApi.Models.Entities.PagoCliente", "Pago")
+                        .WithMany("Imputaciones")
+                        .HasForeignKey("PagoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Cobranza");
+
+                    b.Navigation("Pago");
+                });
+
             modelBuilder.Entity("KimarApi.Models.Entities.InstanciaGasto", b =>
                 {
                     b.HasOne("KimarApi.Models.Entities.GastoFijo", "GastoFijo")
@@ -1715,6 +1837,23 @@ namespace KimarApi.Migrations
                     b.Navigation("Usuario");
 
                     b.Navigation("Venta");
+                });
+
+            modelBuilder.Entity("KimarApi.Models.Entities.PagoCliente", b =>
+                {
+                    b.HasOne("KimarApi.Models.Entities.Cliente", "Cliente")
+                        .WithMany()
+                        .HasForeignKey("ClienteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("KimarApi.Models.Entities.Usuario", null)
+                        .WithMany()
+                        .HasForeignKey("UsuarioId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Cliente");
                 });
 
             modelBuilder.Entity("KimarApi.Models.Entities.Pedido", b =>
@@ -1872,6 +2011,11 @@ namespace KimarApi.Migrations
                     b.Navigation("Ventas");
                 });
 
+            modelBuilder.Entity("KimarApi.Models.Entities.Cobranza", b =>
+                {
+                    b.Navigation("Imputaciones");
+                });
+
             modelBuilder.Entity("KimarApi.Models.Entities.ComisionDocumento", b =>
                 {
                     b.Navigation("Aplicaciones");
@@ -1908,6 +2052,11 @@ namespace KimarApi.Migrations
             modelBuilder.Entity("KimarApi.Models.Entities.GastoFijo", b =>
                 {
                     b.Navigation("Instancias");
+                });
+
+            modelBuilder.Entity("KimarApi.Models.Entities.PagoCliente", b =>
+                {
+                    b.Navigation("Imputaciones");
                 });
 
             modelBuilder.Entity("KimarApi.Models.Entities.Pedido", b =>

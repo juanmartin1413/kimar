@@ -15,7 +15,7 @@ public record ClienteDto(
     string? VendedorNombre,
     bool Activo,
     DateTime FechaCreacion,
-    bool RequiereFactura = false, string? RazonSocial = null, string? DomicilioFiscal = null, int? CondicionIva = null);
+    bool RequiereFactura = false, string? RazonSocial = null, string? DomicilioFiscal = null, int? CondicionIva = null, int DiasPlazoPago = 15, string? CodigoPostal = null);
 
 public record CreateClienteRequest(
     string Nombre,
@@ -28,7 +28,7 @@ public record CreateClienteRequest(
     string? Email,
     string? Cuit,
     Guid? VendedorId,
-    bool RequiereFactura = false, string? RazonSocial = null, string? DomicilioFiscal = null, int? CondicionIva = null);
+    bool RequiereFactura = false, string? RazonSocial = null, string? DomicilioFiscal = null, int? CondicionIva = null, int DiasPlazoPago = 15, string? CodigoPostal = null);
 
 public record UpdateClienteRequest(
     string? Nombre,
@@ -42,4 +42,4 @@ public record UpdateClienteRequest(
     string? Cuit,
     Guid? VendedorId,
     bool? Activo,
-    bool? RequiereFactura = null, string? RazonSocial = null, string? DomicilioFiscal = null, int? CondicionIva = null);
+    bool? RequiereFactura = null, string? RazonSocial = null, string? DomicilioFiscal = null, int? CondicionIva = null, int? DiasPlazoPago = null, string? CodigoPostal = null);

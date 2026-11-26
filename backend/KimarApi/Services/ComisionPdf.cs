@@ -91,13 +91,12 @@ public static class ComisionPdf
             Section($"VENTA DEL {v.Fecha:dd/MM/yyyy}");
             Add(v.Cliente, true);
             Add($"Remito: {v.Remito ?? "-"} | Factura: {v.Factura ?? "-"}");
-            Add($"Operación: {v.VentaId}");
             Add($"Total venta: {Pesos(v.TotalVenta)} | Cobrado: {Pesos(v.Cobrado)}");
             Add($"Kg: {v.Kilos:0.###} | Comisión total: {Pesos(v.Total)}");
             Add($"Sobre lo cobrado: {Pesos(v.Habilitada)} | Ya liquidado: {Pesos(v.Liquidada)}");
             Add($"COMISION EN ESTE DOCUMENTO: {Pesos(v.Pendiente)}");
             foreach (var i in v.Items) Add($"  {i.Nombre}: {i.Cantidad:0.###} {i.Unidad} | {(i.Unidad == "kg" ? Pesos(i.Comision) : "Excluido")}");
-            foreach (var c in v.Cobros) Add($"  Cobro {c.Fecha:dd/MM/yyyy}: {Pesos(c.Monto)} | {c.Id}");
+            foreach (var c in v.Cobros) Add($"  Cobro {c.Fecha:dd/MM/yyyy}: {Pesos(c.Monto)}");
             Add("");
         }
         foreach (var a in datos.Aplicaciones) Add($"Anticipo N° {a.Numero:D8}: aplicado {Pesos(a.Monto)}; saldo {Pesos(a.Pendiente)}");

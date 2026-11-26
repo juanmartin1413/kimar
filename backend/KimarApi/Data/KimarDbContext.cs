@@ -19,6 +19,8 @@ public class KimarDbContext(DbContextOptions<KimarDbContext> options) : DbContex
     public DbSet<ItemPedido> ItemsPedido => Set<ItemPedido>();
     public DbSet<Venta> Ventas => Set<Venta>();
     public DbSet<ItemVenta> ItemsVenta => Set<ItemVenta>();
+    public DbSet<PagoCliente> PagosCliente => Set<PagoCliente>();
+    public DbSet<ImputacionPago> ImputacionesPago => Set<ImputacionPago>();
     public DbSet<Cobranza> Cobranzas => Set<Cobranza>();
     public DbSet<CompromisoProv> CompromisosProveedor => Set<CompromisoProv>();
     public DbSet<CuotaProv> CuotasProveedor => Set<CuotaProv>();
@@ -39,6 +41,13 @@ public class KimarDbContext(DbContextOptions<KimarDbContext> options) : DbContex
     protected override void OnModelCreating(ModelBuilder model)
     {
         base.OnModelCreating(model);
+        model.Entity<Cliente>().Property(c => c.DiasPlazoPago).HasDefaultValue(15).ValueGeneratedNever();
+        model.Entity<PagoCliente>().HasIndex(p => p.OperacionId).IsUnique();
+        model.Entity<PagoCliente>().HasOne(p => p.Cliente).WithMany().HasForeignKey(p => p.ClienteId).OnDelete(DeleteBehavior.Restrict);
+        model.Entity<PagoCliente>().HasOne<Usuario>().WithMany().HasForeignKey(p => p.UsuarioId).OnDelete(DeleteBehavior.Restrict);
+        model.Entity<ImputacionPago>().HasOne(i => i.Pago).WithMany(p => p.Imputaciones).HasForeignKey(i => i.PagoId).OnDelete(DeleteBehavior.Restrict);
+        model.Entity<ImputacionPago>().HasOne(i => i.Cobranza).WithMany(c => c.Imputaciones).HasForeignKey(i => i.CobranzaId).OnDelete(DeleteBehavior.Restrict);
+        model.Entity<ImputacionPago>().HasIndex(i => new { i.PagoId, i.CobranzaId }).IsUnique();
         model.Entity<Venta>().HasIndex(v => v.OperacionId).IsUnique();
         model.Entity<ComisionDocumento>().HasIndex(d => d.Numero).IsUnique();
         model.Entity<ComisionDocumento>().HasIndex(d => d.OperacionId).IsUnique();

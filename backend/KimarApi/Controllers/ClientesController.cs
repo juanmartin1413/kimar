@@ -40,7 +40,7 @@ public class ClientesController(KimarDbContext db) : ControllerBase
                 c.Id, c.Nombre, c.Calle, c.Altura, c.Localidad, c.Provincia,
                 c.Telefono1, c.Telefono2, c.Email, c.Cuit,
                 c.VendedorId, c.Vendedor != null ? c.Vendedor.Nombre : null,
-                c.Activo, c.FechaCreacion, c.RequiereFactura, c.RazonSocial, c.DomicilioFiscal, c.CondicionIva))
+                c.Activo, c.FechaCreacion, c.RequiereFactura, c.RazonSocial, c.DomicilioFiscal, c.CondicionIva, c.DiasPlazoPago, c.CodigoPostal))
             .ToListAsync();
 
         return Ok(list);
@@ -58,19 +58,22 @@ public class ClientesController(KimarDbContext db) : ControllerBase
         }
         return Ok(new ClienteDto(c.Id, c.Nombre, c.Calle, c.Altura, c.Localidad, c.Provincia,
             c.Telefono1, c.Telefono2, c.Email, c.Cuit,
-            c.VendedorId, c.Vendedor?.Nombre, c.Activo, c.FechaCreacion, c.RequiereFactura, c.RazonSocial, c.DomicilioFiscal, c.CondicionIva));
+            c.VendedorId, c.Vendedor?.Nombre, c.Activo, c.FechaCreacion, c.RequiereFactura, c.RazonSocial, c.DomicilioFiscal, c.CondicionIva, c.DiasPlazoPago, c.CodigoPostal));
     }
 
     [HttpPost]
     [Authorize(Roles = "admin,gestor")]
     public async Task<IActionResult> Create([FromBody] CreateClienteRequest req)
     {
+        if (req.DiasPlazoPago < 0 || req.DiasPlazoPago > 3650) return BadRequest(new { error = "El plazo debe ser entre 0 y 3650 días." });
         var cliente = new Cliente
         {
+            DiasPlazoPago = req.DiasPlazoPago,
             Nombre = req.Nombre,
             RequiereFactura = req.RequiereFactura, RazonSocial = req.RazonSocial, DomicilioFiscal = req.DomicilioFiscal, CondicionIva = req.CondicionIva,
             Calle = req.Calle,
             Altura = req.Altura,
+            CodigoPostal = req.CodigoPostal,
             Localidad = req.Localidad,
             Provincia = req.Provincia,
             Telefono1 = req.Telefono1,
@@ -84,7 +87,7 @@ public class ClientesController(KimarDbContext db) : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = cliente.Id },
             new ClienteDto(cliente.Id, cliente.Nombre, cliente.Calle, cliente.Altura, cliente.Localidad,
                 cliente.Provincia, cliente.Telefono1, cliente.Telefono2, cliente.Email, cliente.Cuit,
-                cliente.VendedorId, null, cliente.Activo, cliente.FechaCreacion, cliente.RequiereFactura, cliente.RazonSocial, cliente.DomicilioFiscal, cliente.CondicionIva));
+                cliente.VendedorId, null, cliente.Activo, cliente.FechaCreacion, cliente.RequiereFactura, cliente.RazonSocial, cliente.DomicilioFiscal, cliente.CondicionIva, cliente.DiasPlazoPago, cliente.CodigoPostal));
     }
 
     [HttpPut("{id}")]
@@ -94,6 +97,8 @@ public class ClientesController(KimarDbContext db) : ControllerBase
         var c = await db.Clientes.FindAsync(id);
         if (c is null) return NotFound();
 
+        if (req.DiasPlazoPago is < 0 or > 3650) return BadRequest(new { error = "El plazo debe ser entre 0 y 3650 días." });
+        if (req.DiasPlazoPago.HasValue) c.DiasPlazoPago = req.DiasPlazoPago.Value;
         if (req.RequiereFactura.HasValue) c.RequiereFactura = req.RequiereFactura.Value;
         if (req.RazonSocial is not null) c.RazonSocial = req.RazonSocial;
         if (req.DomicilioFiscal is not null) c.DomicilioFiscal = req.DomicilioFiscal;
@@ -101,6 +106,7 @@ public class ClientesController(KimarDbContext db) : ControllerBase
         if (req.Nombre is not null) c.Nombre = req.Nombre;
         if (req.Calle is not null) c.Calle = req.Calle;
         if (req.Altura is not null) c.Altura = req.Altura;
+        if (req.CodigoPostal is not null) c.CodigoPostal = req.CodigoPostal;
         if (req.Localidad is not null) c.Localidad = req.Localidad;
         if (req.Provincia is not null) c.Provincia = req.Provincia;
         if (req.Telefono1 is not null) c.Telefono1 = req.Telefono1;
@@ -112,7 +118,7 @@ public class ClientesController(KimarDbContext db) : ControllerBase
 
         await db.SaveChangesAsync();
         return Ok(new ClienteDto(c.Id, c.Nombre, c.Calle, c.Altura, c.Localidad, c.Provincia,
-            c.Telefono1, c.Telefono2, c.Email, c.Cuit, c.VendedorId, null, c.Activo, c.FechaCreacion, c.RequiereFactura, c.RazonSocial, c.DomicilioFiscal, c.CondicionIva));
+            c.Telefono1, c.Telefono2, c.Email, c.Cuit, c.VendedorId, null, c.Activo, c.FechaCreacion, c.RequiereFactura, c.RazonSocial, c.DomicilioFiscal, c.CondicionIva, c.DiasPlazoPago, c.CodigoPostal));
     }
 
     [HttpDelete("{id}")]

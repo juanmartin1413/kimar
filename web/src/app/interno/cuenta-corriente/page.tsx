@@ -1,5 +1,7 @@
 'use client'
 
+import { PdfButton } from '@/components/interno/PdfButton'
+
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { api } from '@/lib/api'
@@ -9,7 +11,7 @@ import { formatPeso, formatFecha } from '@/lib/format'
 import { saldoVenta, saldoCliente, ventasConSaldo } from '@/lib/cuentaCorriente'
 import { downloadEstadoCuenta } from '@/lib/estadoCuentaPdf'
 import { cn } from '@/lib/utils'
-import { ChevronDown, ChevronRight, Download } from 'lucide-react'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 
 type EstadoBadge = 'debe' | 'cobrado_parcial' | 'pagado'
 
@@ -60,10 +62,10 @@ function VentaRow({ venta }: { venta: Venta }) {
               ))}
               {venta.cobranzas.length > 0 && (
                 <>
-                  <p className="font-semibold mt-3 mb-1">Plan de cobro:</p>
+                  <p className="font-semibold mt-3 mb-1">Compromisos y pagos:</p>
                   {venta.cobranzas.map(c => (
                     <div key={c.id} className="flex justify-between">
-                      <span>{formatFecha(c.fecha)} — {c.formaPago} — {estadoConfig[c.estado as EstadoBadge]?.label ?? c.estado}</span>
+                      <span>{formatFecha(c.fecha)} — {c.formaPago ? `${c.formaPago} — ` : ''}{estadoConfig[c.estado as EstadoBadge]?.label ?? c.estado}</span>
                       <span className="tabular-nums">{formatPeso(c.monto)}</span>
                     </div>
                   ))}
@@ -95,16 +97,13 @@ function ClienteCard({ cliente, ventas, vendedorNombre }: { cliente: Cliente; ve
               {saldo > 0 ? formatPeso(saldo) : '—'}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => downloadEstadoCuenta(cliente, ventas)}
+          <PdfButton onClick={() => downloadEstadoCuenta(cliente, ventas)}
             disabled={saldo === 0}
-            className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-xs font-semibold px-3 py-2 rounded-lg"
             title={saldo > 0 ? 'Descargar estado de cuenta' : 'Sin saldo pendiente'}
           >
-            <Download className="w-3.5 h-3.5" />
-            Estado de cuenta
-          </button>
+
+            Estado de cuenta PDF
+          </PdfButton>
         </div>
       </div>
 

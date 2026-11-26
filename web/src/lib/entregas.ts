@@ -2,6 +2,7 @@ import { EstadoEntrega, MedioEnvio, TipoAdjunto } from '@/lib/types'
 
 // Etiquetas legibles del catálogo de documentos (ver TipoAdjunto).
 export const tipoAdjuntoLabels: Record<TipoAdjunto, string> = {
+  comprobante_pago: 'Comprobante de pago',
   remito: 'Remito',
   factura: 'Factura',
   otro: 'Otro',

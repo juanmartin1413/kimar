@@ -64,7 +64,7 @@ public class FiscalProcessor(KimarDbContext db, IArcaClient arca, FiscalConfig c
             {
                 venta.CreditoAplicado = venta.Total;
                 // No borrar pagos, no inventar reintegros, no devolver stock automáticamente.
-                db.Cobranzas.RemoveRange(venta.Cobranzas.Where(x => x.Estado != "cobrado"));
+                foreach (var compromiso in venta.Cobranzas) compromiso.Estado = "cancelado";
                 venta.Estado = "pagado";
             }
             attempt.Resultado = "autorizado"; attempt.Detalle = authorization.Observaciones;

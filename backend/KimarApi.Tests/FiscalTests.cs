@@ -87,15 +87,15 @@ public class FiscalTests
     {
         await using var f = await Fixture.Create();
         var fc = Fixture.Document(f.Venta.Id, f.Cliente.Id); fc.Estado = "autorizado"; fc.Numero = 1; fc.Cae = "12345678901234";
-        f.Db.Add(fc); f.Db.Cobranzas.AddRange(new Cobranza { VentaId = f.Venta.Id, ClienteId = f.Cliente.Id, Fecha = FiscalRules.Hoy, Monto = 60, Estado = "cobrado", FormaPago = "efectivo" },
-            new Cobranza { VentaId = f.Venta.Id, ClienteId = f.Cliente.Id, Fecha = FiscalRules.Hoy, Monto = 61, Estado = "pendiente", FormaPago = "efectivo" });
+        f.Db.Add(fc); f.AddPago(60);
         await f.Db.SaveChangesAsync();
         var nc = await f.Service.CrearNcAsync(fc.Id, new("Anulación", "anular_venta"), f.User, default);
         var duplicate = await f.Service.CrearNcAsync(fc.Id, new("Anulación", "anular_venta"), f.User, default);
         Assert.AreEqual(nc.Id, duplicate.Id);
         await f.Processor(new FakeArca()).ProcessAsync(nc.Id, default);
         Assert.AreEqual(121m, f.Venta.CreditoAplicado);
-        Assert.AreEqual(1, await f.Db.Cobranzas.CountAsync()); Assert.AreEqual(60m, await f.Db.Cobranzas.SumAsync(c => c.Monto));
+        Assert.AreEqual(1, await f.Db.Cobranzas.CountAsync()); Assert.AreEqual(60m, await f.Db.ImputacionesPago.SumAsync(c => c.Monto));
+        Assert.AreEqual("cancelado", (await f.Db.Cobranzas.SingleAsync()).Estado);
         Assert.AreEqual(0, await f.Db.MovimientosStock.CountAsync());
         await f.Processor(new FakeArca()).ProcessAsync(nc.Id, default);
         Assert.AreEqual(121m, f.Venta.CreditoAplicado);
@@ -111,7 +111,11 @@ public class FiscalTests
         await f.Processor(new FakeArca()).ProcessAsync(nc.Id, default);
         Assert.AreEqual(0m, f.Venta.CreditoAplicado);
         var datos = FiscalRules.Deserialize<DatosFiscales>(fc.DatosJson);
-        var replacement = await f.Service.CorregirAsync(fc.Id, new(datos.Receptor, ["Nueva descripción"], null, FiscalRules.Hoy), f.User, true, default);
+        var product = new Producto { Nombre = "Langostinos" };
+        f.Db.Add(new ItemVenta { VentaId = f.Venta.Id, Producto = product, Descripcion = product.Nombre, Cantidad = 1, PrecioUnitario = 100, Subtotal = 100, Unidad = "kg" });
+        await f.Db.SaveChangesAsync();
+        var preview = await f.Service.PreviewReemplazoAsync(fc.Id, default);
+        var replacement = await f.Service.CorregirAsync(fc.Id, new(datos.Receptor, ["Nueva descripción"], null, FiscalRules.Hoy, preview.Huella, true), f.User, true, default);
         Assert.AreEqual("dueno", replacement.EmisorId); Assert.AreEqual("homologation", replacement.Ambiente);
         Assert.AreEqual(f.Venta.Id, replacement.VentaId); Assert.AreEqual(1, await f.Db.Ventas.CountAsync());
     }
@@ -132,7 +136,7 @@ public class FiscalTests
         var p = new Producto { Nombre = "Langostinos", PrecioKg = 100 }; f.Db.Add(p); await f.Db.SaveChangesAsync();
         var items = new List<ItemVentaRequest> { new(p.Id, p.Nombre, 1, 100) };
         var draft = await f.Service.PreviewAsync(new(f.Cliente.Id, items, new("Cliente", "20123456786", 1, "Calle 1"), ["Detalle fiscal"]), f.User);
-        var req = new CreateVentaRequest(null, f.Cliente.Id, f.Venta.VendedorId, FiscalRules.Hoy, null, null, items, [new(FiscalRules.Hoy, 121, "efectivo")], true, draft.Id, Guid.NewGuid());
+        var req = new CreateVentaRequest(null, f.Cliente.Id, f.Venta.VendedorId, FiscalRules.Hoy, null, null, items, [], true, draft.Id, Guid.NewGuid());
         var stock = new StockService(f.Db);
         var controller = new VentasController(f.Db, stock, new VentaService(f.Db, stock), f.Service) {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext {
@@ -144,6 +148,8 @@ public class FiscalTests
         Assert.AreEqual(1, await f.Db.MovimientosStock.CountAsync());
         var sale = await f.Db.Ventas.SingleAsync(v => v.OperacionId == req.OperacionId);
         Assert.AreEqual(121m, sale.Total); Assert.AreEqual(21m, sale.Iva);
+        var compromiso = await f.Db.Cobranzas.SingleAsync(c => c.VentaId == sale.Id);
+        Assert.AreEqual(sale.FechaEntrega.AddDays(15), compromiso.Fecha); Assert.AreEqual(121m, compromiso.Monto);
         var invalid = req with { OperacionId = Guid.NewGuid(), EmitirFactura = false, BorradorFiscalId = null, Cobranzas = [new(FiscalRules.Hoy, 1000, "efectivo")] };
         await Assert.ThrowsExceptionAsync<FiscalException>(() => controller.Create(invalid));
         Assert.AreEqual(2, await f.Db.Ventas.CountAsync());
@@ -216,6 +222,15 @@ internal sealed class Fixture : IAsyncDisposable
         f.Venta = new() { Cliente = f.Cliente, Vendedor = vendedor, Total = 121, Iva = 21, EmitirFactura = true, FechaEntrega = FiscalRules.Hoy };
         f.Db.Add(new Usuario { Id = f.User, Nombre = "Tester", Email = "test@example.invalid", Rol = "admin" });
         f.Db.Add(f.Venta); await f.Db.SaveChangesAsync(); return f;
+    }
+    public void AddPago(decimal monto) {
+        var compromiso = Venta.Cobranzas.FirstOrDefault();
+        if (compromiso is null) {
+            compromiso = new Cobranza { Venta = Venta, Cliente = Cliente, Monto = Venta.Total, Fecha = FiscalRules.Hoy };
+            Db.Add(compromiso);
+        }
+        Db.Add(new PagoCliente { ClienteId = Cliente.Id, UsuarioId = User, OperacionId = Guid.NewGuid(), Fecha = FiscalRules.Hoy, Monto = monto, FormaPago = "efectivo",
+            Imputaciones = [new() { Cobranza = compromiso, Monto = monto }] });
     }
     public static ComprobanteFiscal Document(Guid venta, Guid cliente) => new() {
         VentaId = venta, ClienteId = cliente, EmisorId = "dueno", Ambiente = "homologation", CuitEmisor = "30712345671", PuntoVenta = 1,

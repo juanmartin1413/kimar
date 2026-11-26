@@ -3,6 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace KimarApi.Models.Entities;
 
+// Compromiso de cobro. Los pagos efectivos se guardan en PagoCliente e ImputacionPago.
 public class Cobranza
 {
     [Key]
@@ -17,19 +18,20 @@ public class Cobranza
     public decimal Monto { get; set; }
 
     [Required, MaxLength(20)]
-    public string FormaPago { get; set; } = "efectivo"; // efectivo | transferencia | cheque
+    public string FormaPago { get; set; } = ""; // Columna legada: no se asigna un medio al compromiso.
 
     [Required, MaxLength(20)]
-    public string Estado { get; set; } = "pendiente"; // pendiente | cobrado | vencido
+    public string Estado { get; set; } = "pendiente"; // pendiente | cancelado; saldo y vencimiento se derivan.
 
-    // Fecha real en que se cobró (null mientras no esté cobrada). `Fecha` sigue siendo la planificada.
-    // La usa Comisiones para liquidar "por fecha de cobro" sin pagar dos veces la misma cobranza.
+    // Columna legada sin uso en el modelo nuevo; la fecha efectiva está en PagoCliente.
     public DateOnly? FechaCobro { get; set; }
 
     [MaxLength(500)]
     public string? Observaciones { get; set; }
 
     public DateTime FechaCreacion { get; set; } = DateTime.UtcNow;
+
+    public ICollection<ImputacionPago> Imputaciones { get; set; } = [];
 
     // Navigation
     [ForeignKey(nameof(VentaId))]

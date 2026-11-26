@@ -29,6 +29,7 @@ public class VentasController(KimarDbContext db, StockService stockSvc, VentaSer
             .Include(v => v.Cliente).Include(v => v.Vendedor).Include(v => v.Repartidor).Include(v => v.Comprobantes)
             .Include(v => v.Items).ThenInclude(i => i.Calidad)
             .Include(v => v.Cobranzas).ThenInclude(c => c.Cliente)
+            .Include(v => v.Cobranzas).ThenInclude(c => c.Imputaciones).ThenInclude(i => i.Pago)
             .AsQueryable();
 
         if (rol == "vendedor")
@@ -54,6 +55,7 @@ public class VentasController(KimarDbContext db, StockService stockSvc, VentaSer
             .Include(x => x.Cliente).Include(x => x.Vendedor).Include(x => x.Repartidor).Include(x => x.Comprobantes)
             .Include(x => x.Items).ThenInclude(i => i.Calidad)
             .Include(x => x.Cobranzas).ThenInclude(c => c.Cliente)
+            .Include(x => x.Cobranzas).ThenInclude(c => c.Imputaciones).ThenInclude(i => i.Pago)
             .FirstOrDefaultAsync(x => x.Id == id);
         if (v is null) return NotFound();
         if (User.FindFirst("rol")?.Value == "vendedor")
@@ -85,7 +87,7 @@ public class VentasController(KimarDbContext db, StockService stockSvc, VentaSer
             v.EstadoEntrega, v.RepartidorId, v.Repartidor?.Nombre, v.MedioEnvio,
             v.Items.Select(i => new ItemPreparacionDto(
                 i.ProductoId, i.Producto?.Nombre ?? i.Descripcion, i.Descripcion,
-                i.CalidadId, i.Calidad?.Nombre, i.Cantidad, i.Producto?.Unidad ?? "kg")).ToList())));
+                i.CalidadId, i.Calidad?.Nombre, i.Cantidad, i.Producto?.Unidad ?? "kg")).ToList(), v.HoraEntregaDesde, v.HoraEntregaHasta)));
     }
 
     [HttpPost]
@@ -94,6 +96,8 @@ public class VentasController(KimarDbContext db, StockService stockSvc, VentaSer
     {
         var userId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value!);
         FiscalRules.ValidateItems(req.Items);
+        if (!CobranzaRules.HorarioValido(req.FechaEntrega, req.HoraEntregaDesde, req.HoraEntregaHasta)) throw new FiscalException("Revisá la fecha y el horario de entrega.");
+        if (req.Cobranzas?.Count > 0) throw new FiscalException("El compromiso se genera automáticamente. Registrá los pagos desde Cobranzas.");
         if (req.EmitirFactura && (req.OperacionId is null || req.BorradorFiscalId is null))
             throw new FiscalException("Revisá y confirmá la factura antes de registrar la venta.");
         var fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(FiscalRules.Serialize(req))));
@@ -141,27 +145,16 @@ public class VentasController(KimarDbContext db, StockService stockSvc, VentaSer
         }
 
         var total = items.Sum(i => i.Subtotal) + (fiscal?.Iva ?? 0);
-        if (req.Cobranzas.Any(c => c.Monto <= 0 || c.Monto != FiscalRules.Money(c.Monto) ||
-            c.FormaPago is not ("efectivo" or "transferencia" or "cheque") || c.Estado is not ("pendiente" or "cobrado")) || req.Cobranzas.Sum(c => c.Monto) > total)
-            throw new FiscalException("El plan de cobro tiene importes inválidos o supera el total de la venta.");
-
-        var cobranzas = req.Cobranzas.Select(c => new Cobranza
-        {
-            ClienteId = req.ClienteId,
-            Fecha = c.Fecha,
-            Monto = c.Monto,
-            FormaPago = c.FormaPago,
-            Estado = c.Estado,
-            FechaCobro = c.Estado == "cobrado" ? c.Fecha : null,
-            Observaciones = c.Observaciones
-        }).ToList();
+        var plazo = await db.Clientes.Where(c => c.Id == req.ClienteId).Select(c => c.DiasPlazoPago).SingleAsync();
+        var cobranzas = new List<Cobranza> { new() { ClienteId = req.ClienteId, Fecha = req.FechaEntrega.AddDays(plazo), Monto = total, FormaPago = "" } };
 
         var venta = new Venta
         {
             PedidoId = req.PedidoId,
             ClienteId = req.ClienteId,
             VendedorId = req.VendedorId,
-            FechaEntrega = req.FechaEntrega,
+            FechaEntrega = req.FechaEntrega, DiasPlazoPago = plazo,
+            HoraEntregaDesde = req.HoraEntregaDesde, HoraEntregaHasta = req.HoraEntregaHasta,
             NroRemito = await ventaSvc.SiguienteNumeroRemitoAsync(),
             NroFactura = req.EmitirFactura ? null : req.NroFactura,
             EmitirFactura = req.EmitirFactura, Iva = fiscal?.Iva ?? 0,
@@ -210,11 +203,11 @@ public class VentasController(KimarDbContext db, StockService stockSvc, VentaSer
 
     // Edición completa (ítems + stock, cabecera y plan de cobro). Solo administrador.
     [HttpPut("{id}/completa")]
-    [Authorize(Roles = Roles.Admin)]
+    [Authorize(Roles = "admin,gestor")]
     public async Task<IActionResult> UpdateCompleta(Guid id, [FromBody] UpdateVentaCompletaRequest req)
     {
         var userId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value!);
-        var r = await ventaSvc.ActualizarVentaCompletaAsync(id, req, userId);
+        var r = await ventaSvc.ActualizarVentaCompletaAsync(id, req, userId, User.IsInRole("admin"));
         if (r.NotFound) return NotFound();
         if (!r.Ok) return BadRequest(new { error = r.Error });
         return await GetById(id);
@@ -224,8 +217,8 @@ public class VentasController(KimarDbContext db, StockService stockSvc, VentaSer
         v.Id, v.PedidoId, v.ClienteId, v.Cliente?.Nombre ?? "", v.VendedorId, v.Vendedor?.Nombre ?? "",
         v.FechaEntrega, v.NroRemito, v.NroFactura, v.Total, v.Estado, v.Observaciones, v.FechaCreacion,
         v.Items.Select(i => new ItemVentaDto(i.Id, i.ProductoId, i.CalidadId, i.Calidad?.Nombre, i.Descripcion, i.Cantidad, i.PrecioUnitario, i.Subtotal)).ToList(),
-        v.Cobranzas.Select(c => new CobranzaDto(c.Id, c.VentaId, c.ClienteId, c.Cliente?.Nombre ?? "", c.Fecha, c.Monto, c.FormaPago, c.Estado, c.Observaciones, c.FechaCreacion, c.FechaCobro)).ToList(),
+        v.Cobranzas.SelectMany(CobranzaRules.Movimientos).ToList(),
         v.EstadoEntrega, v.RepartidorId, v.Repartidor?.Nombre, v.FechaEntregado, v.MedioEnvio,
         v.EmitirFactura, v.Iva, v.CreditoAplicado,
-        v.Comprobantes.OrderByDescending(c => c.FechaCreacion).FirstOrDefault()?.Estado);
+        v.Comprobantes.OrderByDescending(c => c.FechaCreacion).FirstOrDefault()?.Estado, v.DiasPlazoPago, v.HoraEntregaDesde, v.HoraEntregaHasta);
 }

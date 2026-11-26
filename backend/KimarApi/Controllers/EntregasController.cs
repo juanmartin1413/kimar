@@ -80,7 +80,7 @@ public class EntregasController(KimarDbContext db, EntregaService entregaSvc, Ad
             v.Items.Select(i => new ItemPreparacionDto(
                 i.ProductoId, i.Producto?.Nombre ?? i.Descripcion, i.Descripcion,
                 i.CalidadId, i.Calidad?.Nombre, i.Cantidad, i.Producto?.Unidad ?? "kg")).ToList(),
-            documentos[v.Id].Select(AdjuntosController.Map).ToList())));
+            documentos[v.Id].Select(AdjuntosController.Map).ToList(), v.HoraEntregaDesde, v.HoraEntregaHasta)));
     }
 
     [HttpPost("{ventaId}/listo")]

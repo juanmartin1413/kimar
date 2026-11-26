@@ -27,6 +27,18 @@ Al arrancar, la API:
 1. Ejecuta `db.Database.Migrate()` → aplica la migración inicial
 2. Ejecuta `SeedData.InitializeAsync()` → carga datos iniciales (si la DB está vacía)
 
+La cartera inicial vigente es la planilla de 63 clientes del 26/11/2026, incluida
+en `Data/Seed/clientes-2026-11-26.json`: Luciano 27, Marcos 24 y Manolo 12.
+Incluye calle, altura y código postal separados. Los datos vacíos o `-` se
+guardan como nulos; no se completan domicilios ni códigos postales por inferencia.
+
+Para reiniciar el entorno de prueba con esta cartera, desplegar primero la versión
+que contiene este seed y la migración `AddCodigoPostalCliente`, detener la API,
+recrear la base de pruebas y reiniciar la API con `DATABASE_URL` apuntando a la
+base nueva. El seed no reemplaza clientes en bases ya pobladas. La recreación
+elimina los datos anteriores y vuelve a cargar también usuarios, productos y
+proveedores iniciales.
+
 ### 5. Verificar
 - `GET https://tu-api.railway.app/health` → `{"status":"ok"}`
 - `GET https://tu-api.railway.app/swagger` → Swagger UI

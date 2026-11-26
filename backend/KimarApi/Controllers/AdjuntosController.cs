@@ -2,6 +2,8 @@ using System.Security.Claims;
 using KimarApi.Models.DTOs;
 using KimarApi.Models.Entities;
 using KimarApi.Services;
+using KimarApi.Data;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -10,7 +12,7 @@ namespace KimarApi.Controllers;
 [ApiController]
 [Route("api/adjuntos")]
 [Authorize(Roles = "admin,gestor")]
-public class AdjuntosController(AdjuntoService adjuntoSvc) : ControllerBase
+public class AdjuntosController(AdjuntoService adjuntoSvc, KimarDbContext db) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> GetAll([FromQuery] string entidadTipo, [FromQuery] Guid entidadId)
@@ -31,8 +33,15 @@ public class AdjuntosController(AdjuntoService adjuntoSvc) : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateAdjuntoRequest req)
     {
-        if (req.EntidadTipo is not ("Compra" or "Venta") || req.EntidadTipo == "Venta" && req.Tipo != "remito_firmado")
+        if (req.EntidadTipo is not ("Compra" or "Venta" or "PagoCliente") || req.EntidadTipo == "Venta" && req.Tipo != "remito_firmado")
             return BadRequest(new { error = "Los comprobantes fiscales de ventas se generan exclusivamente desde Facturación." });
+        if (req.EntidadTipo == "PagoCliente") {
+            if (req.Tipo != "comprobante_pago" || !await db.PagosCliente.AnyAsync(p => p.Id == req.EntidadId)) return BadRequest(new { error = "Pago inválido." });
+            if (req.ContentType is not ("application/pdf" or "image/jpeg" or "image/png" or "image/webp")) return BadRequest(new { error = "Adjuntá PDF, JPG, PNG o WebP." });
+            if (string.IsNullOrEmpty(req.ContenidoBase64) || req.ContenidoBase64.Length > 11200000) return BadRequest(new { error = "El comprobante debe tener hasta 8 MB." });
+            try { if (Convert.FromBase64String(req.ContenidoBase64).Length > 8 * 1024 * 1024) return BadRequest(new { error = "El comprobante supera 8 MB." }); }
+            catch (FormatException) { return BadRequest(new { error = "Archivo inválido." }); }
+        }
         var userId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value!);
         var adjunto = await adjuntoSvc.GuardarAsync(
             req.EntidadTipo, req.EntidadId, req.Tipo, req.Nombre, req.ContentType, req.ContenidoBase64, userId);

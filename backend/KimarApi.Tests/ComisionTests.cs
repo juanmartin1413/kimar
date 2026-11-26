@@ -38,7 +38,7 @@ public class ComisionTests
         var unidad = new Producto { Nombre = "Caja", Unidad = "unidad" };
         f.Db.AddRange(new ItemVenta { VentaId = f.Venta.Id, Producto = kg, Cantidad = 100, Unidad = "kg", Descripcion = "Langostino" },
             new ItemVenta { VentaId = f.Venta.Id, Producto = unidad, Cantidad = 5, Unidad = "unidad", Descripcion = "Caja" });
-        if (cobrado > 0) f.Db.Add(new Cobranza { VentaId = f.Venta.Id, ClienteId = f.Cliente.Id, Monto = cobrado, Estado = "cobrado", FechaCobro = ComisionService.Hoy, Fecha = ComisionService.Hoy });
+        if (cobrado > 0) f.AddPago(cobrado);
         await f.Db.SaveChangesAsync(); return f;
     }
 
@@ -67,7 +67,7 @@ public class ComisionTests
         Assert.AreEqual(d.Id, (await s.Confirmar(req, f.User)).Id);
         p = await s.Preview(new(vendedor, ComisionService.Hoy));
         Assert.AreEqual(0m, p.Comision); Assert.AreEqual(0m, p.Neto); Assert.AreEqual(0m, p.AnticiposPendientes);
-        f.Db.Add(new Cobranza { VentaId = f.Venta.Id, ClienteId = f.Cliente.Id, Monto = 500, Estado = "cobrado", FechaCobro = ComisionService.Hoy, Fecha = ComisionService.Hoy });
+        f.AddPago(500);
         await f.Db.SaveChangesAsync();
         d = await s.Confirmar(await Solicitud(s, vendedor), f.User);
         Assert.AreEqual(25000m, d.Pago);
@@ -101,7 +101,7 @@ public class ComisionTests
         await Assert.ThrowsExceptionAsync<ComisionException>(() => s.Confirmar(req with { CompensarAdelantos = true }, f.User));
         var p = await s.Preview(new(id, ComisionService.Hoy));
         Assert.AreEqual(20000m, p.AnticiposPendientes); Assert.AreEqual(0m, p.Comision);
-        f.Db.Add(new Cobranza { VentaId = f.Venta.Id, ClienteId = f.Cliente.Id, Monto = 500, Estado = "cobrado", FechaCobro = ComisionService.Hoy, Fecha = ComisionService.Hoy });
+        f.AddPago(500);
         await f.Db.SaveChangesAsync();
         d = await s.Confirmar(await Solicitud(s, id), f.User);
         Assert.AreEqual(5000m, d.Pago); Assert.AreEqual(20000m, d.Compensado);

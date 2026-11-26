@@ -5,6 +5,7 @@ namespace KimarApi.Models.Entities;
 
 public class Cliente
 {
+    public int DiasPlazoPago { get; set; } = 15;
     public bool RequiereFactura { get; set; }
     [MaxLength(200)] public string? RazonSocial { get; set; }
     [MaxLength(300)] public string? DomicilioFiscal { get; set; }
@@ -20,6 +21,9 @@ public class Cliente
 
     [MaxLength(20)]
     public string? Altura { get; set; }
+
+    [MaxLength(20)]
+    public string? CodigoPostal { get; set; }
 
     [MaxLength(100)]
     public string? Localidad { get; set; }

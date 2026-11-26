@@ -5,6 +5,9 @@ namespace KimarApi.Models.Entities;
 
 public class Pedido
 {
+    public TimeOnly? HoraEntregaDesde { get; set; }
+    public TimeOnly? HoraEntregaHasta { get; set; }
+    public DateOnly FechaEntrega { get; set; }
     [Key]
     public Guid Id { get; set; } = Guid.NewGuid();
 

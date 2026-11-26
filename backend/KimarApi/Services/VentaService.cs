@@ -1,4 +1,5 @@
 using KimarApi.Data;
+using KimarApi.Services.Facturacion;
 using KimarApi.Models.DTOs;
 using KimarApi.Models.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -11,19 +12,15 @@ public record ResultadoEdicionVenta(bool Ok, string? Error, bool NotFound = fals
 
 public class VentaService(KimarDbContext db, StockService stockSvc)
 {
-    private static readonly HashSet<string> FormasPagoValidas = ["efectivo", "transferencia", "cheque"];
-
     public async Task RecalcularEstadoAsync(Guid ventaId)
     {
         var venta = await db.Ventas
-            .Include(v => v.Cobranzas)
+            .Include(v => v.Cobranzas).ThenInclude(c => c.Imputaciones).ThenInclude(i => i.Pago)
             .FirstOrDefaultAsync(v => v.Id == ventaId);
 
         if (venta is null) return;
 
-        var cobrado = venta.Cobranzas
-            .Where(c => c.Estado == "cobrado")
-            .Sum(c => c.Monto);
+        var cobrado = venta.Cobranzas.SelectMany(c => c.Imputaciones).Sum(i => i.Monto);
 
         venta.Estado = cobrado >= venta.Total - venta.CreditoAplicado ? "pagado"
             : cobrado > 0 ? "cobrado_parcial"
@@ -34,7 +31,7 @@ public class VentaService(KimarDbContext db, StockService stockSvc)
 
     public string CalcularEstado(decimal total, IEnumerable<Cobranza> cobranzas)
     {
-        var cobrado = cobranzas.Where(c => c.Estado == "cobrado").Sum(c => c.Monto);
+        var cobrado = cobranzas.SelectMany(c => c.Imputaciones).Sum(i => i.Monto);
         return cobrado >= total ? "pagado"
             : cobrado > 0 ? "cobrado_parcial"
             : "debe";
@@ -61,22 +58,34 @@ public class VentaService(KimarDbContext db, StockService stockSvc)
     }
 
     // ── Edición completa de una venta ya confirmada (solo admin) ─────────────
-    // Reemplaza ítems (sincronizando stock por diferencia), datos de cabecera y el plan de cobro.
-    // Reglas: las cobranzas "cobrado" son intocables; las pendientes se actualizan/agregan/eliminan.
+    // Reemplaza ítems (sincronizando stock por diferencia), datos de cabecera y el compromiso automático.
+    // Los pagos e imputaciones son inmutables; se actualizan importe y vencimiento del compromiso.
     public async Task<ResultadoEdicionVenta> ActualizarVentaCompletaAsync(
-        Guid ventaId, UpdateVentaCompletaRequest req, Guid usuarioId)
+        Guid ventaId, UpdateVentaCompletaRequest req, Guid usuarioId, bool esAdmin = true)
     {
+        await using var gate = new FiscalLock(db, FiscalRules.LockKey("editar-venta:" + ventaId));
+        if (!await gate.TryAcquireAsync(default)) return new(false, "Otra operación está procesando la venta.");
         await using var tx = await db.Database.BeginTransactionAsync();
         await db.Database.ExecuteSqlRawAsync("LOCK TABLE \"Ventas\", \"ItemsVenta\", \"Cobranzas\", \"Vendedores\" IN SHARE ROW EXCLUSIVE MODE");
         var venta = await db.Ventas
             .Include(v => v.Items)
-            .Include(v => v.Cobranzas)
+            .Include(v => v.Cobranzas).ThenInclude(c => c.Imputaciones).ThenInclude(i => i.Pago)
             .FirstOrDefaultAsync(v => v.Id == ventaId);
         if (venta is null) return new ResultadoEdicionVenta(false, null, NotFound: true);
+        if (!CobranzaRules.HorarioValido(req.FechaEntrega, req.HoraEntregaDesde, req.HoraEntregaHasta)) return new(false, "Revisá el horario de entrega.");
+        if (req.Cobranzas?.Count > 0) return new(false, "El compromiso se calcula automáticamente.");
         if (venta.VendedorId != req.VendedorId && await db.ComisionDetalles.AnyAsync(d => d.VentaId == ventaId))
             return new ResultadoEdicionVenta(false, "La venta tiene movimientos de comisión. No se puede cambiar el vendedor.");
+        if (!esAdmin && !venta.EmitirFactura) return new(false, "Solo un administrador puede editar estos productos.");
         if (venta.EmitirFactura)
-            return new ResultadoEdicionVenta(false, "Esta venta tiene una solicitud fiscal. Sus datos comerciales están protegidos; usá Facturación para corregir o acreditar.");
+        {
+            if (!await FacturacionService.PuedeEditarProductosAsync(db, ventaId))
+                return new(false, "Para editar productos se necesita una NC total autorizada por corrección fiscal, sin reemplazo solicitado.");
+            if (req.ClienteId != venta.ClienteId || req.VendedorId != venta.VendedorId || req.FechaEntrega != venta.FechaEntrega ||
+                req.HoraEntregaDesde != venta.HoraEntregaDesde || req.HoraEntregaHasta != venta.HoraEntregaHasta || req.NroFactura != venta.NroFactura)
+                return new(false, "La corrección fiscal permite editar productos; conservá cliente, vendedor, entrega y número fiscal.");
+            FiscalRules.ValidateItems(req.Items);
+        }
 
         if (req.Items.Count == 0)
             return new ResultadoEdicionVenta(false, "La venta debe tener al menos un ítem.");
@@ -100,44 +109,19 @@ public class VentaService(KimarDbContext db, StockService stockSvc)
                 Descripcion = i.Descripcion,
                 Cantidad = i.Cantidad,
                 PrecioUnitario = i.PrecioUnitario,
-                Subtotal = i.Cantidad * i.PrecioUnitario
+                Subtotal = venta.EmitirFactura ? FiscalRules.Money(i.Cantidad * i.PrecioUnitario) : i.Cantidad * i.PrecioUnitario
             });
         }
-        var nuevoTotal = nuevosItems.Sum(i => i.Subtotal);
+        var neto = nuevosItems.Sum(i => i.Subtotal);
+        var iva = venta.EmitirFactura ? FiscalRules.Money(neto * .21m) : 0;
+        var nuevoTotal = neto + iva;
 
-        // ── Validaciones del plan de cobro ──
-        var cobradas = venta.Cobranzas.Where(c => c.Estado == "cobrado").ToList();
-        var pendientes = venta.Cobranzas.Where(c => c.Estado != "cobrado").ToDictionary(c => c.Id);
-        var totalCobrado = cobradas.Sum(c => c.Monto);
+        // ── Validaciones de importes e imputaciones ──
+        var totalCobrado = venta.Cobranzas.SelectMany(c => c.Imputaciones).Sum(i => i.Monto);
+        if (nuevoTotal < totalCobrado) return new(false, "El total no puede ser menor a lo ya cobrado.");
+        if (venta.ClienteId != req.ClienteId && totalCobrado > 0) return new(false, "No se puede cambiar el cliente de una venta con pagos.");
+        if (!await db.Clientes.AnyAsync(c => c.Id == req.ClienteId && c.Activo) || !await db.Vendedores.AnyAsync(v => v.Id == req.VendedorId && v.Activo)) return new(false, "Cliente o vendedor inválido.");
 
-        if (nuevoTotal < totalCobrado)
-            return new ResultadoEdicionVenta(false,
-                $"El total de la venta ({nuevoTotal:N0}) no puede ser menor a lo ya cobrado ({totalCobrado:N0}).");
-
-        if (req.Cobranzas.Any(c => c.Monto <= 0))
-            return new ResultadoEdicionVenta(false, "Todas las cuotas deben tener un monto mayor a 0.");
-        if (req.Cobranzas.Any(c => !FormasPagoValidas.Contains(c.FormaPago)))
-            return new ResultadoEdicionVenta(false, "Forma de pago inválida.");
-
-        var idsEnviados = req.Cobranzas.Where(c => c.Id.HasValue).Select(c => c.Id!.Value).ToList();
-        if (idsEnviados.Distinct().Count() != idsEnviados.Count)
-            return new ResultadoEdicionVenta(false, "Hay cuotas repetidas en el plan de cobro.");
-        foreach (var id in idsEnviados)
-        {
-            if (cobradas.Any(c => c.Id == id))
-                return new ResultadoEdicionVenta(false, "No se puede modificar una cobranza ya cobrada.");
-            if (!pendientes.ContainsKey(id))
-                return new ResultadoEdicionVenta(false, "Una de las cuotas no pertenece a esta venta o ya no existe.");
-        }
-
-        var totalPlan = totalCobrado + req.Cobranzas.Sum(c => c.Monto);
-        if (totalPlan > nuevoTotal + 0.01m)
-            return new ResultadoEdicionVenta(false,
-                $"El plan de cobro ({totalPlan:N0}) supera el total de la venta ({nuevoTotal:N0}).");
-
-        // ── Persistencia atómica ──
-        // Stock: se ajusta por diferencia agrupando por (producto, calidad). Se conserva el historial de
-        // movimientos previos; los deltas quedan asociados a la venta para poder auditarlos.
         var viejos = venta.Items
             .GroupBy(i => (i.ProductoId, i.CalidadId))
             .ToDictionary(g => g.Key, g => g.Sum(i => i.Cantidad));
@@ -171,9 +155,9 @@ public class VentaService(KimarDbContext db, StockService stockSvc)
         db.ItemsVenta.RemoveRange(venta.Items);
         db.ItemsVenta.AddRange(nuevosItems);
         venta.Total = nuevoTotal;
+        venta.Iva = iva;
 
-        // Cliente denormalizado en cada cobranza (incluidas las cobradas: solo cambia a quién pertenece,
-        // nunca fecha/monto/estado).
+        // Solo puede cambiar el cliente cuando el compromiso no tiene pagos.
         if (venta.ClienteId != req.ClienteId)
             foreach (var c in venta.Cobranzas) c.ClienteId = req.ClienteId;
 
@@ -184,34 +168,11 @@ public class VentaService(KimarDbContext db, StockService stockSvc)
         venta.NroFactura = req.NroFactura;
         venta.Observaciones = req.Observaciones;
 
-        // Plan de cobro: reconciliar pendientes
-        foreach (var p in pendientes.Values.Where(p => !idsEnviados.Contains(p.Id)).ToList())
-            db.Cobranzas.Remove(p);
-
-        foreach (var d in req.Cobranzas)
-        {
-            if (d.Id.HasValue)
-            {
-                var c = pendientes[d.Id.Value];
-                c.Fecha = d.Fecha;
-                c.Monto = d.Monto;
-                c.FormaPago = d.FormaPago;
-                c.Observaciones = d.Observaciones;
-            }
-            else
-            {
-                db.Cobranzas.Add(new Cobranza
-                {
-                    VentaId = venta.Id,
-                    ClienteId = req.ClienteId,
-                    Fecha = d.Fecha,
-                    Monto = d.Monto,
-                    FormaPago = d.FormaPago,
-                    Estado = "pendiente",
-                    Observaciones = d.Observaciones
-                });
-            }
-        }
+        venta.HoraEntregaDesde = req.HoraEntregaDesde;
+        venta.HoraEntregaHasta = req.HoraEntregaHasta;
+        var compromiso = venta.Cobranzas.Single();
+        compromiso.Monto = nuevoTotal;
+        compromiso.Fecha = req.FechaEntrega.AddDays(venta.DiasPlazoPago);
 
         await db.SaveChangesAsync();
         await RecalcularEstadoAsync(venta.Id);

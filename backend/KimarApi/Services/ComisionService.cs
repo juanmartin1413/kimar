@@ -43,7 +43,7 @@ public class ComisionService(KimarDbContext db)
             .Include(d => d.Detalles).Include(d => d.Aplicaciones).OrderBy(d => d.Numero).ToListAsync();
         var previas = docs.SelectMany(d => d.Detalles).GroupBy(d => d.VentaId).ToDictionary(g => g.Key, g => g.Sum(d => d.Importe));
         var ventas = await db.Ventas.AsNoTracking().Where(v => v.VendedorId == f.VendedorId)
-            .Include(v => v.Cliente).Include(v => v.Items).Include(v => v.Cobranzas).OrderBy(v => v.FechaEntrega).ThenBy(v => v.Id).ToListAsync();
+            .Include(v => v.Cliente).Include(v => v.Items).Include(v => v.Cobranzas).ThenInclude(c => c.Imputaciones).ThenInclude(i => i.Pago).OrderBy(v => v.FechaEntrega).ThenBy(v => v.Id).ToListAsync();
         var filas = new List<ComisionVenta>();
         decimal totalGeneradoActual = 0;
         foreach (var v in ventas)
@@ -57,13 +57,13 @@ public class ComisionService(KimarDbContext db)
             var kg = v.Items.Where(i => i.Unidad == "kg").Sum(i => i.Cantidad);
             var total = v.Total > 0 && v.CreditoAplicado < v.Total ? Money(kg * tarifa) : 0;
             if (v.FechaEntrega <= Hoy) totalGeneradoActual += total;
-            var cobros = v.Cobranzas.Where(c => c.Estado == "cobrado" && c.FechaCobro <= f.Hasta)
-                .OrderBy(c => c.Id).Select(c => new ComisionCobro(c.Id, c.FechaCobro, c.Monto)).ToList();
+            var cobros = v.Cobranzas.SelectMany(c => c.Imputaciones).Where(c => c.Pago.Fecha <= f.Hasta)
+                .OrderBy(c => c.Id).Select(c => new ComisionCobro(c.Id, c.Pago.Fecha, c.Monto)).ToList();
             var cobrado = cobros.Sum(c => c.Monto);
             var habilitada = v.FechaEntrega <= f.Hasta ? Habilitada(total, cobrado, v.Total) : 0;
             var liquidada = previas.GetValueOrDefault(v.Id);
             // Un corte anterior no revierte cobros que simplemente quedan fuera del período.
-            var actual = Habilitada(total, v.Cobranzas.Where(c => c.Estado == "cobrado").Sum(c => c.Monto), v.Total);
+            var actual = Habilitada(total, v.Cobranzas.SelectMany(c => c.Imputaciones).Sum(c => c.Monto), v.Total);
             var pendiente = actual < liquidada ? actual - liquidada : Math.Max(0, habilitada - liquidada);
             var incluida = pendiente < 0 || (v.FechaEntrega <= f.Hasta && (!f.Desde.HasValue || v.FechaEntrega >= f.Desde)
                 && (f.ClienteIds == null || f.ClienteIds.Contains(v.ClienteId)) && (f.VentaIds == null || f.VentaIds.Contains(v.Id)));

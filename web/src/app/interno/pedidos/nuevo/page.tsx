@@ -9,17 +9,25 @@ import { formatPeso, today } from '@/lib/format'
 import { generateId } from '@/lib/storage'
 import { Trash2, ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
+import { EstadoCuentaCliente } from '@/components/interno/EstadoCuentaCliente'
+import { EntregaPactada } from '@/components/interno/EntregaPactada'
+
 
 export default function NuevoPedidoPage() {
   const { data, addPedido, getStockTotal } = useData()
   const { usuario } = useAuth()
   const router = useRouter()
 
-  const vendedorIdDefault = data.vendedores.find(v => v.usuarioId === usuario?.id)?.id ?? data.vendedores[0]?.id ?? ''
+  const vendedorIdDefault = data.vendedores.find(v => v.usuarioId === usuario?.id)?.id ?? ''
 
   const [clienteId, setClienteId] = useState('')
   const [vendedorId, setVendedorId] = useState(vendedorIdDefault)
   const [fecha, setFecha] = useState(today())
+  const [fechaEntrega, setFechaEntrega] = useState(today())
+  const [horaEntregaDesde, setDesde] = useState('')
+  const [horaEntregaHasta, setHasta] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
   const [observaciones, setObservaciones] = useState('')
   const [items, setItems] = useState<ItemPedido[]>([])
   const [productoId, setProductoId] = useState('')
@@ -64,9 +72,13 @@ export default function NuevoPedidoPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!clienteId || items.length === 0) return
-    await addPedido({ clienteId, vendedorId, fecha, items, observaciones: observaciones || undefined })
+    if (saving || !clienteId || items.length === 0) return
+    if (horaEntregaHasta && horaEntregaHasta <= horaEntregaDesde) { setError('Revisá el horario de entrega.'); return }
+    setSaving(true); setError('')
+    try {
+    await addPedido({ clienteId, vendedorId: usuario?.rol === 'vendedor' ? vendedorIdDefault : vendedorId, fecha, fechaEntrega, horaEntregaDesde, horaEntregaHasta, items, observaciones: observaciones || undefined })
     router.push('/interno/pedidos')
+    } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo guardar.'); setSaving(false) }
   }
 
   const total = items.reduce((s, i) => s + i.subtotal, 0)
@@ -93,29 +105,31 @@ export default function NuevoPedidoPage() {
               <label className="block text-xs font-medium text-[oklch(0.35_0.06_240)] mb-1">Cliente *</label>
               <select value={clienteId} onChange={e => onClienteChange(e.target.value)} required className={fieldClass}>
                 <option value="">Seleccionar…</option>
-                {data.clientes.filter(c => c.activo).map(c => (
+                {data.clientes.filter(c => c.activo && (usuario?.rol !== 'vendedor' || c.vendedorId === vendedorIdDefault)).map(c => (
                   <option key={c.id} value={c.id}>{c.nombre}</option>
                 ))}
               </select>
             </div>
-            <div>
+            {usuario?.rol === 'admin' && <div>
               <label className="block text-xs font-medium text-[oklch(0.35_0.06_240)] mb-1">Vendedor *</label>
               <select
                 value={vendedorId}
                 onChange={e => setVendedorId(e.target.value)}
-                disabled={usuario?.rol === 'vendedor'}
                 className={fieldClass}
               >
+                <option value="">Seleccionar…</option>
                 {data.vendedores.map(v => (
                   <option key={v.id} value={v.id}>{v.nombre}</option>
                 ))}
               </select>
-            </div>
+            </div>}
           </div>
+          <EstadoCuentaCliente clienteId={clienteId} />
+          <EntregaPactada fecha={fechaEntrega} desde={horaEntregaDesde} hasta={horaEntregaHasta} onChange={(f,d,h) => { setFechaEntrega(f); setDesde(d); setHasta(h) }} />
 
           <div>
-            <label className="block text-xs font-medium text-[oklch(0.35_0.06_240)] mb-1">Fecha</label>
-            <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} className={fieldClass} />
+            <label className="block text-xs font-medium text-[oklch(0.35_0.06_240)] mb-1">Fecha del pedido</label>
+            <input required type="date" value={fecha} onChange={e => setFecha(e.target.value)} className={fieldClass} />
           </div>
         </div>
 
@@ -150,8 +164,9 @@ export default function NuevoPedidoPage() {
               />
             </div>
             {selectedProduct && (
-              <div className={`text-xs px-3 py-2 rounded ${stockActual === 0 ? 'bg-red-100 text-red-800' : stockInsuficiente ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'}`}>
+              <div className={`text-xs px-3 py-2 rounded ${stockActual < 0 ? 'bg-amber-100 text-amber-900' : stockActual === 0 ? 'bg-red-100 text-red-800' : stockInsuficiente ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'}`}>
                 <span className="font-semibold">Stock actual: {stockActual.toFixed(2)} {unidadLabel.toLowerCase()}</span>
+                {stockActual < 0 && <span> — ⚠ Stock negativo</span>}
                 {stockActual === 0 && <span> — ⚠️ SIN STOCK DISPONIBLE</span>}
                 {stockInsuficiente && <span> — ⚠️ Stock insuficiente: solicitadas {cantidadNum.toFixed(2)}, disponibles {stockActual.toFixed(2)}</span>}
               </div>
@@ -199,6 +214,7 @@ export default function NuevoPedidoPage() {
           />
         </div>
 
+        {error && <p role="alert" className="text-red-700">{error}</p>}
         <div className="flex gap-3">
           <Link
             href="/interno/pedidos"
@@ -208,7 +224,7 @@ export default function NuevoPedidoPage() {
           </Link>
           <button
             type="submit"
-            disabled={!clienteId || items.length === 0}
+            disabled={saving || !clienteId || items.length === 0 || (usuario?.rol === 'vendedor' && !vendedorIdDefault)}
             className="flex-1 bg-[oklch(0.42_0.14_240)] hover:bg-[oklch(0.52_0.14_240)] disabled:opacity-50 text-white py-3 rounded-lg text-sm font-semibold transition-colors"
           >
             Crear pedido

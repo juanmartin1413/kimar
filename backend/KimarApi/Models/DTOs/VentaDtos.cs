@@ -21,7 +21,7 @@ public record CobranzaDto(
     string Estado,
     string? Observaciones,
     DateTime FechaCreacion,
-    DateOnly? FechaCobro);
+    DateOnly? FechaCobro, Guid? PagoId = null);
 
 // Body opcional de POST cobranzas/{id}/cobrar: permite registrar una fecha de cobro distinta de hoy.
 public record CobrarCobranzaRequest(DateOnly? FechaCobro = null);
@@ -47,7 +47,7 @@ public record VentaDto(
     string? RepartidorNombre,
     DateTime? FechaEntregado,
     string MedioEnvio,
-    bool EmitirFactura = false, decimal Iva = 0, decimal CreditoAplicado = 0, string? EstadoFiscal = null);
+    bool EmitirFactura = false, decimal Iva = 0, decimal CreditoAplicado = 0, string? EstadoFiscal = null, int DiasPlazoPago = 15, TimeOnly? HoraEntregaDesde = null, TimeOnly? HoraEntregaHasta = null);
 
 public record ItemVentaRequest(
     Guid ProductoId,
@@ -71,8 +71,8 @@ public record CreateVentaRequest(
     string? NroFactura,
     string? Observaciones,
     IList<ItemVentaRequest> Items,
-    IList<CobranzaRequest> Cobranzas,
-    bool EmitirFactura = false, Guid? BorradorFiscalId = null, Guid? OperacionId = null);
+    IList<CobranzaRequest>? Cobranzas = null,
+    bool EmitirFactura = false, Guid? BorradorFiscalId = null, Guid? OperacionId = null, TimeOnly? HoraEntregaDesde = null, TimeOnly? HoraEntregaHasta = null);
 
 public record UpdateVentaRequest(
     string? NroRemito,
@@ -101,7 +101,7 @@ public record VentaPreparacionDto(
     Guid? RepartidorId,
     string? RepartidorNombre,
     string MedioEnvio,
-    IList<ItemPreparacionDto> Items);
+    IList<ItemPreparacionDto> Items, TimeOnly? HoraEntregaDesde = null, TimeOnly? HoraEntregaHasta = null);
 
 // ── Edición completa de venta (solo admin) ───────────────────────────────────
 // Id null = cuota nueva. Solo se envían las cuotas pendientes deseadas; las cobradas no se tocan.
@@ -120,4 +120,4 @@ public record UpdateVentaCompletaRequest(
     string? NroFactura,
     string? Observaciones,
     IList<ItemVentaRequest> Items,
-    IList<PlanCobroItemRequest> Cobranzas);
+    IList<PlanCobroItemRequest>? Cobranzas = null, TimeOnly? HoraEntregaDesde = null, TimeOnly? HoraEntregaHasta = null);

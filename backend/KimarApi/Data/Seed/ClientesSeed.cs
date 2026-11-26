@@ -1,91 +1,40 @@
+using System.Text.Json;
 using KimarApi.Models.Entities;
 
 namespace KimarApi.Data.Seed;
 
 public static class ClientesSeed
 {
-    private static readonly DateTime FechaBase = new(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-
-    private static Cliente C(string nombre, Guid vendedorId, string? tel1 = null, string? localidad = null) =>
-        new() { Nombre = nombre, VendedorId = vendedorId, Telefono1 = tel1, Localidad = localidad, FechaCreacion = FechaBase };
+    private static readonly DateTime FechaBase = new(2026, 11, 26, 0, 0, 0, DateTimeKind.Utc);
 
     public static IEnumerable<Cliente> GetAll(Guid vMarcosId, Guid vLucianoId, Guid vManoloId)
     {
-        // ── Luciano (26 clientes) ─────────────────────────────────────────────
-        var luciano = new[]
-        {
-            C("Fabric - Olazábal",             vLucianoId),
-            C("Fabric - Beiro",                vLucianoId),
-            C("Fabric - Cachimayo",            vLucianoId),
-            C("Fabric - Vallese",              vLucianoId),
-            C("Fabric - Doblas",               vLucianoId),
-            C("Fabric - Artigas",              vLucianoId),
-            C("Fabric - Honorio",              vLucianoId),
-            C("Fabric - Asunción",             vLucianoId),
-            C("Fabric - Directorio",           vLucianoId),
-            C("Parrilla Sanabria",             vLucianoId),
-            C("El Pibe Dorrego",               vLucianoId),
-            C("Fabric - Leloir",               vLucianoId),
-            C("Fabric - Castelar",             vLucianoId),
-            C("Fabric - Peñaloza",             vLucianoId),
-            C("Sushi Club - Maswitch",         vLucianoId),
-            C("Sushi Club - Nordelta",         vLucianoId),
-            C("Sushi Club - Lanús",            vLucianoId),
-            C("Sushi Club - Lomas",            vLucianoId),
-            C("Eduardo Gazzo",                 vLucianoId),
-            C("Iñaki",                         vLucianoId),
-            C("Pescadería Liniers",            vLucianoId),
-            C("Pescadería Sorrento",           vLucianoId),
-            C("Pescadería La Esperanza",       vLucianoId),
-            C("Olivos Gourmet",                vLucianoId),
-            C("Martín Bouquet",                vLucianoId),
-            C("The Fish Company",              vLucianoId),
-        };
+        using var stream = typeof(ClientesSeed).Assembly.GetManifestResourceStream(
+            "KimarApi.Data.Seed.clientes-2026-11-26.json")
+            ?? throw new InvalidOperationException("Falta la planilla de clientes del seed.");
+        var filas = JsonSerializer.Deserialize<FilaCliente[]>(stream)
+            ?? throw new InvalidOperationException("La planilla de clientes esta vacia.");
+        if (filas.Length != 63 || filas.Select(f => f.Nombre).Distinct(StringComparer.OrdinalIgnoreCase).Count() != 63)
+            throw new InvalidOperationException("La planilla debe contener 63 clientes unicos.");
 
-        // ── Marcos (24 clientes) ─────────────────────────────────────────────
-        var marcos = new[]
+        return filas.Select(f => new Cliente
         {
-            C("Daimus",                        vMarcosId),
-            C("La Segunda",                    vMarcosId),
-            C("La Toscana",                    vMarcosId),
-            C("El Imparcial",                  vMarcosId),
-            C("El Globo",                      vMarcosId),
-            C("Florencia China",               vMarcosId),
-            C("Ultramarino",                   vMarcosId),
-            C("Barbacoa",                      vMarcosId),
-            C("Moncada",                       vMarcosId),
-            C("Claudio - Monte Grande",        vMarcosId),
-            C("Sushi Boom",                    vMarcosId),
-            C("Augusta",                       vMarcosId),
-            C("Lucas Moya",                    vMarcosId),
-            C("Ángel Tornadore",               vMarcosId),
-            C("Chirola",                       vMarcosId),
-            C("Gabriel Teresa",                vMarcosId),
-            C("Ercopez",                       vMarcosId),
-            C("Luis Figuemar",                 vMarcosId),
-            C("Sta. Barbara - Devoto - Natalia",     vMarcosId),
-            C("Sta. Barbara - Olivos - Salvador",    vMarcosId),
-            C("Sta. Barbara - Colegiales - Diego",   vMarcosId),
-            C("Sta. Barbara - Munro - Quique",       vMarcosId),
-            C("Chuchu",                        vMarcosId),
-            C("Chino Wu",                      vMarcosId),
-        };
-
-        // ── Manolo (10 clientes) ──────────────────────────────────────────────
-        var manolo = new[]
-        {
-            C("Bodegón Maswitch",              vManoloId),
-            C("La Pescería",                   vManoloId),
-            C("Hormiga Negra - Olivos",        vManoloId),
-            C("Hormiga Negra - Villa Urquiza", vManoloId),
-            C("Hormiga Negra - San Fernando",  vManoloId),
-            C("Hormiga Negra - Almagro",       vManoloId),
-            C("Hormiga Negra - Caseros",       vManoloId),
-            C("El Viejo Cañón",                vManoloId),
-            C("Ana Bolena",                    vManoloId),
-            C("Lo de Carlitos - San Telmo",    vManoloId),
-        };
-
-        return [.. luciano, .. marcos, .. manolo];
+            Nombre = f.Nombre,
+            VendedorId = f.Vendedor switch
+            {
+                "Marcos" => vMarcosId,
+                "Luciano" => vLucianoId,
+                "Manolo" => vManoloId,
+                _ => throw new InvalidOperationException($"Vendedor desconocido: {f.Vendedor}")
+            },
+            Calle = f.Calle, Altura = f.Altura, CodigoPostal = f.CodigoPostal,
+            Localidad = f.Localidad, Provincia = f.Provincia,
+            Telefono1 = f.Telefono1, Telefono2 = f.Telefono2,
+            Email = f.Email, Cuit = f.Cuit, FechaCreacion = FechaBase
+        }).ToArray();
     }
+
+    private sealed record FilaCliente(string Nombre, string Vendedor, string? Calle,
+        string? Altura, string? CodigoPostal, string? Localidad, string? Provincia,
+        string? Telefono1, string? Telefono2, string? Email, string? Cuit);
 }

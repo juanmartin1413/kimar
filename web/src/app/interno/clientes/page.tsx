@@ -101,7 +101,7 @@ export default function ClientesPage() {
                       </div>
                     </td>
                     <td className="py-3 px-4 text-[oklch(0.45_0.04_240)] hidden sm:table-cell">
-                      {[c.calle, c.altura, c.localidad].filter(Boolean).join(', ') || '—'}
+                      {[c.calle, c.altura, c.localidad, c.codigoPostal].filter(Boolean).join(', ') || '—'}
                     </td>
                     <td className="py-3 px-4 hidden md:table-cell">
                       <div className="space-y-0.5">

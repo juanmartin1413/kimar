@@ -1,85 +1,28 @@
-# Lista de Clientes — Datos Iniciales
+# Clientes iniciales
 
-Fuente: Clientes.txt + planillas Excel de cuenta corriente.
+Fuente vigente: `Kimar - Bases de datos - Clientes.csv`, recibido el 26/11/2026.
+La planilla reemplaza completamente la cartera inicial anterior.
 
-## Cartera Marcos
+- Luciano: 27 clientes.
+- Marcos: 24 clientes.
+- Manolo: 12 clientes.
+- Total: 63 clientes, sin clientes adicionales de listas anteriores.
 
-| Cliente | Tipo |
-|---------|------|
-| Augusta | Restaurante |
-| Daimus | Restaurante |
-| La Segunda | Restaurante |
-| Haro Sushi | Sushi |
-| El Viejo Cañón | Restaurante |
-| Longobucco | Restaurante |
-| Hormiga Negra - Urquiza | Restaurante (cadena) |
-| Hormiga Negra - Olivos | Restaurante (cadena) |
-| Hormiga Negra - San Fernando | Restaurante (cadena) |
-| Sushi Kyu | Sushi |
-| Lili Resto | Restaurante |
-| Pescería | Pescadería |
-| Ercopez | Cliente |
-| Chirola Teresa | Cliente |
-| Gabriel Teresa | Cliente |
-| Kity | Cliente |
+Los datos completos están en `backend/KimarApi/Data/Seed/clientes-2026-11-26.json`,
+un recurso embebido que carga `ClientesSeed.GetAll` al inicializar una base vacía.
+`backend/scripts/PrepararClientes.ps1 -Csv <ruta>` permite regenerar ese recurso
+con el CSV original (UTF-8, incluyendo celdas multilínea).
 
-## Cartera Lucho
+Se conservan los nombres de la planilla; se recortan espacios externos y se
+interpretan celdas vacías y guiones como datos no informados. La provincia se
+normaliza quitando su punto final para coincidir con el selector del sistema.
+No se corrigen geográficamente los datos ni se inventan valores faltantes.
 
-| Cliente | Tipo |
-|---------|------|
-| Sushi Club - Delta | Sushi (cadena) |
-| Sushi Club - Mastwichtz | Sushi (cadena) |
-| Sushi Club - Lomas | Sushi (cadena) |
-| Satoshi 1 | Sushi |
-| Satoshi 2 | Sushi |
-| Fabirc Castelar | Restaurante |
-| Fabirc Leloir | Restaurante |
-| Fabric Federico X9 | Restaurante |
-| Fabric Peñaloza | Restaurante |
-| El Pibe Dorrego | Restaurante |
-| Polo House - Salón Recova | Restaurante |
-| Cochinchina | Restaurante |
-| Polo Catering / Solpen | Catering |
-| Fabric Polo | Restaurante |
-| Olivos Gourmet | Restaurante |
-| Cachito de Mar | Restaurante |
-| The Fish Company | Restaurante |
-| Alvasan | Cliente |
-| Eduardo Gazzo | Cliente |
-| Pescadería: El Tiburón de Flo | Pescadería |
-| Pescadería: La Esperanza | Pescadería |
-| Pescadería: Biancomar | Pescadería |
-| Pescadería: Luigi | Pescadería |
-| Pescadería: Sorrento | Pescadería |
-| Pescadería: Il Pesce | Pescadería |
+La dirección se separa en Calle, Altura y CodigoPostal. Las alturas compuestas
+(como 475/485) se conservan. Locales, kilómetros y referencias permanecen en
+Calle, sin interpretarlos como alturas. DireccionOriginal en el recurso conserva
+el texto fuente para revisar la separación; no es un campo de la base de datos.
 
-## Cartera Lucas
-
-| Cliente | Tipo |
-|---------|------|
-| Toscana | Restaurante |
-| Moby Dick | Restaurante |
-| Yunta | Restaurante |
-| Sta. Barbara - Olivos - Ugarte | Restaurante (cadena) |
-| Sta. Barbara - Devoto - Natalia | Restaurante (cadena) |
-| Barbacoa | Restaurante |
-| Moncada | Restaurante |
-| El Imparcial | Restaurante |
-| El Globo | Restaurante |
-| Claudio Ramos Mejía | Cliente |
-| Florencia China | Cliente |
-| Jacinto | Restaurante |
-| Aurelia Río | Restaurante |
-| Super Chino Wu | Supermercado |
-| Distribuidora: Ostra Azul | Distribuidora |
-| Distribuidora: Islamar - Ismael | Distribuidora |
-| Bajos del Paraná: Claudio Achaval | Restaurante |
-| Pescadería: Tornadore | Pescadería |
-| Pescadería: Modelo | Pescadería |
-| Pescadería: Tito | Pescadería |
-| Pescadería: Cayetano | Pescadería |
-| Pescadería: Golfo | Pescadería |
-| Pescadería: Carbone | Pescadería |
-| Pescadería: Mi Puerto | Pescadería |
-| Pescadería: Liniers | Pescadería |
-| Pescadería Chuchu | Pescadería |
+El seed se aplica únicamente sobre una base vacía. Para recrear el entorno de
+prueba de Railway, seguir `backend/RAILWAY.md`; actualizar el código sobre una
+base poblada no reemplaza ni elimina sus clientes existentes.

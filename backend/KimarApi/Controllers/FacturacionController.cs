@@ -59,13 +59,21 @@ public class FacturacionController(KimarDbContext db, FacturacionService svc, Fi
         await db.SaveChangesAsync();
         return Accepted(FacturacionService.Map(c));
     }
-    [HttpPost("{id:guid}/nota-credito"), Authorize(Roles = "admin")]
+    [HttpPost("{id:guid}/nota-credito")]
     public async Task<IActionResult> NotaCredito(Guid id, NotaCreditoRequest req) =>
         Accepted(FacturacionService.Map(await svc.CrearNcAsync(id, req, UserId, HttpContext.RequestAborted)));
     [HttpPost("{id:guid}/corregir")]
     public async Task<IActionResult> Corregir(Guid id, CorregirFiscalRequest req) =>
         Ok(FacturacionService.Map(await svc.CorregirAsync(id, req, UserId, false, HttpContext.RequestAborted)));
-    [HttpPost("{id:guid}/reemplazar"), Authorize(Roles = "admin")]
+    [HttpGet("{id:guid}/reemplazo-preview")]
+    public async Task<IActionResult> PreviewReemplazo(Guid id)
+    {
+        var preview = await svc.PreviewReemplazoAsync(id, HttpContext.RequestAborted);
+        return Ok(new { comprobante = FacturacionService.Map(preview.Documento), huellaVenta = preview.Huella, sinCambios = preview.SinCambios });
+    }
+    [HttpGet("venta/{ventaId:guid}/editable")]
+    public async Task<IActionResult> Editable(Guid ventaId) => Ok(new { editable = await FacturacionService.PuedeEditarProductosAsync(db, ventaId) });
+    [HttpPost("{id:guid}/reemplazar")]
     public async Task<IActionResult> Reemplazar(Guid id, CorregirFiscalRequest req) =>
         Accepted(FacturacionService.Map(await svc.CorregirAsync(id, req, UserId, true, HttpContext.RequestAborted)));
     [HttpGet("{id:guid}/pdf")]

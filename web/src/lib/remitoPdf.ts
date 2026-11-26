@@ -8,6 +8,7 @@ function direccionCliente(cliente: Cliente): string {
     [cliente.calle, cliente.altura].filter(Boolean).join(' '),
     cliente.localidad,
     cliente.provincia,
+    cliente.codigoPostal,
   ].filter(Boolean)
   return partes.join(' · ')
 }

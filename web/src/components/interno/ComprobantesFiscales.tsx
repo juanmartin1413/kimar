@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { PdfButton } from './PdfButton'
 import { useAuth } from '@/contexts/AuthContext'
 import { useData } from '@/contexts/DataContext'
 import { api } from '@/lib/api'
@@ -10,9 +12,15 @@ import { ComprobanteFiscal, FiscalConfig, fiscalLabels, fiscalStatusClass, Recep
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { FacturaResumen, ReceptorFields } from './FacturaEditor'
 
-const button = 'rounded-lg border px-3 py-2 text-sm font-medium hover:bg-gray-100 disabled:opacity-50'
-export function ComprobantesFiscales({ ventaId }: { ventaId?: string }) {
-  const { canManageData, isAdmin } = useAuth()
+const button = 'inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
+const primary = 'inline-flex items-center justify-center rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed'
+const creditButton = 'rounded-lg border border-amber-300 bg-amber-100 px-4 py-2 text-sm font-semibold text-amber-900 hover:bg-amber-200 disabled:opacity-50'
+export function ComprobantesFiscales({ ventaId, onFiscalChange, cambiosSinGuardar = false }: { ventaId?: string; onFiscalChange?: () => void; cambiosSinGuardar?: boolean }) {
+  const { canManageData } = useAuth()
+  const router = useRouter()
+  const [huellaVenta, setHuellaVenta] = useState<string>()
+  const [sinCambios, setSinCambios] = useState(false)
+  const [confirmarSinCambios, setConfirmarSinCambios] = useState(false)
   const { refresh } = useData()
   const [items, setItems] = useState<ComprobanteFiscal[]>([])
   const [config, setConfig] = useState<FiscalConfig | null>(null)
@@ -45,13 +53,23 @@ export function ComprobantesFiscales({ ventaId }: { ventaId?: string }) {
     api.get<FiscalConfig>('/api/facturacion/configuracion').then(setConfig).catch(e => setError(e.message))
     return () => clearInterval(timer)
   }, [load, canManageData])
-  function open(c: ComprobanteFiscal, action: 'nc' | 'corregir' | 'reemplazar') {
+  async function open(c: ComprobanteFiscal, action: 'nc' | 'corregir' | 'reemplazar') {
+    setConfirmarSinCambios(false); setSinCambios(false); setHuellaVenta(undefined)
+    if (action === 'reemplazar') {
+      if (cambiosSinGuardar) { setError('Guardá los cambios de la venta antes de emitir la factura de reemplazo.'); return }
+      setBusy(true)
+      try {
+        const preview = await api.get<{ comprobante: ComprobanteFiscal; huellaVenta: string; sinCambios: boolean }>('/api/facturacion/' + c.id + '/reemplazo-preview')
+        c = preview.comprobante; setHuellaVenta(preview.huellaVenta); setSinCambios(preview.sinCambios)
+      } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo preparar el reemplazo'); return }
+      finally { setBusy(false) }
+    }
     setSelected({ c, action }); setMotivo(''); setEfecto(''); setReceptor(c.datos.receptor)
     setDescripciones(c.datos.items.map(i => i.descripcion)); setObservaciones(c.datos.observaciones || ''); setFecha(today()); setError('')
   }
   async function run(fn: () => Promise<unknown>, message: string) {
     setBusy(true); setError(''); setNotice('')
-    try { await fn(); setNotice(message); setSelected(null); await load(); refresh() }
+    try { await fn(); setNotice(message); setSelected(null); await load(); refresh(); onFiscalChange?.() }
     catch (e) { setError(e instanceof Error ? e.message : 'No se pudo completar la operación') }
     finally { setBusy(false) }
   }
@@ -88,11 +106,11 @@ export function ComprobantesFiscales({ ventaId }: { ventaId?: string }) {
         </details>}
         {c.errorPdf && <p className="text-sm text-amber-800">El comprobante está autorizado. El PDF todavía no está disponible.</p>}
         <div className="flex flex-wrap gap-2">
-          {c.pdfDisponible && <button disabled={busy} className={button} onClick={() => run(() => api.download(`/api/facturacion/${c.id}/pdf`, `${c.tipo === 3 ? 'NC' : 'FC'}-A-${c.numeroCompleto}.pdf`), 'PDF descargado')}>Descargar PDF</button>}
+          {c.pdfDisponible && <PdfButton disabled={busy} onClick={() => run(() => api.download(`/api/facturacion/${c.id}/pdf`, `${c.tipo === 3 ? 'NC' : 'FC'}-A-${c.numeroCompleto}.pdf`), 'PDF descargado')}>Descargar PDF</PdfButton>}
           {c.estado !== 'rechazado' && c.estado !== 'en_proceso' && (c.estado !== 'autorizado' || !c.pdfDisponible || c.errorPdf) && <button disabled={busy} className={button} onClick={() => run(() => api.post(`/api/facturacion/${c.id}/reintentar`), 'Reintento solicitado. El proceso continuará en segundo plano.')}>{c.estado === 'autorizado' ? 'Regenerar PDF' : 'Reintentar ahora'}</button>}
           {['rechazado', 'requiere_atencion'].includes(c.estado) && !c.numero && <button className={button} onClick={() => open(c, 'corregir')}>Corregir y confirmar</button>}
-          {isAdmin && c.tipo === 1 && c.estado === 'autorizado' && !nc && <button className={button} onClick={() => open(c, 'nc')}>Emitir NC total</button>}
-          {isAdmin && c.tipo === 1 && nc?.estado === 'autorizado' && nc.efectoComercial === 'correccion_fiscal' && !items.some(r => r.reemplazaId === c.id) && <button className={button} onClick={() => open(c, 'reemplazar')}>Emitir factura de reemplazo</button>}
+          {canManageData && c.tipo === 1 && c.estado === 'autorizado' && !nc && <button disabled={busy} className={creditButton} onClick={() => open(c, 'nc')}>Emitir NC total</button>}
+          {canManageData && c.tipo === 1 && nc?.estado === 'autorizado' && nc.efectoComercial === 'correccion_fiscal' && !items.some(r => r.reemplazaId === c.id) && <button disabled={busy} className={primary} onClick={() => open(c, 'reemplazar')}>Emitir factura de reemplazo</button>}
           {!ventaId && c.ventaId && <Link className={button} href={`/interno/ventas/${c.ventaId}`}>Ver venta</Link>}
         </div>
       </article>
@@ -102,24 +120,28 @@ export function ComprobantesFiscales({ ventaId }: { ventaId?: string }) {
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogTitle>{selected?.action === 'nc' ? 'Confirmar nota de crédito total' : 'Revisar y confirmar factura'}</DialogTitle>
         {selected && <>
+          {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-red-800">{error}</p>}
           <FacturaResumen comprobante={selected.c} />
+          {selected.action === 'reemplazar' && sinCambios && !confirmarSinCambios && <div className="space-y-3 rounded-lg border border-amber-300 bg-amber-50 p-4" role="alert">
+            <p>La venta no ha sido modificada respecto a lo reflejado en la factura original. Ajustá los productos que hagan falta para emitir una factura de reemplazo actualizada.</p>
+            <div className="flex flex-wrap gap-2"><button className={primary} onClick={() => setConfirmarSinCambios(true)}>Emitir de todas formas</button><button className={button} onClick={() => { setSelected(null); router.push('/interno/ventas/' + selected.c.ventaId + '#productos'); document.getElementById('productos')?.scrollIntoView({ behavior: 'smooth' }) }}>Editar venta</button></div>
+          </div>}
           {selected.action === 'nc' && <div className="space-y-3">
             <label className="block text-sm">Motivo<textarea className="w-full border rounded p-2" value={motivo} maxLength={500} onChange={e => setMotivo(e.target.value)} /></label>
             <label className="block text-sm">Efecto de la nota de crédito<select className="w-full border rounded p-2" value={efecto} onChange={e => setEfecto(e.target.value)}>
               <option value="">Seleccionar…</option><option value="anular_venta">Anular la venta: descontar deuda / generar saldo a favor</option><option value="correccion_fiscal">Corregir factura: conservar venta y deuda, para refacturar</option>
             </select></label>
             <p className="text-sm">Se emitirá una NC por el total. No devuelve mercadería al stock ni reintegra dinero automáticamente.</p>
-            <button className={button} disabled={busy || !motivo.trim() || !efecto} onClick={() => run(() => api.post(`/api/facturacion/${selected.c.id}/nota-credito`, { motivo, efectoComercial: efecto }), 'Nota de crédito solicitada. Su efecto se aplica al autorizarse.')}>{busy ? 'Procesando…' : 'Confirmar y emitir NC total'}</button>
+            <button className={creditButton} disabled={busy || !motivo.trim() || !efecto} onClick={() => run(() => api.post(`/api/facturacion/${selected.c.id}/nota-credito`, { motivo, efectoComercial: efecto }), 'Nota de crédito solicitada. Su efecto se aplica al autorizarse.')}>{busy ? 'Procesando…' : 'Confirmar y emitir NC total'}</button>
           </div>}
-          {['corregir', 'reemplazar'].includes(selected.action) && <div className="space-y-3">
+          {['corregir', 'reemplazar'].includes(selected.action) && !(selected.action === 'reemplazar' && sinCambios && !confirmarSinCambios) && <div className="space-y-3">
             <ReceptorFields value={receptor} onChange={setReceptor} disabled={busy || selected.c.tipo === 3} />
             <label className="block text-sm">Fecha confirmada<input className="block border rounded p-2" type="date" value={fecha} onChange={e => setFecha(e.target.value)} /></label>
             {descripciones.map((d, i) => <label key={i} className="block text-sm">Descripción fiscal {i + 1}<input className="w-full border rounded p-2" maxLength={300} value={d} onChange={e => setDescripciones(p => p.map((v, n) => n === i ? e.target.value : v))} /></label>)}
             <label className="block text-sm">Observaciones<textarea className="w-full border rounded p-2" maxLength={500} value={observaciones} onChange={e => setObservaciones(e.target.value)} /></label>
-            <p className="text-sm">Los importes se conservan. La emisión usará el emisor original y los datos confirmados arriba.</p>
-            <button className={button} disabled={busy} onClick={() => run(() => api.post(`/api/facturacion/${selected.c.id}/${selected.action}`, { receptor, descripciones, observaciones, fecha }), 'Datos confirmados. Emisión en cola.')}>{busy ? 'Procesando…' : 'Confirmar datos y solicitar emisión'}</button>
+            <p className="text-sm">{selected.action === 'reemplazar' ? 'Los productos e importes corresponden a la venta guardada. Se conserva el emisor original.' : 'Los importes se conservan. La emisión usará el emisor original y los datos confirmados arriba.'}</p>
+            <button className={primary} disabled={busy} onClick={() => run(() => api.post(`/api/facturacion/${selected.c.id}/${selected.action}`, { receptor, descripciones, observaciones, fecha, huellaVenta, confirmarSinCambios }), 'Datos confirmados. Emisión en cola.')}>{busy ? 'Procesando…' : 'Confirmar datos y solicitar emisión'}</button>
           </div>}
-          {error && <p role="alert" className="text-red-700">{error}</p>}
         </>}
       </DialogContent>
     </Dialog>

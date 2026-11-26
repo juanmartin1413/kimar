@@ -1,5 +1,7 @@
 'use client'
 
+import { ConfirmarPagoPayload } from '@/lib/cobranzas'
+
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { api } from '@/lib/api'
@@ -34,14 +36,13 @@ interface DataContextValue {
   reorderProductos: (items: { id: string; orden: number }[]) => void
   addPedido: (p: Omit<Pedido, 'id' | 'fechaCreacion' | 'estado'>) => Promise<string>
   updatePedido: (id: string, p: Partial<Pedido>) => void
-  addVenta: (v: Omit<Venta, 'id' | 'fechaCreacion' | 'estado' | 'cobranzas' | 'estadoEntrega' | 'repartidorId' | 'repartidorNombre' | 'fechaEntregado' | 'medioEnvio'>, cobranzas: Omit<Cobranza, 'id' | 'fechaCreacion' | 'clienteId' | 'ventaId'>[]) => Promise<{ id: string; estadoFiscal: string }>
+  addVenta: (v: Omit<Venta, 'id' | 'fechaCreacion' | 'estado' | 'cobranzas' | 'estadoEntrega' | 'repartidorId' | 'repartidorNombre' | 'fechaEntregado' | 'medioEnvio'>) => Promise<{ id: string; estadoFiscal: string }>
   // Remito / factura / observaciones (admin y gestor)
   updateVentaDatos: (id: string, d: { nroRemito?: string; nroFactura?: string; observaciones?: string }) => Promise<void>
-  // Ítems (con ajuste de stock), cabecera y plan de cobro (solo admin)
+  // Ítems (con ajuste de stock), cabecera y compromiso automático (solo admin)
   updateVentaCompleta: (id: string, payload: UpdateVentaCompletaPayload) => Promise<void>
-  addCobranza: (c: Omit<Cobranza, 'id' | 'fechaCreacion'>) => void
-  updateCobranza: (id: string, c: Partial<Omit<Cobranza, 'id' | 'fechaCreacion'>>) => void
-  cobrarCobranza: (id: string, fechaCobro?: string) => void
+  refrescarCobros: () => Promise<void>
+  registrarPago: (p: ConfirmarPagoPayload) => Promise<{ id: string }>
   addVendedor: (v: Omit<Vendedor, 'id'>) => void
   updateVendedor: (id: string, v: Partial<Vendedor>) => void
   addProveedor: (p: Omit<Proveedor, 'id' | 'fechaCreacion' | 'activo'>) => void
@@ -216,11 +217,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }))
   }
 
-  async function rCobranzas() {
-    const list = await api.get<Cobranza[]>('/api/cobranzas').catch(() => null)
-    if (list) setData(p => ({ ...p, cobranzas: list }))
-  }
-
   async function rStock() {
     const raw = await api.get<any[]>('/api/stock/actual').catch(() => null)
     if (raw) setData(p => ({ ...p, stockPorProducto: mapStock(raw) }))
@@ -317,6 +313,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       clienteId: p.clienteId,
       vendedorId: p.vendedorId,
       fecha: p.fecha,
+      fechaEntrega: p.fechaEntrega, horaEntregaDesde: p.horaEntregaDesde ? p.horaEntregaDesde.slice(0,5) + ":00" : null, horaEntregaHasta: p.horaEntregaHasta ? p.horaEntregaHasta.slice(0,5) + ":00" : null,
       observaciones: p.observaciones ?? null,
       items: p.items.map(i => ({
         productoId: i.productoId,
@@ -336,8 +333,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   // ── Ventas ───────────────────────────────────────────────────────────────────
   async function addVenta(
-    v: Omit<Venta, 'id' | 'fechaCreacion' | 'estado' | 'cobranzas' | 'estadoEntrega' | 'repartidorId' | 'repartidorNombre' | 'fechaEntregado' | 'medioEnvio'>,
-    cobranzasInput: Omit<Cobranza, 'id' | 'fechaCreacion' | 'clienteId' | 'ventaId'>[]
+    v: Omit<Venta, 'id' | 'fechaCreacion' | 'estado' | 'cobranzas' | 'estadoEntrega' | 'repartidorId' | 'repartidorNombre' | 'fechaEntregado' | 'medioEnvio'>
   ): Promise<{ id: string; estadoFiscal: string }> {
     const result = await api.post<{ id: string; estadoFiscal: string }>('/api/ventas', {
       emitirFactura: v.emitirFactura ?? false, borradorFiscalId: v.borradorFiscalId ?? null, operacionId: v.operacionId ?? null,
@@ -345,6 +341,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       clienteId: v.clienteId,
       vendedorId: v.vendedorId,
       fechaEntrega: v.fechaEntrega,
+      horaEntregaDesde: v.horaEntregaDesde ? v.horaEntregaDesde.slice(0,5) + ':00' : null, horaEntregaHasta: v.horaEntregaHasta ? v.horaEntregaHasta.slice(0,5) + ':00' : null,
       nroRemito: v.nroRemito ?? null,
       nroFactura: v.nroFactura ?? null,
       observaciones: v.observaciones ?? null,
@@ -354,13 +351,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         descripcion: i.descripcion,
         cantidad: i.cantidad,
         precioUnitario: i.precioUnitario,
-      })),
-      cobranzas: cobranzasInput.map(c => ({
-        fecha: c.fecha,
-        monto: c.monto,
-        formaPago: c.formaPago,
-        estado: c.estado,
-        observaciones: c.observaciones ?? null,
       })),
     })
     // The sale is already committed. A refresh failure must not present it as a failed registration.
@@ -382,6 +372,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       clienteId: payload.clienteId,
       vendedorId: payload.vendedorId,
       fechaEntrega: payload.fechaEntrega,
+      horaEntregaDesde: payload.horaEntregaDesde ? payload.horaEntregaDesde.slice(0,5) + ':00' : null, horaEntregaHasta: payload.horaEntregaHasta ? payload.horaEntregaHasta.slice(0,5) + ':00' : null,
       nroRemito: payload.nroRemito ?? null,
       nroFactura: payload.nroFactura ?? null,
       observaciones: payload.observaciones ?? null,
@@ -392,49 +383,23 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         cantidad: i.cantidad,
         precioUnitario: i.precioUnitario,
       })),
-      cobranzas: payload.cobranzas.map(c => ({
-        id: c.id ?? null,
-        fecha: c.fecha,
-        monto: c.monto,
-        formaPago: c.formaPago,
-        observaciones: c.observaciones ?? null,
-      })),
     })
     // Cambian ventas + cobranzas, stock actual y movimientos
     await Promise.all([rVentas(), rStock(), rMovimientos()])
   }
 
   // ── Cobranzas ────────────────────────────────────────────────────────────────
-  async function addCobranza(c: Omit<Cobranza, 'id' | 'fechaCreacion'>) {
-    await api.post(`/api/cobranzas?clienteId=${c.clienteId}${c.ventaId ? `&ventaId=${c.ventaId}` : ''}`, {
-      fecha: c.fecha,
-      monto: c.monto,
-      formaPago: c.formaPago,
-      estado: c.estado,
-      observaciones: c.observaciones ?? null,
-    })
-    await Promise.all([rCobranzas(), rVentas()])
+  async function refrescarCobros() {
+    const [ventas, cobranzas] = await Promise.all([api.get<Venta[]>('/api/ventas'), api.get<Cobranza[]>('/api/cobranzas')])
+    setData(p => ({ ...p, ventas, cobranzas }))
   }
 
-  async function updateCobranza(id: string, changes: Partial<Omit<Cobranza, 'id' | 'fechaCreacion'>>) {
-    await api.put(`/api/cobranzas/${id}`, {
-      fecha: changes.fecha,
-      monto: changes.monto,
-      formaPago: changes.formaPago,
-      estado: changes.estado,
-      observaciones: changes.observaciones ?? null,
-    })
-    await Promise.all([rCobranzas(), rVentas()])
+  async function registrarPago(p: ConfirmarPagoPayload) {
+    const result = await api.post<{ id: string }>('/api/cobranzas/pagos', p)
+    await refrescarCobros().catch(() => undefined)
+    return result
   }
 
-  // Se manda siempre la fecha en hora local: el backend usa UTC por defecto y entre las 21 y las 24 hs
-  // (ART) marcaría el día siguiente.
-  async function cobrarCobranza(id: string, fechaCobro?: string) {
-    await api.post(`/api/cobranzas/${id}/cobrar`, { fechaCobro: fechaCobro ?? today() })
-    await Promise.all([rCobranzas(), rVentas()])
-  }
-
-  // ── Vendedores ───────────────────────────────────────────────────────────────
   async function addVendedor(v: Omit<Vendedor, 'id'>) {
     await api.post('/api/vendedores', { nombre: v.nombre, usuarioId: v.usuarioId ?? null })
     await rVendedores()
@@ -520,6 +485,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   // ── Adjuntos (remitos, facturas, otros comprobantes) ─────────────────────────
   async function subirAdjunto(entidadTipo: string, entidadId: string, tipo: string, file: File): Promise<Adjunto> {
+    if (entidadTipo === 'PagoCliente' && (file.size === 0 || file.size > 8 * 1024 * 1024 || !['application/pdf', 'image/jpeg', 'image/png', 'image/webp'].includes(file.type))) throw new Error('Adjuntá PDF, JPG, PNG o WebP de hasta 8 MB.')
     const contenidoBase64 = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader()
       reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '')
@@ -532,7 +498,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function getAdjuntos(entidadTipo: string, entidadId: string): Promise<Adjunto[]> {
-    return api.get<Adjunto[]>(`/api/adjuntos?entidadTipo=${entidadTipo}&entidadId=${entidadId}`).catch(() => [])
+    return api.get<Adjunto[]>(`/api/adjuntos?entidadTipo=${entidadTipo}&entidadId=${entidadId}`)
   }
 
   async function getAdjuntoContenido(id: string): Promise<{ nombre: string; contentType: string; contenidoBase64: string }> {
@@ -684,7 +650,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       updateProductoPrecio, updateProducto, addProducto, reorderProductos,
       addPedido, updatePedido,
       addVenta, updateVentaDatos, updateVentaCompleta,
-      addCobranza, updateCobranza, cobrarCobranza,
+      registrarPago, refrescarCobros,
       addVendedor, updateVendedor,
       addProveedor, updateProveedor, addCompromisoProveedor, updateCompromisoProveedor, pagarCuotaProveedor,
       crearFormaPagoProveedor, getFormaPagoVigente, getHistorialFormaPago,

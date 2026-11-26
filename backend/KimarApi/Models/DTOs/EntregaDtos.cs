@@ -38,4 +38,4 @@ public record VentaEntregaDto(
     DateTime? FechaListo,
     DateTime? FechaEntregado,
     IList<ItemPreparacionDto> Items,
-    IList<AdjuntoDto> Documentos);
+    IList<AdjuntoDto> Documentos, TimeOnly? HoraEntregaDesde = null, TimeOnly? HoraEntregaHasta = null);

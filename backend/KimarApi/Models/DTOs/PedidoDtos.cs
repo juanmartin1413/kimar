@@ -18,7 +18,7 @@ public record PedidoDto(
     string Estado,
     string? Observaciones,
     DateTime FechaCreacion,
-    IList<ItemPedidoDto> Items);
+    IList<ItemPedidoDto> Items, DateOnly FechaEntrega = default, TimeOnly? HoraEntregaDesde = null, TimeOnly? HoraEntregaHasta = null);
 
 public record ItemPedidoRequest(
     Guid ProductoId,
@@ -31,7 +31,7 @@ public record CreatePedidoRequest(
     Guid VendedorId,
     DateOnly Fecha,
     string? Observaciones,
-    IList<ItemPedidoRequest> Items);
+    IList<ItemPedidoRequest> Items, DateOnly FechaEntrega = default, TimeOnly? HoraEntregaDesde = null, TimeOnly? HoraEntregaHasta = null);
 
 public record UpdatePedidoRequest(
     string? Estado,

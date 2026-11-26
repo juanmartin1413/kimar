@@ -1,5 +1,7 @@
 'use client'
 
+import { PdfButton } from '@/components/interno/PdfButton'
+
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { api } from '@/lib/api'
@@ -136,10 +138,10 @@ export default function ComisionesPage() {
         <div className="space-y-3 md:hidden">{historial.documentos.map(d => <article key={d.id} className="bg-white border rounded-xl p-4 space-y-3">
           <div><strong>{tipoDocumento[d.tipo]} N° {numeroDocumento(d.numero)}</strong><p className="text-sm text-slate-500">{formatFecha(d.fecha)}</p></div>
           <dl className="grid grid-cols-2 gap-2 text-sm"><dt>Comisión</dt><dd className="text-right">{formatPeso(d.comision)}</dd><dt>Compensado</dt><dd className="text-right">{formatPeso(d.compensado)}</dd><dt>{d.tipo === 'anticipo' ? 'Comisión adelantada' : 'Pago'}</dt><dd className="text-right font-bold">{formatPeso(d.pago)}</dd><dt>Forma de pago</dt><dd className="text-right">{d.formaPago ?? 'Sin pago'}</dd></dl>
-          <div className="flex gap-2">{d.tipo !== 'anticipo' && <button className={button} onClick={() => { setDetalle(d); setExpanded([]) }}>Detalle</button>}<button className={button} onClick={() => descargar(d)}>PDF</button></div>
+          <div className="flex gap-2">{d.tipo !== 'anticipo' && <button className={button} onClick={() => { setDetalle(d); setExpanded([]) }}>Detalle</button>}<PdfButton onClick={() => descargar(d)}>Descargar PDF</PdfButton></div>
         </article>)}</div>
         <div className="hidden md:block bg-white border rounded-xl overflow-x-auto"><table className="w-full min-w-[760px] text-sm [&_th]:px-3 [&_td]:px-3"><thead><tr className="text-left bg-slate-50"><th className="p-3">Constancia</th><th>Fecha</th><th>Comisión</th><th>Compensado</th><th>Importe</th><th>Acciones</th></tr></thead><tbody>
-          {historial.documentos.map(d => <tr key={d.id} className="border-t"><td className="p-3">{tipoDocumento[d.tipo]}<strong className="block">N° {numeroDocumento(d.numero)}</strong></td><td>{formatFecha(d.fecha)}</td><td>{formatPeso(d.comision)}</td><td>{formatPeso(d.compensado)}</td><td>{d.tipo === 'anticipo' && <span className="block text-xs text-slate-500">Comisión adelantada</span>}{formatPeso(d.pago)}<span className="block text-xs">{d.formaPago ?? 'Sin pago'}</span></td><td>{d.tipo !== 'anticipo' && <button className={button} onClick={() => { setDetalle(d); setExpanded([]) }}>Detalle</button>} <button className={button} onClick={() => descargar(d)}>PDF</button></td></tr>)}
+          {historial.documentos.map(d => <tr key={d.id} className="border-t"><td className="p-3">{tipoDocumento[d.tipo]}<strong className="block">N° {numeroDocumento(d.numero)}</strong></td><td>{formatFecha(d.fecha)}</td><td>{formatPeso(d.comision)}</td><td>{formatPeso(d.compensado)}</td><td>{d.tipo === 'anticipo' && <span className="block text-xs text-slate-500">Comisión adelantada</span>}{formatPeso(d.pago)}<span className="block text-xs">{d.formaPago ?? 'Sin pago'}</span></td><td>{d.tipo !== 'anticipo' && <button className={button} onClick={() => { setDetalle(d); setExpanded([]) }}>Detalle</button>} <PdfButton onClick={() => descargar(d)}>Descargar PDF</PdfButton></td></tr>)}
         </tbody></table></div>
         {!historial.documentos.length && <p className="p-6 text-slate-500">{cargando ? 'Cargando…' : 'Todavía no hay movimientos registrados.'}</p>}
         <div className="flex items-center gap-3"><button className={button} disabled={pagina === 1 || cargando} onClick={() => setPagina(n => n - 1)}>Anterior</button><span className="text-sm">Página {pagina} · {historial.total} movimientos</span><button className={button} disabled={pagina * 30 >= historial.total || cargando} onClick={() => setPagina(n => n + 1)}>Siguiente</button></div>
@@ -153,7 +155,7 @@ export default function ComisionesPage() {
         {detalle.origenId && <p className="text-xs">Documento relacionado: {detalle.origenId}</p>}
         {detalle.datos.aplicaciones.map(a => <p key={a.id} className="text-sm">Anticipo N° {numeroDocumento(a.numero)}: aplicado {formatPeso(a.monto)} · Saldo al emitir: {formatPeso(a.pendiente)}</p>)}
         {detalle.datos.ventas.map(v => <VentaComisionCard key={v.ventaId} venta={v} expanded={expanded.includes(v.ventaId)} onToggle={() => toggle(v.ventaId)} />)}
-        <div className="flex gap-3"><button className={button} onClick={() => descargar(detalle)}>Descargar constancia PDF</button>
+        <div className="flex gap-3"><PdfButton onClick={() => descargar(detalle)}>Descargar PDF</PdfButton>
           {isAdmin && pagina === 1 && historial.documentos[0]?.id === detalle.id && ['liquidacion', 'anticipo'].includes(detalle.tipo) && <button className={button} onClick={() => setAccion({ titulo: detalle.tipo === 'anticipo' ? 'Registrar devolución recibida' : 'Registrar contrapartida', path: `/api/comisiones/${detalle.id}/contrapartida`, body: {}, monto: detalle.tipo === 'anticipo' ? -(saldo?.anticipos.find(a => a.id === detalle.id)?.pendiente ?? 0) : 0, minimoFecha: detalle.fecha, requiereMotivo: true, advertencia: detalle.tipo === 'anticipo' ? 'Confirmá únicamente si el vendedor devolvió efectivamente el saldo pendiente de este anticipo.' : 'Revierte la comisión liquidada, conserva el documento original y deja el dinero entregado a cuenta. No registra devolución de dinero.' })}>{detalle.tipo === 'anticipo' ? 'Registrar devolución' : 'Corregir liquidación'}</button>}
         </div>
       </section>}
