@@ -35,7 +35,8 @@ interface DataContextValue {
   addProducto: (p: CreateProductoPayload) => void
   reorderProductos: (items: { id: string; orden: number }[]) => void
   addPedido: (p: Omit<Pedido, 'id' | 'fechaCreacion' | 'estado'>) => Promise<string>
-  updatePedido: (id: string, p: Partial<Pedido>) => void
+  updatePedido: (id: string, p: Partial<Pedido>) => Promise<void>
+  updatePedidoCompleto: (id: string, p: Omit<Pedido, 'id' | 'fechaCreacion' | 'estado'>) => Promise<void>
   addVenta: (v: Omit<Venta, 'id' | 'fechaCreacion' | 'estado' | 'cobranzas' | 'estadoEntrega' | 'repartidorId' | 'repartidorNombre' | 'fechaEntregado' | 'medioEnvio'>) => Promise<{ id: string; estadoFiscal: string }>
   // Remito / factura / observaciones (admin y gestor)
   updateVentaDatos: (id: string, d: { nroRemito?: string; nroFactura?: string; observaciones?: string }) => Promise<void>
@@ -324,6 +325,16 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     })
     await rPedidos()
     return res.id
+  }
+
+  async function updatePedidoCompleto(id: string, p: Omit<Pedido, 'id' | 'fechaCreacion' | 'estado'>) {
+    await api.put('/api/pedidos/' + id + '/completo', {
+      ...p,
+      horaEntregaDesde: p.horaEntregaDesde ? p.horaEntregaDesde.slice(0, 5) + ':00' : null,
+      horaEntregaHasta: p.horaEntregaHasta ? p.horaEntregaHasta.slice(0, 5) + ':00' : null,
+      observaciones: p.observaciones ?? null,
+    })
+    await rPedidos()
   }
 
   async function updatePedido(id: string, p: Partial<Pedido>) {
@@ -648,7 +659,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       data, isLoading, refresh: loadAll,
       addCliente, updateCliente, deleteCliente,
       updateProductoPrecio, updateProducto, addProducto, reorderProductos,
-      addPedido, updatePedido,
+      addPedido, updatePedido, updatePedidoCompleto,
       addVenta, updateVentaDatos, updateVentaCompleta,
       registrarPago, refrescarCobros,
       addVendedor, updateVendedor,
