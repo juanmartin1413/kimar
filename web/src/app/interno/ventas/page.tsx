@@ -4,10 +4,10 @@ import { PdfButton } from '@/components/interno/PdfButton'
 
 import { useAuth } from '@/contexts/AuthContext'
 import { useData } from '@/contexts/DataContext'
-import { Suspense } from 'react'
+import { Suspense, useState } from 'react'
 import { ResultadoRegistroVenta } from '@/components/interno/ResultadoRegistroVenta'
 import { formatPeso, formatFecha } from '@/lib/format'
-import { fiscalLabels } from '@/lib/facturacion'
+import { api } from '@/lib/api'
 import { downloadRemito } from '@/lib/remitoPdf'
 import { estadoEntregaConfig } from '@/lib/entregas'
 import { Plus, ArrowRight, Pencil, Package } from 'lucide-react'
@@ -23,6 +23,15 @@ const estadoConfig = {
 export default function VentasPage() {
   const { data } = useData()
   const { canManageData } = useAuth()
+  const [descargando, setDescargando] = useState<string | null>(null)
+  const [errorDescarga, setErrorDescarga] = useState('')
+
+  async function descargar(id: string, action: () => Promise<void>) {
+    setDescargando(id); setErrorDescarga('')
+    try { await action() }
+    catch (error) { setErrorDescarga(error instanceof Error ? error.message : 'No se pudo descargar el documento.') }
+    finally { setDescargando(null) }
+  }
 
   const sorted = [...data.ventas].sort((a, b) => b.fechaCreacion.localeCompare(a.fechaCreacion))
 
@@ -46,6 +55,8 @@ export default function VentasPage() {
           <Plus className="w-4 h-4" /> Nueva venta
         </Link>}
       </div>
+
+      {errorDescarga && <p role="alert" className="text-red-700">{errorDescarga}</p>}
 
       {/* Pedidos pendientes section */}
       {canManageData && pedidosPendientes.length > 0 && (
@@ -104,14 +115,14 @@ export default function VentasPage() {
                 const cliente = data.clientes.find(c => c.id === v.clienteId)
                 const vendedor = data.vendedores.find(x => x.id === v.vendedorId)
                 const cfg = estadoConfig[v.estado]
-                const puedeDescargarRemito = !!v.nroRemito && !!cliente && !!vendedor
+                const puedeDescargarRemito = !!v.nroRemito
                 return (
                   <tr key={v.id} className={cn('border-b border-[oklch(0.93_0.01_240)] hover:bg-[oklch(0.98_0.005_240)]', v.estado === 'debe' && 'bg-red-50/30')}>
                     <td className="py-3 px-4 text-[oklch(0.45_0.04_240)]">{formatFecha(v.fechaEntrega)}</td>
                     <td className="py-3 px-4 font-medium text-[oklch(0.25_0.06_240)]">{cliente?.nombre ?? '—'}</td>
                     <td className="py-3 px-4 text-[oklch(0.45_0.04_240)]">{vendedor?.nombre ?? '—'}</td>
                     <td className="py-3 px-4 text-[oklch(0.45_0.04_240)]">{v.nroRemito ?? '—'}</td>
-                    <td className="py-3 px-4 text-[oklch(0.45_0.04_240)]">{v.emitirFactura ? <Link href={`/interno/ventas/${v.id}`} className="text-blue-700 hover:underline">{v.nroFactura || 'Pendiente'}<span className="block text-xs">{v.creditoAplicado ? 'Venta acreditada' : fiscalLabels[v.estadoFiscal ?? 'pendiente']}</span></Link> : v.nroFactura ?? '—'}</td>
+                    <td className="py-3 px-4 text-[oklch(0.45_0.04_240)]">{v.nroFactura || '—'}</td>
                     <td className="py-3 px-4 font-semibold tabular-nums">{formatPeso(v.total - (v.creditoAplicado ?? 0))}</td>
                     <td className="py-3 px-4">
                       <span className={cn('text-xs font-semibold px-2.5 py-1 rounded-full', cfg.className)}>{cfg.label}</span>
@@ -123,12 +134,15 @@ export default function VentasPage() {
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-3">
-                        <PdfButton onClick={() => puedeDescargarRemito && downloadRemito(v, cliente!, vendedor!, data.productos)}
-                          disabled={!puedeDescargarRemito}
+                        <PdfButton
+                          onClick={() => descargar(v.id + '-factura', () => api.download(`/api/ventas/${v.id}/factura/pdf`, `FC-A-${v.nroFactura}.pdf`))}
+                          disabled={descargando !== null || !v.emitirFactura || !v.nroFactura}
+                          title={v.emitirFactura && v.nroFactura ? 'Descargar factura' : 'Sin factura emitida disponible'}
+                        >{descargando === v.id + '-factura' ? 'Descargando…' : 'Factura PDF'}</PdfButton>
+                        <PdfButton onClick={() => descargar(v.id + '-remito', () => downloadRemito(v))}
+                          disabled={descargando !== null || !puedeDescargarRemito}
                           title={puedeDescargarRemito ? 'Descargar remito' : 'Sin N° de remito asignado'}
-                        >
-
-                        Remito PDF</PdfButton>
+                        >{descargando === v.id + '-remito' ? 'Descargando…' : 'Remito PDF'}</PdfButton>
                         <Link
                           href={`/interno/ventas/${v.id}`}
                           className="text-[oklch(0.55_0.04_240)] hover:text-[oklch(0.42_0.14_240)] transition-colors"
