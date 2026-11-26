@@ -6,6 +6,7 @@ import { formatPeso, formatFecha } from '@/lib/format'
 import { Plus, Eye, XCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
+import { useListadoPaginado, FiltrosFecha, PaginacionListado } from '@/components/interno/ListadoPaginado'
 
 const estadoColors = {
   pendiente: 'bg-yellow-100 text-yellow-700',
@@ -24,6 +25,7 @@ export default function PedidosPage() {
     : data.pedidos
 
   const sorted = [...pedidosVisibles].sort((a, b) => b.fechaCreacion.localeCompare(a.fechaCreacion))
+  const listado = useListadoPaginado(sorted, item => item.fecha)
 
   return (
     <div className="space-y-6">
@@ -40,6 +42,8 @@ export default function PedidosPage() {
         </Link>
       </div>
 
+      <FiltrosFecha listado={listado} fechaLabel="fecha del pedido" />
+
       <div className="bg-white rounded-xl border border-[oklch(0.9_0.01_240)] shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -55,11 +59,11 @@ export default function PedidosPage() {
               </tr>
             </thead>
             <tbody>
-              {sorted.length === 0 ? (
+              {listado.total === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-12 text-[oklch(0.55_0.04_240)]">Sin pedidos registrados</td>
+                  <td colSpan={7} className="text-center py-12 text-[oklch(0.55_0.04_240)]">Sin pedidos para el filtro seleccionado</td>
                 </tr>
-              ) : sorted.map(p => {
+              ) : listado.items.map(p => {
                 const cliente = data.clientes.find(c => c.id === p.clienteId)
                 const vendedor = data.vendedores.find(v => v.id === p.vendedorId)
                 const total = p.items.reduce((s, i) => s + i.subtotal, 0)
@@ -102,6 +106,7 @@ export default function PedidosPage() {
             </tbody>
           </table>
         </div>
+        <PaginacionListado listado={listado} />
       </div>
     </div>
   )

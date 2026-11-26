@@ -13,6 +13,7 @@ import { estadoEntregaConfig } from '@/lib/entregas'
 import { Plus, ArrowRight, Pencil, Package } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
+import { useListadoPaginado, FiltrosFecha, PaginacionListado } from '@/components/interno/ListadoPaginado'
 
 const estadoConfig = {
   debe: { label: 'DEBE', className: 'bg-red-100 text-red-700' },
@@ -34,6 +35,7 @@ export default function VentasPage() {
   }
 
   const sorted = [...data.ventas].sort((a, b) => b.fechaCreacion.localeCompare(a.fechaCreacion))
+  const listado = useListadoPaginado(sorted, item => item.fechaEntrega)
 
   // Pedidos pendientes that don't have a sale associated
   const pedidosPendientes = data.pedidos.filter(p =>
@@ -92,6 +94,8 @@ export default function VentasPage() {
         </div>
       )}
 
+      <FiltrosFecha listado={listado} fechaLabel="fecha de entrega" />
+
       <div className="bg-white rounded-xl border border-[oklch(0.9_0.01_240)] shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -109,9 +113,9 @@ export default function VentasPage() {
               </tr>
             </thead>
             <tbody>
-              {sorted.length === 0 ? (
-                <tr><td colSpan={9} className="text-center py-12 text-[oklch(0.55_0.04_240)]">Sin ventas registradas</td></tr>
-              ) : sorted.map(v => {
+              {listado.total === 0 ? (
+                <tr><td colSpan={9} className="text-center py-12 text-[oklch(0.55_0.04_240)]">Sin ventas para el filtro seleccionado</td></tr>
+              ) : listado.items.map(v => {
                 const cliente = data.clientes.find(c => c.id === v.clienteId)
                 const vendedor = data.vendedores.find(x => x.id === v.vendedorId)
                 const cfg = estadoConfig[v.estado]
@@ -158,6 +162,7 @@ export default function VentasPage() {
             </tbody>
           </table>
         </div>
+        <PaginacionListado listado={listado} />
       </div>
     </div>
   )
