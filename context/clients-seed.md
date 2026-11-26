@@ -18,6 +18,9 @@ interpretan celdas vacías y guiones como datos no informados. La provincia se
 normaliza quitando su punto final para coincidir con el selector del sistema.
 No se corrigen geográficamente los datos ni se inventan valores faltantes.
 
+Por definición del negocio, los clientes con CUIT se inicializan como
+Responsable inscripto (`CondicionIva = 1`). Sin CUIT, la condición queda sin asignar.
+
 La dirección se separa en Calle, Altura y CodigoPostal. Las alturas compuestas
 (como 475/485) se conservan. Locales, kilómetros y referencias permanecen en
 Calle, sin interpretarlos como alturas. DireccionOriginal en el recurso conserva

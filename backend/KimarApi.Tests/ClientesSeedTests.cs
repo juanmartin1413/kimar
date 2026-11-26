@@ -19,6 +19,9 @@ public class ClientesSeedTests
         Assert.IsFalse(clientes.Any(c => new[] { "Chirola", "Iñaki", "Ultramarino" }.Contains(c.Nombre)));
         Assert.IsTrue(clientes.Any(c => c.Nombre == "Teresa - Mercado Central"));
         Assert.IsTrue(clientes.All(c => c.Activo && c.DiasPlazoPago == 15));
+        Assert.AreEqual(1, clientes.Single(c => c.Nombre == "Fabric - Olazábal").CondicionIva);
+        Assert.IsTrue(clientes.Where(c => !string.IsNullOrWhiteSpace(c.Cuit)).All(c => c.CondicionIva == 1));
+        Assert.IsTrue(clientes.Where(c => string.IsNullOrWhiteSpace(c.Cuit)).All(c => c.CondicionIva is null));
     }
 
     [TestMethod]

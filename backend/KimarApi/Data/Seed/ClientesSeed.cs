@@ -30,6 +30,7 @@ public static class ClientesSeed
             Calle = f.Calle, Altura = f.Altura, CodigoPostal = f.CodigoPostal,
             Localidad = f.Localidad, Provincia = f.Provincia,
             Telefono1 = f.Telefono1, Telefono2 = f.Telefono2,
+            CondicionIva = string.IsNullOrWhiteSpace(f.Cuit) ? null : 1, // Responsable inscripto
             Email = f.Email, Cuit = f.Cuit, FechaCreacion = FechaBase
         }).ToArray();
     }
