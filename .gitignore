@@ -1,0 +1,12 @@
+# Entregables locales y herramientas de generacion (incluye perfiles de Chrome)
+/entregables/
+
+# Configuracion temporal de Docker para pruebas locales
+/.docker-test/
+
+# Configuracion y estado locales de Claude; conservar comandos y agentes compartidos
+/.claude/settings.local.json
+/.claude/*.lock
+
+# Archivo accidental generado por redirecciones de Windows
+/nul

@@ -1,13 +1,13 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { PdfButton } from './PdfButton'
 import { useAuth } from '@/contexts/AuthContext'
 import { useData } from '@/contexts/DataContext'
 import { api } from '@/lib/api'
-import { formatPeso, formatFecha, today } from '@/lib/format'
+import { formatPeso, formatFecha, today, addDaysIso } from '@/lib/format'
 import { ComprobanteFiscal, FiscalConfig, fiscalLabels, fiscalStatusClass, ReceptorFiscal } from '@/lib/facturacion'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { FacturaResumen, ReceptorFields } from './FacturaEditor'
@@ -21,8 +21,12 @@ export function ComprobantesFiscales({ ventaId, onFiscalChange, cambiosSinGuarda
   const [huellaVenta, setHuellaVenta] = useState<string>()
   const [sinCambios, setSinCambios] = useState(false)
   const [confirmarSinCambios, setConfirmarSinCambios] = useState(false)
-  const { refresh } = useData()
+  const { refresh, data } = useData()
   const [items, setItems] = useState<ComprobanteFiscal[]>([])
+  const [relacionados, setRelacionados] = useState<ComprobanteFiscal[]>([])
+  const [filtros, setFiltros] = useState(() => ({ fechaDesde: addDaysIso(today(), -6), fechaHasta: today(), clienteId: '', numero: '' }))
+  const [aplicados, setAplicados] = useState(filtros)
+  const requestId = useRef(0)
   const [config, setConfig] = useState<FiscalConfig | null>(null)
   const [total, setTotal] = useState(0)
   const [pagina, setPagina] = useState(1)
@@ -39,19 +43,28 @@ export function ComprobantesFiscales({ ventaId, onFiscalChange, cambiosSinGuarda
   const [observaciones, setObservaciones] = useState('')
   const [fecha, setFecha] = useState(today())
   const load = useCallback(async () => {
+    const current = ++requestId.current
     const query = new URLSearchParams({ pagina: String(pagina) })
     if (ventaId) query.set('ventaId', ventaId)
+    else {
+      Object.entries(aplicados).forEach(([key, value]) => { if (value.trim()) query.set(key, value.trim()) })
+      if (!aplicados.fechaDesde && !aplicados.fechaHasta) query.set('todasFechas', 'true')
+    }
     if (estado) query.set('estado', estado)
-    const result = await api.get<{ items: ComprobanteFiscal[]; total: number }>(`/api/facturacion?${query}`)
-    setItems(result.items); setTotal(result.total); setLoading(false)
-  }, [pagina, estado, ventaId])
+    const result = await api.get<{ items: ComprobanteFiscal[]; total: number; relacionados: ComprobanteFiscal[] }>(`/api/facturacion?${query}`)
+    if (current !== requestId.current) return
+    setItems(result.items); setRelacionados(result.relacionados); setTotal(result.total); setLoading(false)
+  }, [pagina, estado, ventaId, aplicados])
   useEffect(() => {
     if (!canManageData) return
-    const run = () => load().catch(e => { setError(e.message); setLoading(false) })
+    setLoading(true); setError('')
+    let active = true
+    const requests = requestId
+    const run = () => load().catch(e => { if (active) { setError(e.message); setLoading(false); setItems([]); setTotal(0) } })
     run()
     const timer = setInterval(run, 15000)
     api.get<FiscalConfig>('/api/facturacion/configuracion').then(setConfig).catch(e => setError(e.message))
-    return () => clearInterval(timer)
+    return () => { active = false; ++requests.current; clearInterval(timer) }
   }, [load, canManageData])
   async function open(c: ComprobanteFiscal, action: 'nc' | 'corregir' | 'reemplazar') {
     setConfirmarSinCambios(false); setSinCambios(false); setHuellaVenta(undefined)
@@ -86,11 +99,30 @@ export function ComprobantesFiscales({ ventaId, onFiscalChange, cambiosSinGuarda
     </div>}
     {notice && <p role="status" className="rounded-lg bg-green-50 p-3 text-green-800">{notice}</p>}
     {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-red-800">{error}</p>}
-    {!ventaId && <label className="block text-sm">Estado <select className="rounded-lg border p-2" value={estado} onChange={e => { setEstado(e.target.value); setPagina(1) }}>
+    {!ventaId && <form className="rounded-xl border border-slate-200 bg-white p-4 space-y-3" onSubmit={e => {
+      e.preventDefault()
+      if (filtros.fechaDesde && filtros.fechaHasta && filtros.fechaDesde > filtros.fechaHasta) { setError('Fecha desde no puede ser posterior a Fecha hasta.'); return }
+      setError(''); setPagina(1); setAplicados({ ...filtros })
+    }}>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <label className="text-sm font-medium">Fecha desde<input type="date" className="mt-1 block w-full rounded-lg border p-2" value={filtros.fechaDesde} max={filtros.fechaHasta || undefined} onChange={e => setFiltros({ ...filtros, fechaDesde: e.target.value })} /></label>
+        <label className="text-sm font-medium">Fecha hasta<input type="date" className="mt-1 block w-full rounded-lg border p-2" value={filtros.fechaHasta} min={filtros.fechaDesde || undefined} onChange={e => setFiltros({ ...filtros, fechaHasta: e.target.value })} /></label>
+        <label className="text-sm font-medium">Cliente<select className="mt-1 block w-full rounded-lg border p-2" value={filtros.clienteId} onChange={e => setFiltros({ ...filtros, clienteId: e.target.value })}>
+          <option value="">Todos los clientes</option>{[...data.clientes].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')).map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+        </select></label>
+        <label className="text-sm font-medium">Número de comprobante<input className="mt-1 block w-full rounded-lg border p-2" placeholder="123 o 00001-00000123" maxLength={30} value={filtros.numero} onChange={e => setFiltros({ ...filtros, numero: e.target.value })} /></label>
+      </div>
+      <div className="flex flex-wrap items-end gap-3"><label className="block text-sm">Estado <select className="rounded-lg border p-2" value={estado} onChange={e => { setEstado(e.target.value); setPagina(1) }}>
       <option value="">Todos</option>{Object.entries(fiscalLabels).filter(([id]) => id !== 'borrador').map(([id, label]) => <option key={id} value={id}>{label}</option>)}
-    </select></label>}
+      </select></label><button type="submit" className={primary}>Aplicar filtros</button><button type="button" className={button} onClick={() => {
+        const defaults = { fechaDesde: addDaysIso(today(), -6), fechaHasta: today(), clienteId: '', numero: '' }
+        setFiltros(defaults); setAplicados(defaults); setEstado(''); setPagina(1)
+      }}>Últimos 7 días</button></div>
+      <p className="text-xs text-slate-500">Fechas de emisión, inclusive. Para consultar todo el historial, dejá ambas fechas vacías.</p>
+      {!loading && <p className="text-sm text-slate-600">{total} comprobantes encontrados</p>}
+    </form>}
     {loading ? <p>Cargando comprobantes…</p> : !items.length ? <p className="text-gray-500">Sin comprobantes fiscales.</p> : items.map(c => {
-      const nc = items.find(n => n.comprobanteOrigenId === c.id && n.estado === 'autorizado') ?? items.find(n => n.comprobanteOrigenId === c.id)
+      const nc = relacionados.find(n => n.comprobanteOrigenId === c.id && n.estado === 'autorizado') ?? relacionados.find(n => n.comprobanteOrigenId === c.id)
       const old = c.estado !== 'autorizado' && Date.now() - Date.parse(c.fechaCreacion) > 3600000
       return <article key={c.id} className={`rounded-xl border p-4 space-y-3 ${old ? 'border-amber-400 bg-amber-50' : 'bg-white border-gray-200'}`}>
         <div className="flex flex-wrap justify-between gap-2">
@@ -110,7 +142,7 @@ export function ComprobantesFiscales({ ventaId, onFiscalChange, cambiosSinGuarda
           {c.estado !== 'rechazado' && c.estado !== 'en_proceso' && (c.estado !== 'autorizado' || !c.pdfDisponible || c.errorPdf) && <button disabled={busy} className={button} onClick={() => run(() => api.post(`/api/facturacion/${c.id}/reintentar`), 'Reintento solicitado. El proceso continuará en segundo plano.')}>{c.estado === 'autorizado' ? 'Regenerar PDF' : 'Reintentar ahora'}</button>}
           {['rechazado', 'requiere_atencion'].includes(c.estado) && !c.numero && <button className={button} onClick={() => open(c, 'corregir')}>Corregir y confirmar</button>}
           {canManageData && c.tipo === 1 && c.estado === 'autorizado' && !nc && <button disabled={busy} className={creditButton} onClick={() => open(c, 'nc')}>Emitir NC total</button>}
-          {canManageData && c.tipo === 1 && nc?.estado === 'autorizado' && nc.efectoComercial === 'correccion_fiscal' && !items.some(r => r.reemplazaId === c.id) && <button disabled={busy} className={primary} onClick={() => open(c, 'reemplazar')}>Emitir factura de reemplazo</button>}
+          {canManageData && c.tipo === 1 && nc?.estado === 'autorizado' && nc.efectoComercial === 'correccion_fiscal' && !relacionados.some(r => r.reemplazaId === c.id) && <button disabled={busy} className={primary} onClick={() => open(c, 'reemplazar')}>Emitir factura de reemplazo</button>}
           {!ventaId && c.ventaId && <Link className={button} href={`/interno/ventas/${c.ventaId}`}>Ver venta</Link>}
         </div>
       </article>

@@ -21,14 +21,44 @@ public class FacturacionController(KimarDbContext db, FacturacionService svc, Fi
     [HttpPost("preview")]
     public async Task<IActionResult> Preview(PreviewFacturaRequest req) => Ok(FacturacionService.Map(await svc.PreviewAsync(req, UserId)));
     [HttpGet]
-    public async Task<IActionResult> Listar([FromQuery] Guid? ventaId, [FromQuery] string? estado, [FromQuery] int pagina = 1)
+    public async Task<IActionResult> Listar([FromQuery] Guid? ventaId, [FromQuery] string? estado, [FromQuery] int pagina = 1,
+        [FromQuery] DateOnly? fechaDesde = null, [FromQuery] DateOnly? fechaHasta = null,
+        [FromQuery] Guid? clienteId = null, [FromQuery] string? numero = null, [FromQuery] bool todasFechas = false)
     {
+        if (!ventaId.HasValue && !todasFechas && fechaDesde is null && fechaHasta is null)
+        {
+            fechaHasta = FiscalRules.Hoy;
+            fechaDesde = fechaHasta.Value.AddDays(-6);
+        }
+        if (fechaDesde > fechaHasta) return BadRequest(new { error = "Fecha desde no puede ser posterior a Fecha hasta." });
         var q = db.ComprobantesFiscales.AsNoTracking().Where(c => c.VentaId != null);
         if (ventaId.HasValue) q = q.Where(c => c.VentaId == ventaId);
         if (!string.IsNullOrWhiteSpace(estado)) q = q.Where(c => c.Estado == estado);
+        if (fechaDesde.HasValue) q = q.Where(c => c.Fecha >= fechaDesde.Value);
+        if (fechaHasta.HasValue) q = q.Where(c => c.Fecha <= fechaHasta.Value);
+        if (clienteId.HasValue) q = q.Where(c => c.ClienteId == clienteId.Value);
+        if (!string.IsNullOrWhiteSpace(numero))
+        {
+            var parts = numero.Trim().Split('-');
+            if (parts.Length > 2 || parts.Any(p => p.Length == 0 || p.Any(ch => ch < '0' || ch > '9')) ||
+                !long.TryParse(parts[^1], out var nro) || nro < 1)
+                return BadRequest(new { error = "Ingresá el número o el comprobante completo, por ejemplo 123 o 00001-00000123." });
+            q = q.Where(c => c.Numero == nro);
+            if (parts.Length == 2)
+            {
+                if (!int.TryParse(parts[0], out var puntoVenta) || puntoVenta < 1)
+                    return BadRequest(new { error = "Punto de venta inválido." });
+                q = q.Where(c => c.PuntoVenta == puntoVenta);
+            }
+        }
         var total = await q.CountAsync();
-        var rows = await q.OrderByDescending(c => c.FechaCreacion).Skip((Math.Max(1, pagina) - 1) * 50).Take(50).ToListAsync();
-        return Ok(new { total, items = rows.Select(FacturacionService.Map) });
+        var rows = await q.OrderByDescending(c => c.Fecha).ThenByDescending(c => c.FechaCreacion).ThenBy(c => c.Id)
+            .Skip((Math.Max(1, pagina) - 1) * 50).Take(50).ToListAsync();
+        var ids = rows.Select(c => c.Id).ToList();
+        var relacionados = await db.ComprobantesFiscales.AsNoTracking().Where(c =>
+            (c.ComprobanteOrigenId.HasValue && ids.Contains(c.ComprobanteOrigenId.Value)) ||
+            (c.ReemplazaId.HasValue && ids.Contains(c.ReemplazaId.Value))).ToListAsync();
+        return Ok(new { total, items = rows.Select(FacturacionService.Map), relacionados = relacionados.Select(FacturacionService.Map) });
     }
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> Get(Guid id)
