@@ -1,15 +1,18 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { usePathname } from 'next/navigation'
 import { api } from '@/lib/api'
 import type { AppData, Rol, Producto, Proveedor, Calidad, CompromisoProveedor, FormaPagoProveedor, StockPorProducto } from '@/lib/types'
-import { Resource, ResourceStates, resourceRoles } from '@/lib/dataResources'
+import { Resource, ResourceStates, resourceRoles, resourcesForRoute } from '@/lib/dataResources'
 
 const paths: Partial<Record<Resource, string>> = { clientes: '/api/clientes', productos: '/api/productos', vendedores: '/api/vendedores',
   pedidos: '/api/pedidos', ventas: '/api/ventas', cobranzas: '/api/cobranzas', usuarios: '/api/usuarios', proveedores: '/api/proveedores',
   gastosFijos: '/api/gastos', instanciasGasto: '/api/gastos/instancias', movimientosStock: '/api/stock/movimientos', compras: '/api/compras' }
 
 export function useResourceStore(empty: AppData, rol?: Rol) {
+  const pathname = usePathname()
+  const previousPath = useRef(pathname)
   const [data, setData] = useState(empty)
   const [resourceStates, setStates] = useState<ResourceStates>({})
   const sequences = useRef<Partial<Record<Resource, number>>>({})
@@ -57,6 +60,13 @@ export function useResourceStore(empty: AppData, rol?: Rol) {
     await Promise.all(Object.keys(resourceRoles).map(key => reloadResource(key as Resource)))
   }, [reloadResource])
   useEffect(() => { void loadAll() }, [loadAll])
+  useEffect(() => {
+    // La primera carga ya la hace loadAll. Al navegar, revalidar sólo los datos
+    // de la pantalla de destino: otros módulos pueden haberlos modificado.
+    if (previousPath.current === pathname) return
+    previousPath.current = pathname
+    for (const key of resourcesForRoute(pathname, rol)) void reloadResource(key)
+  }, [pathname, rol, reloadResource])
   const isLoading = Object.entries(resourceRoles).some(([key, roles]) => rol && roles.includes(rol) &&
     !resourceStates[key as Resource]?.loaded && resourceStates[key as Resource]?.status !== 'error')
   return { data, setData, resourceStates, reloadResource, loadAll, isLoading }
