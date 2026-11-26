@@ -20,6 +20,7 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
+  { href: '/interno/trazabilidad', label: 'Trazabilidad', icon: ClipboardList, roles: ['admin', 'gestor'] },
   { href: '/interno/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin'] },
   { href: '/interno/clientes', label: 'Clientes', icon: Users, roles: ['admin', 'gestor', 'vendedor'] },
   { href: '/interno/cuenta-corriente', label: 'Cuenta Corriente', icon: BookOpen, roles: ['admin', 'gestor', 'vendedor'] },

@@ -23,9 +23,12 @@ function valorInicial(v: VentaPreparacion | null): string {
 
 // Marca un pedido como "Listo para entrega" con repartidor opcional o envío por Uber/Remis.
 // Sobre un pedido ya listo funciona como "cambiar envío" (el endpoint es idempotente).
-export function MarcarListoDialog({ venta, repartidores, onClose, onDone }: {
+export function MarcarListoDialog({ venta, repartidores, cargandoRepartidores, errorRepartidores, reintentarRepartidores, onClose, onDone }: {
   venta: VentaPreparacion | null
   repartidores: RepartidorLite[]
+  cargandoRepartidores?: boolean
+  errorRepartidores?: string
+  reintentarRepartidores?: () => void
   onClose: () => void
   onDone: () => void
 }) {
@@ -91,11 +94,13 @@ export function MarcarListoDialog({ venta, repartidores, onClose, onDone }: {
               <p className="text-xs text-gray-500 mt-1">
                 No aparece a los repartidores. Cuando llegue, marcalo como entregado desde acá.
               </p>
-            ) : repartidores.length === 0 && (
+            ) : !cargandoRepartidores && !errorRepartidores && repartidores.length === 0 && (
               <p className="text-xs text-gray-500 mt-1">No hay repartidores activos cargados.</p>
             )}
           </div>
 
+          {cargandoRepartidores && <p role="status">Cargando repartidores…</p>}
+          {errorRepartidores && <p role="alert">No se pudieron cargar los repartidores. <button type="button" onClick={reintentarRepartidores}>Reintentar</button></p>}
           {error && <p className="text-sm text-red-600">{error}</p>}
 
           <div className="flex gap-2 justify-end">

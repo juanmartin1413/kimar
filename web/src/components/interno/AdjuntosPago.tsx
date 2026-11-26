@@ -1,21 +1,17 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useData } from '@/contexts/DataContext'
+import { QueryState, useApiQuery } from './QueryState'
 import { Adjunto } from '@/lib/types'
 
 export function AdjuntosPago({ pagoId }: { pagoId: string }) {
-  const { getAdjuntos, getAdjuntoContenido, subirAdjunto } = useData()
-  const [lista, setLista] = useState<Adjunto[]>([])
+  const { getAdjuntoContenido, subirAdjunto } = useData()
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [revision, setRevision] = useState(0)
-  useEffect(() => {
-    let active = true
-    getAdjuntos('PagoCliente', pagoId).then(r => { if (active) setLista(r) }).catch(() => { if (active) setError('No se pudieron cargar los comprobantes.') })
-    return () => { active = false }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pagoId, revision])
+  const query = useApiQuery<Adjunto[]>('/api/adjuntos?entidadTipo=PagoCliente&entidadId=' + pagoId, revision)
+  const lista = query.data || []
   async function descargar(a: Adjunto) {
     try {
       const c = await getAdjuntoContenido(a.id)
@@ -34,7 +30,8 @@ export function AdjuntosPago({ pagoId }: { pagoId: string }) {
   return <div className="space-y-2 text-sm">
     <p className="font-medium">Comprobantes del pago</p>
     {lista.map(a => <button key={a.id} type="button" className="block underline text-blue-700" onClick={() => descargar(a)}>{a.nombre}</button>)}
-    {!lista.length && <p className="text-gray-500">Sin comprobantes adjuntos.</p>}
+    <QueryState loading={query.loading} error={query.error} retry={query.retry} />
+    {!query.loading && !query.error && !lista.length && <p className="text-gray-500">Sin comprobantes adjuntos.</p>}
     <label className="block">Agregar archivos (PDF o imagen, hasta 8 MB cada uno)
       <input aria-label="Agregar comprobantes" disabled={busy} type="file" multiple accept="application/pdf,image/jpeg,image/png,image/webp" onChange={e => { void subir(Array.from(e.target.files ?? [])); e.target.value = '' }} />
     </label>

@@ -2,9 +2,10 @@
 
 import { horarioEntrega } from '@/components/interno/EntregaPactada'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { api } from '@/lib/api'
+import { useApiQuery } from '@/components/interno/QueryState'
 import { addDaysIso, formatFecha, today } from '@/lib/format'
 import { esEnvioExterno, estadoEntregaConfig, medioEnvioLabels, parseApiError } from '@/lib/entregas'
 import { RepartidorLite, VentaPreparacion } from '@/lib/types'
@@ -52,7 +53,8 @@ interface ResumenProducto {
 export default function PreparacionPage() {
   const { canVerPreparacion, canGestionarEntrega } = useAuth()
   const [ventas, setVentas] = useState<VentaPreparacion[]>([])
-  const [repartidores, setRepartidores] = useState<RepartidorLite[]>([])
+  const repartidoresQuery = useApiQuery<RepartidorLite[]>(canGestionarEntrega ? '/api/entregas/repartidores' : null)
+  const repartidores = repartidoresQuery.data || []
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
   const [periodo, setPeriodo] = useState<Periodo>('hoy')
@@ -66,27 +68,24 @@ export default function PreparacionPage() {
   const manana = addDaysIso(hoy, 1)
   const finSemana = addDaysIso(hoy, DIAS_SEMANA)
 
+  const request = useRef(0)
   const cargar = useCallback(async () => {
+    const version = ++request.current
     setIsLoading(true)
     setError('')
     try {
       const rows = await api.get<VentaPreparacion[]>(`/api/ventas/preparacion?desde=${hoy}&hasta=${finSemana}`)
-      setVentas(rows)
+      if (version === request.current) setVentas(rows)
     } catch {
-      setError('No se pudieron cargar los pedidos a preparar.')
+      if (version === request.current) setError('No se pudieron cargar los pedidos a preparar.')
     } finally {
-      setIsLoading(false)
+      if (version === request.current) setIsLoading(false)
     }
   }, [hoy, finSemana])
 
   useEffect(() => {
     if (canVerPreparacion) cargar()
   }, [canVerPreparacion, cargar])
-
-  useEffect(() => {
-    if (!canGestionarEntrega) return
-    api.get<RepartidorLite[]>('/api/entregas/repartidores').then(setRepartidores).catch(() => setRepartidores([]))
-  }, [canGestionarEntrega])
 
   const porPeriodo = useMemo(() => ({
     hoy: ventas.filter(v => v.fechaEntrega === hoy),
@@ -205,7 +204,7 @@ export default function PreparacionPage() {
         <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">{error}</div>
       )}
 
-      {isLoading ? (
+      {error ? <button className="text-blue-700 underline" onClick={cargar}>Reintentar carga</button> : isLoading ? (
         <p className="text-sm text-gray-500 py-8 text-center">Cargando…</p>
       ) : visibles.length === 0 ? (
         <Card className="p-10 text-center text-gray-500">
@@ -347,6 +346,9 @@ export default function PreparacionPage() {
       <MarcarListoDialog
         venta={ventaDialogo}
         repartidores={repartidores}
+        cargandoRepartidores={repartidoresQuery.loading}
+        errorRepartidores={repartidoresQuery.error}
+        reintentarRepartidores={repartidoresQuery.retry}
         onClose={() => setVentaDialogo(null)}
         onDone={() => { setVentaDialogo(null); cargar() }}
       />

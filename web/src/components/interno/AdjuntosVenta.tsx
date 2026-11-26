@@ -1,5 +1,6 @@
 'use client'
 
+import { QueryState } from './QueryState'
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useData } from '@/contexts/DataContext'
@@ -16,12 +17,15 @@ interface Fila { adjunto: Adjunto; previewUrl: string | null }
 export function AdjuntosVenta({ ventaId }: { ventaId: string }) {
   const { getAdjuntos, getAdjuntoContenido, eliminarAdjunto } = useData()
   const { canManageData } = useAuth()
+  const [error, setError] = useState('')
+  const [revision, setRevision] = useState(0)
   const [filas, setFilas] = useState<Fila[] | null>(null)
   const [ampliada, setAmpliada] = useState<Fila | null>(null)
   const [eliminando, setEliminando] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelado = false
+    setFilas(null); setError('')
     async function cargar() {
       const lista = await getAdjuntos('Venta', ventaId)
       const conPreview = await Promise.all(lista.map(async adjunto => {
@@ -34,10 +38,10 @@ export function AdjuntosVenta({ ventaId }: { ventaId: string }) {
       }))
       if (!cancelado) setFilas(conPreview)
     }
-    cargar()
+    cargar().catch(() => { if (!cancelado) setError('No se pudieron cargar los documentos.') })
     return () => { cancelado = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ventaId])
+  }, [ventaId, revision])
 
   async function handleEliminar(a: Adjunto) {
     if (!window.confirm(`¿Eliminar "${tipoAdjuntoLabels[a.tipo] ?? a.tipo}"? Esta acción no se puede deshacer.`)) return
@@ -45,10 +49,12 @@ export function AdjuntosVenta({ ventaId }: { ventaId: string }) {
     try {
       await eliminarAdjunto(a.id)
       setFilas(f => (f ?? []).filter(x => x.adjunto.id !== a.id))
-    } finally {
+    } catch { setError('No se pudo eliminar el documento.') } finally {
       setEliminando(null)
     }
   }
+
+  if (error) return <QueryState error={error} retry={() => setRevision(n => n + 1)} />
 
   if (filas === null) {
     return <p className="text-sm text-gray-500 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Cargando documentos…</p>

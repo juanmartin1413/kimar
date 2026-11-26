@@ -66,7 +66,7 @@ export function homePorRol(rol?: Rol): string {
 
 // Roles con navegación acotada por URL (allowlist). Los roles sin entrada no tienen guard de ruta.
 export const RUTAS_PERMITIDAS_POR_ROL: Partial<Record<Rol, string[]>> = {
-  gestor: ['/interno/clientes', '/interno/cuenta-corriente', '/interno/ventas', '/interno/facturacion', '/interno/cobranzas', '/interno/gastos'],
+  gestor: ['/interno/trazabilidad', '/interno/clientes', '/interno/cuenta-corriente', '/interno/ventas', '/interno/facturacion', '/interno/cobranzas', '/interno/gastos'],
   vendedor: ['/interno/pedidos', '/interno/ventas', '/interno/cuenta-corriente', '/interno/comisiones'],
   deposito: ['/interno/preparacion', '/interno/stock'],
   repartidor: ['/interno/entregas'],

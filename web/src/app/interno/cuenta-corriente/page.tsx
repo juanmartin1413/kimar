@@ -1,10 +1,11 @@
 'use client'
 
+import Link from 'next/link'
 import { PdfButton } from '@/components/interno/PdfButton'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
-import { api } from '@/lib/api'
+import { QueryState, useApiQuery } from '@/components/interno/QueryState'
 import { useData } from '@/contexts/DataContext'
 import { Cliente, Venta } from '@/lib/types'
 import { formatPeso, formatFecha } from '@/lib/format'
@@ -80,6 +81,7 @@ function VentaRow({ venta }: { venta: Venta }) {
 }
 
 function ClienteCard({ cliente, ventas, vendedorNombre }: { cliente: Cliente; ventas: Venta[]; vendedorNombre: string }) {
+  const { canManageData } = useAuth()
   const saldo = ventas.reduce((s, v) => s + saldoVenta(v), 0)
 
   return (
@@ -87,7 +89,7 @@ function ClienteCard({ cliente, ventas, vendedorNombre }: { cliente: Cliente; ve
       {/* Cliente header */}
       <div className="bg-[oklch(0.18_0.06_240)] text-white px-6 py-4 flex items-center justify-between gap-4">
         <div>
-          <h2 className="font-bold text-lg">{cliente.nombre}</h2>
+          <h2 className="font-bold text-lg">{cliente.nombre}</h2>{canManageData && <Link className="text-sm underline" href={'/interno/trazabilidad?clienteId=' + cliente.id}>Ver trazabilidad</Link>}
           <p className="text-xs text-[oklch(0.75_0.08_240)]">Vendedor: {vendedorNombre}</p>
         </div>
         <div className="flex items-center gap-4">
@@ -139,24 +141,14 @@ function ClienteCard({ cliente, ventas, vendedorNombre }: { cliente: Cliente; ve
 export default function CuentaCorrientePage() {
   const { data } = useData()
   const { usuario, isVendedor } = useAuth()
-  const [cuenta, setCuenta] = useState<{ usuarioId: string; ventas: Venta[] } | null>(null)
-  const [error, setError] = useState(false)
-  useEffect(() => {
-    if (!isVendedor || !usuario?.id) return
-    let vigente = true
-    setError(false)
-    api.get<Venta[]>('/api/ventas?cuentaCorriente=true')
-      .then(ventas => { if (vigente) setCuenta({ usuarioId: usuario.id, ventas }) })
-      .catch(() => { if (vigente) setError(true) })
-    return () => { vigente = false }
-  }, [isVendedor, usuario, data.ventas])
+  const query = useApiQuery<Venta[]>(isVendedor ? '/api/ventas?cuentaCorriente=true' : null)
   const vendedorId = data.vendedores.find(v => v.usuarioId === usuario?.id)?.id
   const clientesVisibles = isVendedor
     ? data.clientes.filter(c => !!vendedorId && c.vendedorId === vendedorId)
     : data.clientes
   const clientesIds = new Set(clientesVisibles.map(c => c.id))
   const ventasVisibles = isVendedor
-    ? (cuenta?.usuarioId === usuario?.id ? cuenta?.ventas ?? [] : []).filter(v => clientesIds.has(v.clienteId))
+    ? (query.data || []).filter(v => clientesIds.has(v.clienteId))
     : data.ventas
   const [search, setSearch] = useState('')
   const [vendedorFilter, setVendedorFilter] = useState('')
@@ -180,8 +172,7 @@ export default function CuentaCorrientePage() {
     .filter(({ saldo }) => mostrarTodos || Math.abs(saldo) > 0.005)
     .sort((a, b) => b.saldo - a.saldo)
 
-  if (isVendedor && error) return <p role="alert">No se pudo cargar la cuenta corriente. Ingresá nuevamente a esta sección para reintentar.</p>
-  if (isVendedor && cuenta?.usuarioId !== usuario?.id) return <p>Cargando cuenta corriente...</p>
+  if (isVendedor && (query.loading || query.error)) return <QueryState loading={query.loading} error={query.error} retry={query.retry} />
 
   return (
     <div className="space-y-6">

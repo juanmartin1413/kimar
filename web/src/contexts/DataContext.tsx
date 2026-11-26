@@ -2,17 +2,18 @@
 
 import { ConfirmarPagoPayload } from '@/lib/cobranzas'
 
-import { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import { createContext, useContext } from 'react'
+import { useResourceStore } from './useResourceStore'
+import { Resource, ResourceStates } from '@/lib/dataResources'
 import { useAuth } from '@/contexts/AuthContext'
 import { api } from '@/lib/api'
 import {
-  Adjunto, AppData, Calidad, Cliente, Cobranza, Compra, CompromisoProveedor,
+  Adjunto, AppData, Calidad, Cliente, Compra, CompromisoProveedor,
   CreateCompraPayload, CreateFormaPagoPayload, CreateProductoPayload, FormaPagoProveedor,
   GastoFijo, InstanciaGasto, MovimientoStock, Pedido,
-  Producto, ProductoProveedor, Proveedor, StockPorProducto, StockRealRegistrado,
-  UpdateVentaCompletaPayload, Usuario, Vendedor, Venta,
+  Producto, ProductoProveedor, Proveedor, StockRealRegistrado,
+  UpdateVentaCompletaPayload, Vendedor, Venta,
 } from '@/lib/types'
-import { today } from '@/lib/format'
 import { generateId } from '@/lib/storage'
 
 const EMPTY: AppData = {
@@ -26,6 +27,8 @@ const EMPTY: AppData = {
 interface DataContextValue {
   data: AppData
   isLoading: boolean
+  resourceStates: ResourceStates
+  reloadResource: (key: Resource) => Promise<void>
   refresh: () => void
   addCliente: (c: Omit<Cliente, 'id' | 'fechaCreacion' | 'activo'>) => void
   updateCliente: (id: string, c: Partial<Cliente>) => void
@@ -85,185 +88,25 @@ interface DataContextValue {
 
 const DataContext = createContext<DataContextValue | null>(null)
 
-function mapStock(raw: any[]): StockPorProducto[] {
-  return raw.map(d => ({
-    id: `${d.productoId}:${d.calidadId ?? 'base'}`,
-    productoId: String(d.productoId),
-    calidadId: d.calidadId ?? undefined,
-    calidadNombre: d.calidadNombre ?? undefined,
-    cantidad: d.cantidad,
-    stockMinimo: d.stockMinimo,
-    fechaActualizacion: d.fechaActualizacion
-      ? String(d.fechaActualizacion).slice(0, 10)
-      : today(),
-  }))
-}
-
 export function DataProvider({ children }: { children: React.ReactNode }) {
   const { usuario } = useAuth()
-  const [data, setData] = useState<AppData>(EMPTY)
-  const [isLoading, setIsLoading] = useState(true)
+  return <DataSession key={(usuario?.id || 'anonymous') + ':' + (usuario?.rol || '')}>{children}</DataSession>
+}
 
-  const rol = usuario?.rol
-
-  const loadAll = useCallback(async () => {
-    setIsLoading(true)
-    try {
-      const [clientes, productos, vendedores, pedidos, ventas, cobranzas, proveedores, gastosFijos, movimientosStock, usuarios] =
-        await Promise.all([
-          api.get<Cliente[]>('/api/clientes').catch(() => [] as Cliente[]),
-          api.get<Producto[]>('/api/productos').catch(() => [] as Producto[]),
-          api.get<Vendedor[]>('/api/vendedores').catch(() => [] as Vendedor[]),
-          api.get<Pedido[]>('/api/pedidos').catch(() => [] as Pedido[]),
-          api.get<Venta[]>('/api/ventas').catch(() => [] as Venta[]),
-          api.get<Cobranza[]>('/api/cobranzas').catch(() => [] as Cobranza[]),
-          api.get<Proveedor[]>('/api/proveedores').catch(() => [] as Proveedor[]),
-          api.get<GastoFijo[]>('/api/gastos').catch(() => [] as GastoFijo[]),
-          api.get<MovimientoStock[]>('/api/stock/movimientos').catch(() => [] as MovimientoStock[]),
-          // Solo el admin puede listar usuarios (Configuración); para el resto ni se intenta.
-          rol === 'admin' ? api.get<Usuario[]>('/api/usuarios').catch(() => [] as Usuario[]) : Promise.resolve([] as Usuario[]),
-        ])
-
-      const [stockRaw, instanciasGasto] = await Promise.all([
-        api.get<any[]>('/api/stock/actual').catch(() => [] as any[]),
-        api.get<InstanciaGasto[]>('/api/gastos/instancias').catch(() => [] as InstanciaGasto[]),
-      ])
-
-      const [compromisosPorProv, calidadesPorProducto, formasPagoPorProv] = await Promise.all([
-        Promise.all(
-          proveedores.map(p =>
-            api.get<CompromisoProveedor[]>(`/api/proveedores/${p.id}/compromisos`).catch(() => [] as CompromisoProveedor[])
-          )
-        ),
-        Promise.all(
-          productos.map(p =>
-            api.get<Calidad[]>(`/api/productos/${p.id}/calidades`).catch(() => [] as Calidad[])
-          )
-        ),
-        Promise.all(
-          proveedores.map(p =>
-            api.get<FormaPagoProveedor[]>(`/api/proveedores/${p.id}/forma-pago`).catch(() => [] as FormaPagoProveedor[])
-          )
-        ),
-      ])
-
-      const compras = await api.get<Compra[]>('/api/compras').catch(() => [] as Compra[])
-
-      setData({
-        usuarios,
-        vendedores,
-        clientes,
-        productos,
-        pedidos,
-        ventas,
-        cobranzas,
-        proveedores,
-        compromisosProveedor: compromisosPorProv.flat(),
-        formasPagoProveedor: formasPagoPorProv.flat(),
-        compras,
-        productosProveedores: [],
-        movimientosStock,
-        stockPorProducto: mapStock(stockRaw),
-        stockRealRegistrado: [],
-        gastosFijos,
-        instanciasGasto,
-        calidades: calidadesPorProducto.flat(),
-      })
-    } finally {
-      setIsLoading(false)
-    }
-  }, [rol])
-
-  useEffect(() => {
-    // El repartidor no usa nada del contexto (su pantalla consulta /api/entregas directo) y casi todos
-    // los endpoints le devolverían 403: no tiene sentido disparar decenas de requests fallidos.
-    if (!usuario || usuario.rol === 'repartidor') {
-      setData(EMPTY)
-      setIsLoading(false)
-      return
-    }
-    loadAll()
-  }, [usuario?.id, usuario?.rol, loadAll])
-
-  // ── refresh helpers ──────────────────────────────────────────────────────────
-  async function rClientes() {
-    const list = await api.get<Cliente[]>('/api/clientes').catch(() => null)
-    if (list) setData(p => ({ ...p, clientes: list }))
-  }
-
-  async function rProductos() {
-    const list = await api.get<Producto[]>('/api/productos').catch(() => null)
-    if (list) setData(p => ({ ...p, productos: list }))
-  }
-
-  async function rVendedores() {
-    const list = await api.get<Vendedor[]>('/api/vendedores').catch(() => null)
-    if (list) setData(p => ({ ...p, vendedores: list }))
-  }
-
-  async function rPedidos() {
-    const list = await api.get<Pedido[]>('/api/pedidos').catch(() => null)
-    if (list) setData(p => ({ ...p, pedidos: list }))
-  }
-
-  async function rVentas() {
-    const [ventas, cobranzas] = await Promise.all([
-      api.get<Venta[]>('/api/ventas').catch(() => null),
-      api.get<Cobranza[]>('/api/cobranzas').catch(() => null),
-    ])
-    setData(p => ({
-      ...p,
-      ...(ventas ? { ventas } : {}),
-      ...(cobranzas ? { cobranzas } : {}),
-    }))
-  }
-
-  async function rStock() {
-    const raw = await api.get<any[]>('/api/stock/actual').catch(() => null)
-    if (raw) setData(p => ({ ...p, stockPorProducto: mapStock(raw) }))
-  }
-
-  async function rMovimientos() {
-    const list = await api.get<MovimientoStock[]>('/api/stock/movimientos').catch(() => null)
-    if (list) setData(p => ({ ...p, movimientosStock: list }))
-  }
-
-  async function rProveedoresYCompromisos() {
-    const provs = await api.get<Proveedor[]>('/api/proveedores').catch(() => null)
-    if (!provs) return
-    const compromisosPorProv = await Promise.all(
-      provs.map(p =>
-        api.get<CompromisoProveedor[]>(`/api/proveedores/${p.id}/compromisos`).catch(() => [] as CompromisoProveedor[])
-      )
-    )
-    setData(p => ({ ...p, proveedores: provs, compromisosProveedor: compromisosPorProv.flat() }))
-  }
-
-  async function rFormaPago(proveedorId: string) {
-    const historial = await api.get<FormaPagoProveedor[]>(`/api/proveedores/${proveedorId}/forma-pago`).catch(() => null)
-    if (!historial) return
-    setData(p => ({
-      ...p,
-      formasPagoProveedor: [...p.formasPagoProveedor.filter(f => f.proveedorId !== proveedorId), ...historial],
-    }))
-  }
-
-  async function rCompras() {
-    const list = await api.get<Compra[]>('/api/compras').catch(() => null)
-    if (list) setData(p => ({ ...p, compras: list }))
-  }
-
-  async function rGastos() {
-    const [gastosFijos, instanciasGasto] = await Promise.all([
-      api.get<GastoFijo[]>('/api/gastos').catch(() => null),
-      api.get<InstanciaGasto[]>('/api/gastos/instancias').catch(() => null),
-    ])
-    setData(p => ({
-      ...p,
-      ...(gastosFijos ? { gastosFijos } : {}),
-      ...(instanciasGasto ? { instanciasGasto } : {}),
-    }))
-  }
+function DataSession({ children }: { children: React.ReactNode }) {
+  const { usuario } = useAuth()
+  const { data, setData, resourceStates, reloadResource, loadAll, isLoading } = useResourceStore(EMPTY, usuario?.rol)
+  const rClientes = () => reloadResource('clientes')
+  const rProductos = () => reloadResource('productos')
+  const rVendedores = () => reloadResource('vendedores')
+  const rPedidos = () => reloadResource('pedidos')
+  const rVentas = () => Promise.all([reloadResource('ventas'), reloadResource('cobranzas')])
+  const rStock = () => reloadResource('stockPorProducto')
+  const rMovimientos = () => reloadResource('movimientosStock')
+  const rProveedoresYCompromisos = () => Promise.all([reloadResource('proveedores'), reloadResource('compromisosProveedor')])
+  const rFormaPago = () => reloadResource('formasPagoProveedor')
+  const rCompras = () => reloadResource('compras')
+  const rGastos = () => Promise.all([reloadResource('gastosFijos'), reloadResource('instanciasGasto')])
 
   // ── Clientes ─────────────────────────────────────────────────────────────────
   async function addCliente(c: Omit<Cliente, 'id' | 'fechaCreacion' | 'activo'>) {
@@ -401,8 +244,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   // ── Cobranzas ────────────────────────────────────────────────────────────────
   async function refrescarCobros() {
-    const [ventas, cobranzas] = await Promise.all([api.get<Venta[]>('/api/ventas'), api.get<Cobranza[]>('/api/cobranzas')])
-    setData(p => ({ ...p, ventas, cobranzas }))
+    await rVentas()
   }
 
   async function registrarPago(p: ConfirmarPagoPayload) {
@@ -454,27 +296,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     pago?: { montoPagado?: number; formaPagoReal?: string }
   ) {
     await api.post(`/api/proveedores/cuotas/${cuotaId}/pagar`, pago ?? {})
-    const compromiso = data.compromisosProveedor.find(c => c.id === compromisoId)
-    if (compromiso) {
-      const refreshed = await api.get<CompromisoProveedor[]>(
-        `/api/proveedores/${compromiso.proveedorId}/compromisos`
-      ).catch(() => null)
-      if (refreshed) {
-        setData(prev => ({
-          ...prev,
-          compromisosProveedor: [
-            ...prev.compromisosProveedor.filter(c => c.proveedorId !== compromiso.proveedorId),
-            ...refreshed,
-          ],
-        }))
-      }
-    }
+    await reloadResource('compromisosProveedor')
   }
 
   // ── Forma de pago negociada ──────────────────────────────────────────────────
   async function crearFormaPagoProveedor(proveedorId: string, req: CreateFormaPagoPayload) {
     await api.post(`/api/proveedores/${proveedorId}/forma-pago`, req)
-    await rFormaPago(proveedorId)
+    await rFormaPago()
   }
 
   function getFormaPagoVigente(proveedorId: string): FormaPagoProveedor | undefined {
@@ -543,8 +371,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   async function pagarInstanciaGasto(id: string) {
     await api.post(`/api/gastos/instancias/${id}/pagar`)
-    const list = await api.get<InstanciaGasto[]>('/api/gastos/instancias').catch(() => null)
-    if (list) setData(p => ({ ...p, instanciasGasto: list }))
+    await reloadResource('instanciasGasto')
   }
 
   function updateInstanciaGasto(id: string, g: Partial<InstanciaGasto>) {
@@ -656,7 +483,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <DataContext.Provider value={{
-      data, isLoading, refresh: loadAll,
+      data, isLoading, resourceStates, reloadResource, refresh: loadAll,
       addCliente, updateCliente, deleteCliente,
       updateProductoPrecio, updateProducto, addProducto, reorderProductos,
       addPedido, updatePedido, updatePedidoCompleto,

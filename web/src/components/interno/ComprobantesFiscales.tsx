@@ -60,7 +60,7 @@ export function ComprobantesFiscales({ ventaId, onFiscalChange, cambiosSinGuarda
     setLoading(true); setError('')
     let active = true
     const requests = requestId
-    const run = () => load().catch(e => { if (active) { setError(e.message); setLoading(false); setItems([]); setTotal(0) } })
+    const run = () => load().catch(e => { if (active) { setError(e.message); setLoading(false) } })
     run()
     const timer = setInterval(run, 15000)
     api.get<FiscalConfig>('/api/facturacion/configuracion').then(setConfig).catch(e => setError(e.message))
@@ -120,7 +120,7 @@ export function ComprobantesFiscales({ ventaId, onFiscalChange, cambiosSinGuarda
       <p className="text-xs text-slate-500">Fechas de emisión, inclusive. Para consultar todo el historial, dejá ambas fechas vacías.</p>
       {!loading && <p className="text-sm text-slate-600">{total} comprobantes encontrados</p>}
     </form>}
-    {loading ? <p>Cargando comprobantes…</p> : !items.length ? <p className="text-gray-500">Sin comprobantes fiscales.</p> : items.map(c => {
+    {loading ? <p>Cargando comprobantes…</p> : !items.length ? (error ? null : <p className="text-gray-500">Sin comprobantes fiscales.</p>) : items.map(c => {
       const nc = relacionados.find(n => n.comprobanteOrigenId === c.id && n.estado === 'autorizado') ?? relacionados.find(n => n.comprobanteOrigenId === c.id)
       const old = c.estado !== 'autorizado' && Date.now() - Date.parse(c.fechaCreacion) > 3600000
       return <article key={c.id} className={`rounded-xl border p-4 space-y-3 ${old ? 'border-amber-400 bg-amber-50' : 'bg-white border-gray-200'}`}>

@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { useData } from '@/contexts/DataContext'
 import { useAuth } from '@/contexts/AuthContext'
-import { api } from '@/lib/api'
+import { QueryState, useApiQuery } from '@/components/interno/QueryState'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -36,16 +36,9 @@ export default function StockPage() {
   const [productoSeleccionado, setProductoSeleccionado] = useState('')
   const [calidadSeleccionada, setCalidadSeleccionada] = useState<string | undefined>(undefined)
   const [cantidadReal, setCantidadReal] = useState('')
-  const [auditoria, setAuditoria] = useState<AuditoriaRow[]>([])
-
-  const cargarAuditoria = useCallback(async () => {
-    const rows = await api.get<AuditoriaRow[]>('/api/stock/auditoria').catch(() => null)
-    if (rows) setAuditoria(rows)
-  }, [])
-
-  useEffect(() => {
-    if (canVerStock) cargarAuditoria()
-  }, [canVerStock, cargarAuditoria])
+  const audit = useApiQuery<AuditoriaRow[]>(canVerStock ? '/api/stock/auditoria' : null)
+  const auditoria = audit.data || []
+  const cargarAuditoria = audit.retry
 
   if (!canVerStock) {
     return (
@@ -225,6 +218,7 @@ export default function StockPage() {
 
         {/* TAB 3: Auditoría (Stock Teórico vs Real) */}
         <TabsContent value="auditoria" className="space-y-4">
+          <QueryState loading={audit.loading} error={audit.error} retry={audit.retry} />
           <div className="bg-blue-50 border border-blue-200 rounded p-4 mb-4">
             <p className="text-sm text-blue-800">
               <strong>Stock Teórico:</strong> Calculado a partir de movimientos (entradas - salidas)<br/>

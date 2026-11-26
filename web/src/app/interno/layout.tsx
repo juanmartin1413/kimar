@@ -1,5 +1,6 @@
 'use client'
 
+import { DataBoundary } from '@/components/interno/DataBoundary'
 import { useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
@@ -27,7 +28,7 @@ export default function InternoLayout({ children }: { children: React.ReactNode 
       <InternalSidebar />
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         <InternalTopBar />
-        <main className="flex-1 overflow-auto p-4 md:p-6">{children}</main>
+        <main className="flex-1 overflow-auto p-4 md:p-6"><DataBoundary>{children}</DataBoundary></main>
       </div>
     </div>
   )

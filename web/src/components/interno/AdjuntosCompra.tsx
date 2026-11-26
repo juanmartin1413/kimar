@@ -1,5 +1,6 @@
 'use client'
 
+import { QueryState } from './QueryState'
 import { useEffect, useState } from 'react'
 import { useData } from '@/contexts/DataContext'
 import { Label } from '@/components/ui/label'
@@ -10,11 +11,14 @@ import { FotoSlot, FotoState, FOTO_VACIA } from '@/components/interno/FotoSlot'
 // las nuevas usan el mismo FotoSlot que RegistrarCompraModal, que no distingue el origen del preview.
 export function AdjuntosCompra({ compraId }: { compraId: string }) {
   const { getAdjuntos, getAdjuntoContenido, subirAdjunto, eliminarAdjunto } = useData()
+  const [error, setError] = useState('')
+  const [revision, setRevision] = useState(0)
   const [remitoFoto, setRemitoFoto] = useState<FotoState>({ ...FOTO_VACIA, loading: true })
   const [facturaFoto, setFacturaFoto] = useState<FotoState>({ ...FOTO_VACIA, loading: true })
 
   useEffect(() => {
     let cancelado = false
+    setError(''); setRemitoFoto({ ...FOTO_VACIA, loading: true }); setFacturaFoto({ ...FOTO_VACIA, loading: true })
 
     async function cargarTipo(tipo: 'remito' | 'factura', lista: Awaited<ReturnType<typeof getAdjuntos>>) {
       const setFoto = tipo === 'remito' ? setRemitoFoto : setFacturaFoto
@@ -34,13 +38,13 @@ export function AdjuntosCompra({ compraId }: { compraId: string }) {
       const lista = await getAdjuntos('Compra', compraId)
       await Promise.all([cargarTipo('remito', lista), cargarTipo('factura', lista)])
     }
-    cargar()
+    cargar().catch(() => { if (!cancelado) setError('No se pudieron cargar los documentos.') })
 
     return () => { cancelado = true }
     // Solo se re-fetchea cuando cambia la compra que se está mostrando, no cuando cambia la
     // identidad de las funciones del contexto (se recrean en cada render del DataProvider).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [compraId])
+  }, [compraId, revision])
 
   async function handleSubir(tipo: 'remito' | 'factura', file: File) {
     const setFoto = tipo === 'remito' ? setRemitoFoto : setFacturaFoto
@@ -67,6 +71,8 @@ export function AdjuntosCompra({ compraId }: { compraId: string }) {
     await eliminarAdjunto(foto.adjunto.id)
     setFoto(FOTO_VACIA)
   }
+
+  if (error) return <QueryState error={error} retry={() => setRevision(n => n + 1)} />
 
   return (
     <div className="grid grid-cols-2 gap-3">

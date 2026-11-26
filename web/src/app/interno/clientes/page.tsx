@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useState } from 'react'
 import { useData } from '@/contexts/DataContext'
 import { useAuth } from '@/contexts/AuthContext'
@@ -97,7 +98,7 @@ export default function ClientesPage() {
                         <div className="w-8 h-8 bg-[oklch(0.92_0.04_240)] rounded-full flex items-center justify-center shrink-0">
                           <User className="w-4 h-4 text-[oklch(0.42_0.14_240)]" />
                         </div>
-                        <span className="font-medium text-[oklch(0.25_0.06_240)]">{c.nombre}</span>
+                        <span className="font-medium text-[oklch(0.25_0.06_240)]">{c.nombre}</span>{canManageData && <Link className="ml-2 text-xs text-blue-700 underline" href={'/interno/trazabilidad?clienteId=' + c.id}>Trazabilidad</Link>}
                       </div>
                     </td>
                     <td className="py-3 px-4 text-[oklch(0.45_0.04_240)] hidden sm:table-cell">

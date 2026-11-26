@@ -43,12 +43,12 @@ export default function ComisionesPage() {
   useEffect(() => {
     if (!canSeeComisiones) return
     const abort = new AbortController()
-    setCargando(true)
+    setCargando(true); setError('')
     api.get<Vendedor[]>('/api/comisiones/vendedores', abort.signal).then(rows => {
-      setVendedores(rows); setVendedorId(rows[0]?.id ?? '')
+      setVendedores(rows); setVendedorId(current => rows.some(v => v.id === current) ? current : rows[0]?.id ?? '')
     }).catch(e => { if (!abort.signal.aborted) setError(e.message) }).finally(() => { if (!abort.signal.aborted) setCargando(false) })
     return () => abort.abort()
-  }, [canSeeComisiones, usuario?.id])
+  }, [canSeeComisiones, usuario?.id, refresh])
 
   useEffect(() => {
     if (!isAdmin) return
@@ -101,7 +101,7 @@ export default function ComisionesPage() {
       <button className={button} onClick={() => setRefresh(n => n + 1)}>Actualizar</button>
     </header>
     {error && <p role="alert" className="bg-red-50 text-red-800 border border-red-200 rounded-lg p-4">{error}</p>}
-    {vendedores.length === 0 ? <p>{cargando ? 'Cargando…' : 'No hay un esquema de comisión habilitado para esta cuenta.'}</p> : <>
+    {vendedores.length === 0 ? (!error && <p>{cargando ? 'Cargando…' : 'No hay un esquema de comisión habilitado para esta cuenta.'}</p>) : <>
       {isAdmin && <div className="flex gap-3 items-center flex-wrap"><label className="text-sm">Vendedor <select className={field} value={vendedorId} onChange={e => cambiarVendedor(e.target.value)}>{vendedores.map(v => <option key={v.id} value={v.id}>{v.nombre}</option>)}</select></label>
       </div>}
       {isAdmin && <div role="tablist" aria-label="Comisiones" className="flex border-b border-slate-200 gap-2">
@@ -146,7 +146,7 @@ export default function ComisionesPage() {
         <div className="hidden md:block bg-white border rounded-xl overflow-x-auto"><table className="w-full min-w-[760px] text-sm [&_th]:px-3 [&_td]:px-3"><thead><tr className="text-left bg-slate-50"><th className="p-3">Constancia</th><th>Fecha</th><th>Comisión</th><th>Compensado</th><th>Importe</th><th>Acciones</th></tr></thead><tbody>
           {historial.documentos.map(d => <tr key={d.id} className="border-t"><td className="p-3">{tipoDocumento[d.tipo]}<strong className="block">N° {numeroDocumento(d.numero)}</strong></td><td>{formatFecha(d.fecha)}</td><td>{formatPeso(d.comision)}</td><td>{formatPeso(d.compensado)}</td><td>{d.tipo === 'anticipo' && <span className="block text-xs text-slate-500">Comisión adelantada</span>}{formatPeso(d.pago)}<span className="block text-xs">{d.formaPago ?? 'Sin pago'}</span></td><td>{d.tipo !== 'anticipo' && <button className={button} onClick={() => { setDetalle(d); setExpanded([]) }}>Detalle</button>} <PdfButton onClick={() => descargar(d)}>Descargar PDF</PdfButton></td></tr>)}
         </tbody></table></div>
-        {!historial.documentos.length && <p className="p-6 text-slate-500">{cargando ? 'Cargando…' : 'Todavía no hay movimientos registrados.'}</p>}
+        {!error && !historial.documentos.length && <p className="p-6 text-slate-500">{cargando ? 'Cargando…' : 'Todavía no hay movimientos registrados.'}</p>}
         <div className="flex items-center gap-3"><button className={button} disabled={pagina === 1 || cargando} onClick={() => setPagina(n => n - 1)}>Anterior</button><span className="text-sm">Página {pagina} · {historial.total} movimientos</span><button className={button} disabled={pagina * 30 >= historial.total || cargando} onClick={() => setPagina(n => n + 1)}>Siguiente</button></div>
       </>}
       </div>
