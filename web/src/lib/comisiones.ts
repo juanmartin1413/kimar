@@ -18,6 +18,12 @@ export interface ComisionDocumento {
   datos: { vendedor: string; tarifa: number; ventas: ComisionVenta[]; saldoAnterior: number; aplicaciones: ComisionAnticipo[]; compensarAdelantos?: boolean }
 }
 export interface ComisionSaldo { pagado: number; liquidada: number; anticiposPendientes: number; ajusteAnterior: number; anticipos: ComisionAnticipo[] }
+export interface ComisionesPendientesCobro {
+  total: number; pagina: number; comisionPendiente: number
+  clientes: { id: string; nombre: string }[]
+  items: { venta: ComisionVenta; estadoEntrega: 'pendiente' | 'listo' | 'entregado'; fechaRegistro: string;
+    saldoCliente: number; comisionSobreCobros: number; pendienteCobro: number }[]
+}
 export const tipoDocumento: Record<string, string> = {
   liquidacion: 'Liquidación', anticipo: 'Pago a cuenta', contrapartida: 'Contrapartida', devolucion: 'Devolución de anticipo',
 }

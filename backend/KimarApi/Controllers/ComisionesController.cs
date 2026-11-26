@@ -28,6 +28,14 @@ public class ComisionesController(KimarDbContext db, ComisionService service) : 
     [HttpPost("preview"), Authorize(Roles = "admin")]
     public async Task<IActionResult> Preview(ComisionFiltro filtro) => Ok(await service.Preview(filtro));
 
+    [HttpGet("pendientes-cobro")]
+    public async Task<IActionResult> PendientesCobro([FromQuery] Guid vendedorId, [FromQuery] Guid? clienteId,
+        [FromQuery] string? estadoEntrega, [FromQuery] int pagina = 1)
+    {
+        if (!await db.Vendedores.AnyAsync(v => v.Id == vendedorId && (Admin || v.UsuarioId == UsuarioId))) return NotFound();
+        return Ok(await service.PendientesCobro(vendedorId, clienteId, estadoEntrega, pagina));
+    }
+
     [HttpGet("historial")]
     public async Task<IActionResult> Historial([FromQuery] Guid? vendedorId, [FromQuery] int pagina = 1)
     {

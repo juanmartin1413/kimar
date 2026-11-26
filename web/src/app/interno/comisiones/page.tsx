@@ -1,6 +1,7 @@
 'use client'
 
 import { PdfButton } from '@/components/interno/PdfButton'
+import { PendientesCobro } from '@/components/interno/comisiones/PendientesCobro'
 
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
@@ -92,6 +93,8 @@ export default function ComisionesPage() {
     setAccion(null); setPendiente(undefined); setDetalle(d.tipo === 'anticipo' ? null : d); setTab('historial'); setPagina(1)
     notificar(`${tipoDocumento[d.tipo]} N° ${numeroDocumento(d.numero)} registrada.`); setRefresh(n => n + 1)
   }
+  const tabs = [...(isAdmin ? [['calculo', 'Calcular y liquidar']] : []), ['pendientes', 'Pendientes de cobro'], ['historial', 'Historial de pagos']]
+  const activeTab = !isAdmin && tab === 'calculo' ? 'historial' : tab
   if (!canSeeComisiones) return <p>No tenés acceso a esta sección.</p>
   const clientes = [...new Map((p?.ventas ?? []).map(v => [v.clienteId, v.cliente])).entries()]
   const visibles = (p?.ventas ?? []).filter(v => v.pendiente < 0 || (v.pendiente > 0 && v.fecha <= hasta && (!desde || v.fecha >= desde) && (!clienteId || v.clienteId === clienteId)))
@@ -104,13 +107,17 @@ export default function ComisionesPage() {
     {vendedores.length === 0 ? (!error && <p>{cargando ? 'Cargando…' : 'No hay un esquema de comisión habilitado para esta cuenta.'}</p>) : <>
       {isAdmin && <div className="flex gap-3 items-center flex-wrap"><label className="text-sm">Vendedor <select className={field} value={vendedorId} onChange={e => cambiarVendedor(e.target.value)}>{vendedores.map(v => <option key={v.id} value={v.id}>{v.nombre}</option>)}</select></label>
       </div>}
-      {isAdmin && <div role="tablist" aria-label="Comisiones" className="flex border-b border-slate-200 gap-2">
-        {([['calculo', 'Calcular y liquidar'], ['historial', 'Historial de pagos']] as const).map(([id, label], index) => <button key={id} id={`tab-${id}`} role="tab" aria-selected={tab === id} aria-controls={`panel-${id}`} tabIndex={tab === id ? 0 : -1} onClick={() => setTab(id)} onKeyDown={e => {
-          if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) { e.preventDefault(); const next = e.key === 'Home' ? 'calculo' : e.key === 'End' ? 'historial' : index === 0 ? 'historial' : 'calculo'; setTab(next); document.getElementById(`tab-${next}`)?.focus() }
-        }} className={`border-b-4 px-4 py-3 text-sm font-semibold transition-colors ${tab === id ? 'border-blue-700 text-blue-800 bg-blue-50 rounded-t-lg' : 'border-transparent text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}>{label}</button>)}
-      </div>}
-      <div id={`panel-${isAdmin ? tab : 'historial'}`} role={isAdmin ? 'tabpanel' : undefined} aria-labelledby={isAdmin ? `tab-${tab}` : undefined} className="space-y-6">
-      {isAdmin && tab === 'calculo' ? <>
+      <div role="tablist" aria-label="Comisiones" className="flex flex-wrap border-b border-slate-200 gap-2">
+        {tabs.map(([id, label], index) => <button key={id} id={`tab-${id}`} role="tab" aria-selected={activeTab === id} aria-controls={`panel-${id}`} tabIndex={activeTab === id ? 0 : -1} onClick={() => setTab(id)} onKeyDown={e => {
+          if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) {
+            e.preventDefault()
+            const nextIndex = e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : (index + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length
+            const next = tabs[nextIndex][0]; setTab(next); document.getElementById(`tab-${next}`)?.focus()
+          }
+        }} className={`border-b-4 px-4 py-3 text-sm font-semibold transition-colors ${activeTab === id ? 'border-blue-700 text-blue-800 bg-blue-50 rounded-t-lg' : 'border-transparent text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}>{label}</button>)}
+      </div>
+      <div id={`panel-${activeTab}`} role="tabpanel" aria-labelledby={`tab-${activeTab}`} className="space-y-6">
+      {activeTab === 'pendientes' ? <PendientesCobro key={vendedorId} vendedorId={vendedorId} revision={refresh} /> : isAdmin && tab === 'calculo' ? <>
         <div className="flex gap-4 flex-wrap bg-white border rounded-xl p-4">
           <label className="text-sm">Entrega desde (opcional)<input aria-label="Entrega desde" type="date" max={hasta} className={`${field} block`} value={desde} onChange={e => { setDesde(e.target.value); setVentasIds(null) }} /></label>
           <label className="text-sm">Corte de entrega y cobros<input aria-label="Fecha de corte" type="date" max={hoyComisiones()} className={`${field} block`} value={hasta} onChange={e => { setHasta(e.target.value); setVentasIds(null) }} /></label>
@@ -150,7 +157,7 @@ export default function ComisionesPage() {
         <div className="flex items-center gap-3"><button className={button} disabled={pagina === 1 || cargando} onClick={() => setPagina(n => n - 1)}>Anterior</button><span className="text-sm">Página {pagina} · {historial.total} movimientos</span><button className={button} disabled={pagina * 30 >= historial.total || cargando} onClick={() => setPagina(n => n + 1)}>Siguiente</button></div>
       </>}
       </div>
-      {(!isAdmin || tab === 'historial') && detalle && <section className="bg-white rounded-xl border p-5 space-y-4">
+      {activeTab === 'historial' && detalle && <section className="bg-white rounded-xl border p-5 space-y-4">
         <div className="flex justify-between gap-3"><h2 className="font-bold">{tipoDocumento[detalle.tipo]} N° {numeroDocumento(detalle.numero)} · {detalle.datos.vendedor}</h2><button className={button} onClick={() => setDetalle(null)}>Cerrar detalle</button></div>
         <p className="text-sm">{formatFecha(detalle.fecha)} · {detalle.formaPago ?? 'Sin movimiento de dinero'} · Referencia: {detalle.referencia ?? '—'}</p>
         <p>Comisión: {formatPeso(detalle.comision)} · Compensado: {formatPeso(detalle.compensado)} · Pago: <strong>{formatPeso(detalle.pago)}</strong></p>

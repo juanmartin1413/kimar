@@ -24,6 +24,11 @@ public record ComisionPreview(Guid VendedorId, string Vendedor, decimal Tarifa, 
     List<ComisionSaldoAnticipo> Anticipos, string Huella);
 public record ComisionSnapshot(string Vendedor, decimal Tarifa, List<ComisionVenta> Ventas, decimal SaldoAnterior,
     List<ComisionSaldoAnticipo> Aplicaciones, bool CompensarAdelantos = true);
+public record ComisionSeguimiento(ComisionVenta Venta, string EstadoEntrega, DateTime FechaRegistro,
+    decimal SaldoCliente, decimal ComisionSobreCobros, decimal PendienteCobro);
+public record ComisionSeguimientoCliente(Guid Id, string Nombre);
+public record ComisionesPendientesCobro(int Total, int Pagina, decimal ComisionPendiente,
+    List<ComisionSeguimientoCliente> Clientes, List<ComisionSeguimiento> Items);
 
 public class ComisionService(KimarDbContext db)
 {
@@ -33,6 +38,30 @@ public class ComisionService(KimarDbContext db)
     public static string Serialize<T>(T value) => JsonSerializer.Serialize(value, Json);
     public static string Hash<T>(T value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Serialize(value))));
     public static decimal Habilitada(decimal comision, decimal cobrado, decimal total) => total <= 0 ? 0 : Money(comision * Math.Clamp(cobrado / total, 0, 1));
+
+    public static decimal PendienteCobro(ComisionVenta venta) =>
+        Math.Max(0, Money(venta.Total - Math.Max(Habilitada(venta.Total, venta.Cobrado, venta.TotalVenta), venta.Liquidada)));
+
+    public async Task<ComisionesPendientesCobro> PendientesCobro(Guid vendedorId, Guid? clienteId, string? estadoEntrega, int pagina)
+    {
+        if (pagina < 1 || (estadoEntrega is not null && estadoEntrega is not ("pendiente" or "listo" or "entregado")))
+            throw new ComisionException("Revisá los filtros de seguimiento.");
+        // Reutilizar tarifas históricas, créditos y cobros hasta hoy sin modificar la liquidación.
+        var preview = await Preview(new(vendedorId, Hoy));
+        var metadatos = await db.Ventas.AsNoTracking().Where(v => v.VendedorId == vendedorId)
+            .Select(v => new { v.Id, v.EstadoEntrega, v.FechaCreacion, v.CreditoAplicado }).ToDictionaryAsync(v => v.Id);
+        var pendientes = preview.Ventas.Where(v => PendienteCobro(v) > 0 && metadatos.ContainsKey(v.VentaId))
+            .Select(v => new ComisionSeguimiento(v, metadatos[v.VentaId].EstadoEntrega, metadatos[v.VentaId].FechaCreacion,
+                Math.Max(0, Money(v.TotalVenta - metadatos[v.VentaId].CreditoAplicado - v.Cobrado)),
+                Habilitada(v.Total, v.Cobrado, v.TotalVenta), PendienteCobro(v))).ToList();
+        var clientes = pendientes.Select(v => new ComisionSeguimientoCliente(v.Venta.ClienteId, v.Venta.Cliente))
+            .DistinctBy(c => c.Id).OrderBy(c => c.Nombre).ToList();
+        var filtradas = pendientes.Where(v => (!clienteId.HasValue || v.Venta.ClienteId == clienteId) &&
+            (estadoEntrega is null || v.EstadoEntrega == estadoEntrega)).OrderByDescending(v => v.FechaRegistro).ThenBy(v => v.Venta.VentaId).ToList();
+        var paginaActual = Math.Min(pagina, Math.Max(1, (int)Math.Ceiling(filtradas.Count / 30m)));
+        return new(filtradas.Count, paginaActual, filtradas.Sum(v => v.PendienteCobro), clientes,
+            filtradas.Skip((paginaActual - 1) * 30).Take(30).ToList());
+    }
 
     public async Task<ComisionPreview> Preview(ComisionFiltro f)
     {

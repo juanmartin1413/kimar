@@ -17,6 +17,63 @@ namespace KimarApi.Tests;
 public class ComisionTests
 {
     [TestMethod]
+    public void SeguimientoCalculaSoloLaPorcionSinCobrarSinDependerDeEntrega()
+    {
+        var v = new ComisionVenta(Guid.NewGuid(), Guid.NewGuid(), "Cliente", ComisionService.Hoy.AddDays(1), "R1", "F1",
+            1000, 0, 100, 5, 500, 0, 0, 0, false, [], []);
+        Assert.AreEqual(500m, ComisionService.PendienteCobro(v));
+        Assert.AreEqual(250m, ComisionService.PendienteCobro(v with { Cobrado = 500 }));
+        Assert.AreEqual(0m, ComisionService.PendienteCobro(v with { Cobrado = 1000 }));
+        Assert.AreEqual(100m, ComisionService.PendienteCobro(v with { Cobrado = 500, Liquidada = 400 }));
+        Assert.AreEqual(0m, ComisionService.PendienteCobro(v with { Liquidada = 600 }));
+        Assert.AreEqual(0m, ComisionService.PendienteCobro(v with { Total = 0 }));
+        Assert.AreEqual(333.33m, ComisionService.PendienteCobro(v with { TotalVenta = 3, Cobrado = 1 }));
+    }
+
+    [TestMethod]
+    public async Task SeguimientoIncluyeVentasFuturasYSeActualizaConCobros()
+    {
+        await using var f = await Setup(0); var s = new ComisionService(f.Db); var id = f.Venta.VendedorId;
+        f.Venta.FechaEntrega = ComisionService.Hoy.AddDays(1);
+        await f.Db.SaveChangesAsync();
+        var p = await s.PendientesCobro(id, null, null, 1);
+        Assert.AreEqual(1, p.Total); Assert.AreEqual(50000m, p.ComisionPendiente);
+        Assert.AreEqual("pendiente", p.Items[0].EstadoEntrega);
+        f.AddPago(500); await f.Db.SaveChangesAsync();
+        p = await s.PendientesCobro(id, null, null, 1);
+        Assert.AreEqual(25000m, p.ComisionPendiente); Assert.AreEqual(500m, p.Items[0].SaldoCliente);
+        Assert.AreEqual(0, (await s.PendientesCobro(id, null, "entregado", 1)).Total);
+        Assert.AreEqual(0, (await s.PendientesCobro(id, Guid.NewGuid(), null, 1)).Total);
+        f.AddPago(500); await f.Db.SaveChangesAsync();
+        Assert.AreEqual(0, (await s.PendientesCobro(id, null, null, 1)).Total);
+    }
+
+    [TestMethod]
+    public async Task SeguimientoRespetaVendedorYPaginaYAnticipos()
+    {
+        await using var f = await Setup(0); var s = new ComisionService(f.Db); var id = f.Venta.VendedorId;
+        await s.Anticipar(new(id, Guid.NewGuid(), 100, ComisionService.Hoy, "efectivo", null, "Adelanto"), f.User);
+        Assert.AreEqual(50000m, (await s.PendientesCobro(id, null, null, 1)).ComisionPendiente);
+        var controller = new ComisionesController(f.Db, s) { ControllerContext = new() { HttpContext = new DefaultHttpContext {
+            User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString()), new Claim(ClaimTypes.Role, "vendedor")], "test"))
+        } } };
+        Assert.IsInstanceOfType(await controller.PendientesCobro(id, null, null), typeof(NotFoundResult));
+        controller.HttpContext.User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, f.User.ToString()), new Claim(ClaimTypes.Role, "vendedor")], "test"));
+        Assert.IsInstanceOfType(await controller.PendientesCobro(id, null, null), typeof(OkObjectResult));
+        var producto = await f.Db.Productos.FirstAsync();
+        for (var n = 0; n < 31; n++) f.Db.Ventas.Add(new() {
+            ClienteId = f.Cliente.Id, VendedorId = id, FechaEntrega = ComisionService.Hoy, Total = 100,
+            Items = [new() { ProductoId = producto.Id, Cantidad = 1, Unidad = "kg", Descripcion = "Producto" }]
+        });
+        await f.Db.SaveChangesAsync();
+        var primera = await s.PendientesCobro(id, null, null, 1);
+        var segunda = await s.PendientesCobro(id, null, null, 2);
+        Assert.AreEqual(32, primera.Total); Assert.AreEqual(30, primera.Items.Count); Assert.AreEqual(2, segunda.Items.Count);
+        Assert.IsFalse(primera.Items.Select(i => i.Venta.VentaId).Intersect(segunda.Items.Select(i => i.Venta.VentaId)).Any());
+        Assert.AreEqual(2, (await s.PendientesCobro(id, null, null, 99)).Pagina);
+    }
+
+    [TestMethod]
     public void ProporcionalLimitesYRedondeo()
     {
         Assert.AreEqual(25000m, ComisionService.Habilitada(50000, 60500, 121000));
