@@ -29,4 +29,25 @@ export function receptorCliente(c: Cliente): ReceptorFiscal {
 export function fiscalItems(items: ItemVenta[]) {
   return items.map(i => ({ productoId: i.productoId, calidadId: i.calidadId ?? null, descripcion: i.descripcion, cantidad: i.cantidad, precioUnitario: i.precioUnitario }))
 }
+export interface DatosFactura {
+  receptor: ReceptorFiscal
+  descripciones: Record<string, string>
+  observaciones: string
+}
+export function datosFacturaCliente(cliente: Cliente): DatosFactura {
+  return { receptor: receptorCliente(cliente), descripciones: {}, observaciones: '' }
+}
+export function solicitudFactura(clienteId: string, items: ItemVenta[], datos: DatosFactura) {
+  return { clienteId, items: fiscalItems(items), receptor: datos.receptor,
+    descripciones: items.map(i => datos.descripciones[i.id] ?? i.descripcion), observaciones: datos.observaciones }
+}
+export function validarDatosFactura(items: ItemVenta[], datos: DatosFactura): string | null {
+  const r = datos.receptor
+  if (!r.razonSocial.trim()) return 'Completá la razón social en Datos de facturación.'
+  if (!r.cuit.trim()) return 'Completá el CUIT en Datos de facturación.'
+  if (!condicionIvaLabels[r.condicionIva]) return 'Seleccioná la condición IVA en Datos de facturación.'
+  if (!r.domicilio.trim()) return 'Completá el domicilio fiscal en Datos de facturación.'
+  if (items.some(i => !(datos.descripciones[i.id] ?? i.descripcion).trim())) return 'Completá las descripciones fiscales de los productos.'
+  return null
+}
 export function roundMoney(value: number) { return Math.round((value + Number.EPSILON) * 100) / 100 }

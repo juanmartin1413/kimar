@@ -14,7 +14,7 @@ import { EntregaPactada } from '@/components/interno/EntregaPactada'
 import { cn } from '@/lib/utils'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { FacturaEditor, FacturaResumen } from '@/components/interno/FacturaEditor'
-import { ComprobanteFiscal, roundMoney } from '@/lib/facturacion'
+import { ComprobanteFiscal, DatosFactura, datosFacturaCliente, solicitudFactura, validarDatosFactura, roundMoney } from '@/lib/facturacion'
 import { api } from '@/lib/api'
 import { esperarFactura } from '@/lib/esperarFactura'
 
@@ -32,11 +32,16 @@ export default function NuevaVentaPage() {
   const [horaEntregaHasta, setHasta] = useState('')
   const [emitirFactura, setEmitirFactura] = useState(false)
   const [preview, setPreview] = useState<ComprobanteFiscal | null>(null)
+  const [datosFacturaEditados, setDatosFacturaEditados] = useState<{ clienteId: string; datos: DatosFactura } | null>(null)
+  const [reviewedInput, setReviewedInput] = useState('')
+  const [preparingPreview, setPreparingPreview] = useState(false)
+  const preparingRef = useRef(false)
+  const previewGeneration = useRef(0)
   const [saving, setSaving] = useState(false)
   const [generatingInvoice, setGeneratingInvoice] = useState(false)
   const savingRef = useRef(false)
   const waitController = useRef<AbortController | null>(null)
-  useEffect(() => () => { waitController.current?.abort() }, [])
+  useEffect(() => () => { waitController.current?.abort(); previewGeneration.current++ }, [])
   const [error, setError] = useState('')
   const [operacionId] = useState(() => crypto.randomUUID())
   const [observaciones, setObservaciones] = useState('')
@@ -59,11 +64,16 @@ export default function NuevaVentaPage() {
   const neto = roundMoney(items.reduce((s, i) => s + roundMoney(i.cantidad * i.precioUnitario), 0))
   const iva = emitirFactura ? roundMoney(neto * 0.21) : 0
   const total = roundMoney(neto + iva)
-  useEffect(() => { setPreview(null) }, [clienteId, items, emitirFactura])
   const pendingPedidos = data.pedidos.filter(p => p.estado === 'pendiente')
   const selectedProduct = data.productos.find(p => p.id === productoId)
   const unidadLabel = selectedProduct?.unidad === 'unidad' ? 'Unidades' : 'Kg'
   const selectedCliente = data.clientes.find(c => c.id === clienteId)
+  const datosFactura = selectedCliente
+    ? datosFacturaEditados?.clienteId === clienteId ? datosFacturaEditados.datos : datosFacturaCliente(selectedCliente)
+    : null
+  const facturaInput = emitirFactura && datosFactura ? JSON.stringify(solicitudFactura(clienteId, items, datosFactura)) : ''
+  useEffect(() => { setPreview(null); setReviewedInput(''); previewGeneration.current++ }, [facturaInput])
+  const previewActual = !!preview && reviewedInput === facturaInput
   const selectedVendedor = data.vendedores.find(v => v.id === vendedorId)
   const calidadesActivas = selectedProduct ? getCalidadesDelProducto(selectedProduct.id).filter(c => c.activo) : []
   const requiereCalidad = calidadesActivas.length > 1
@@ -90,6 +100,7 @@ export default function NuevaVentaPage() {
 
   function onClienteChange(id: string) {
     setClienteId(id)
+    setDatosFacturaEditados(null)
     const cliente = data.clientes.find(c => c.id === id)
     setEmitirFactura(cliente?.requiereFactura ?? false)
     if (cliente?.vendedorId) setVendedorId(cliente.vendedorId)
@@ -145,6 +156,7 @@ export default function NuevaVentaPage() {
 
   async function doSave() {
     if (savingRef.current) return
+    if (emitirFactura && !previewActual) { setError('Los datos cambiaron. Volvé y registrá la venta para revisar la factura actualizada.'); return }
     savingRef.current = true
     const controller = new AbortController()
     waitController.current = controller
@@ -183,14 +195,32 @@ export default function NuevaVentaPage() {
     }
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (preparingRef.current || savingRef.current) return
     if (!clienteId || items.length === 0) return
     if (itemsPendientesCalidad.length > 0) return
 
-    if (emitirFactura && !preview) { setError('Revisá la vista previa de la factura antes de confirmar.'); return }
     if (horaEntregaHasta && horaEntregaHasta <= horaEntregaDesde) { setError('Revisá el horario de entrega.'); return }
-    setError(''); setShowWarning(true)
+    setError('')
+    if (!emitirFactura) { setShowWarning(true); return }
+    if (!datosFactura) { setError('Seleccioná un cliente para completar los datos de facturación.'); return }
+    const validationError = validarDatosFactura(items, datosFactura)
+    if (validationError) { setError(validationError); return }
+    preparingRef.current = true
+    setPreparingPreview(true); setPreview(null); setReviewedInput('')
+    const generation = ++previewGeneration.current
+    try {
+      // El servidor valida los datos y prepara el borrador; todavía no registra la venta ni emite ante ARCA.
+      const result = await api.post<ComprobanteFiscal>('/api/facturacion/preview', JSON.parse(facturaInput))
+      if (generation !== previewGeneration.current) return
+      setPreview(result); setReviewedInput(facturaInput); setShowWarning(true)
+    } catch (e) {
+      if (generation === previewGeneration.current) setError(e instanceof Error ? e.message : 'No se pudo preparar la factura. Revisá los datos y volvé a intentar.')
+    } finally {
+      preparingRef.current = false
+      setPreparingPreview(false)
+    }
   }
 
   const fieldClass = "w-full border border-[oklch(0.88_0.02_240)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[oklch(0.42_0.14_240)]"
@@ -208,6 +238,7 @@ export default function NuevaVentaPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
+        <fieldset disabled={preparingPreview || saving} className="space-y-5">
         {/* Pedido base */}
         {pendingPedidos.length > 0 && (
           <div className="bg-white rounded-xl border border-[oklch(0.9_0.01_240)] shadow-sm p-6">
@@ -372,7 +403,7 @@ export default function NuevaVentaPage() {
           )}
         </div>
 
-        {emitirFactura && selectedCliente && <FacturaEditor key={clienteId} cliente={selectedCliente} items={items} onPreview={setPreview} />}
+        {emitirFactura && datosFactura && <FacturaEditor items={items} value={datosFactura} onChange={datos => setDatosFacturaEditados({ clienteId, datos })} />}
         <p className="text-sm font-semibold">Neto: {formatPeso(neto)}{emitirFactura && <> · IVA 21%: {formatPeso(iva)}</>} · Total a cobrar: {formatPeso(total)}</p>
         <div className="rounded-xl border bg-white p-5 space-y-3">
           <h2 className="font-semibold">Condición de pago</h2>
@@ -392,6 +423,8 @@ export default function NuevaVentaPage() {
           />
         </div>
 
+        </fieldset>
+        {preparingPreview && <p role="status" aria-live="polite" className="text-blue-800">Validando datos y preparando la factura…</p>}
         {error && <p role="alert" className="text-red-700">{error}</p>}
         <Dialog open={showWarning} onOpenChange={open => { if (!saving) setShowWarning(open) }}>
           <DialogContent showCloseButton={!saving} className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
@@ -412,7 +445,7 @@ export default function NuevaVentaPage() {
             {error && <p role="alert" className="text-red-700">{error}</p>}
             <div className="flex gap-3">
               <button type="button" disabled={saving} onClick={() => setShowWarning(false)} className="rounded-lg border px-4 py-2">Volver y corregir</button>
-              <button type="button" disabled={saving || (emitirFactura && !preview)} onClick={doSave} className="rounded-lg bg-blue-700 text-white px-4 py-2 disabled:opacity-50">{saving ? 'Registrando…' : emitirFactura ? 'Confirmar venta y emitir factura' : 'Confirmar venta sin emitir factura'}</button>
+              <button type="button" disabled={saving || (emitirFactura && !previewActual)} onClick={doSave} className="rounded-lg bg-blue-700 text-white px-4 py-2 disabled:opacity-50">{saving ? 'Registrando…' : emitirFactura ? 'Confirmar venta y emitir factura' : 'Confirmar venta sin emitir factura'}</button>
             </div>
             </>}
           </DialogContent>
@@ -428,11 +461,11 @@ export default function NuevaVentaPage() {
             </Link>
             <button
               type="submit"
-              disabled={saving || !clienteId || items.length === 0 || itemsPendientesCalidad.length > 0 || (emitirFactura && !preview)}
+              disabled={saving || preparingPreview || !clienteId || items.length === 0 || itemsPendientesCalidad.length > 0}
               title={itemsPendientesCalidad.length > 0 ? 'Hay ítems que requieren elegir una calidad' : undefined}
               className="flex-1 bg-[oklch(0.42_0.14_240)] hover:bg-[oklch(0.52_0.14_240)] disabled:opacity-50 text-white py-3 rounded-lg text-sm font-semibold transition-colors"
             >
-              Registrar venta
+              {preparingPreview ? 'Preparando factura…' : 'Registrar venta'}
             </button>
           </div>
         )}
