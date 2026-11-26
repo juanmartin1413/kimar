@@ -23,7 +23,7 @@ export default function NuevoPedidoPage() {
   const [clienteId, setClienteId] = useState('')
   const [vendedorId, setVendedorId] = useState(vendedorIdDefault)
   const [fecha, setFecha] = useState(today())
-  const [fechaEntrega, setFechaEntrega] = useState(today())
+  const [fechaEntrega, setFechaEntrega] = useState('')
   const [horaEntregaDesde, setDesde] = useState('')
   const [horaEntregaHasta, setHasta] = useState('')
   const [saving, setSaving] = useState(false)
@@ -73,6 +73,7 @@ export default function NuevoPedidoPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (saving || !clienteId || items.length === 0) return
+    if (!fechaEntrega) { setError('Ingresá la fecha de entrega pactada.'); return }
     if (horaEntregaHasta && horaEntregaHasta <= horaEntregaDesde) { setError('Revisá el horario de entrega.'); return }
     setSaving(true); setError('')
     try {
@@ -100,7 +101,11 @@ export default function NuevoPedidoPage() {
         <div className="bg-white rounded-xl border border-[oklch(0.9_0.01_240)] shadow-sm p-6 space-y-4">
           <h2 className="font-semibold text-[oklch(0.25_0.06_240)]">Datos del pedido</h2>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="fecha-pedido" className="block text-xs font-medium text-[oklch(0.35_0.06_240)] mb-1">Fecha del pedido *</label>
+              <input id="fecha-pedido" required type="date" value={fecha} onChange={e => setFecha(e.target.value)} className={fieldClass} />
+            </div>
             <div>
               <label className="block text-xs font-medium text-[oklch(0.35_0.06_240)] mb-1">Cliente *</label>
               <select value={clienteId} onChange={e => onClienteChange(e.target.value)} required className={fieldClass}>
@@ -127,10 +132,6 @@ export default function NuevoPedidoPage() {
           <EstadoCuentaCliente clienteId={clienteId} />
           <EntregaPactada fecha={fechaEntrega} desde={horaEntregaDesde} hasta={horaEntregaHasta} onChange={(f,d,h) => { setFechaEntrega(f); setDesde(d); setHasta(h) }} />
 
-          <div>
-            <label className="block text-xs font-medium text-[oklch(0.35_0.06_240)] mb-1">Fecha del pedido</label>
-            <input required type="date" value={fecha} onChange={e => setFecha(e.target.value)} className={fieldClass} />
-          </div>
         </div>
 
         <div className="bg-white rounded-xl border border-[oklch(0.9_0.01_240)] shadow-sm p-6 space-y-4">
