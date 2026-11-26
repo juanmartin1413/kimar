@@ -4,6 +4,7 @@ export interface DeudaPago {
   cobranzaId: string
   ventaId: string
   nroRemito?: string
+  nroFactura?: string
   vencimiento: string
   saldo: number
   aplicar: number
@@ -27,7 +28,7 @@ export interface PagoCliente {
   monto: number
   formaPago: FormaPago
   observaciones?: string
-  imputaciones: { cobranzaId: string; ventaId: string; nroRemito?: string; monto: number }[]
+  imputaciones: { cobranzaId: string; ventaId: string; nroRemito?: string; nroFactura?: string; monto: number }[]
 }
 export const dinero = (value: number) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 2 }).format(value)
 export function distribucionValida(deudas: DeudaPago[], monto: number) {

@@ -3,8 +3,8 @@
 import { useRef, useState } from 'react'
 import { FileText, Paperclip, Plus, Trash2 } from 'lucide-react'
 
-export function ComprobantesPagoSelector({ files, onChange, disabled = false }: {
-  files: File[]; onChange: (files: File[]) => void; disabled?: boolean
+export function ComprobantesPagoSelector({ files, onChange, disabled = false, buttonLabel = 'Seleccionar archivos' }: {
+  files: File[]; onChange: (files: File[]) => void; disabled?: boolean; buttonLabel?: string
 }) {
   const input = useRef<HTMLInputElement>(null)
   const [error, setError] = useState('')
@@ -34,7 +34,7 @@ export function ComprobantesPagoSelector({ files, onChange, disabled = false }: 
         aria-label="Seleccionar comprobantes" onChange={e => { agregar(Array.from(e.target.files ?? [])); e.target.value = '' }} />
       <button type="button" disabled={disabled} onClick={() => input.current?.click()}
         className="inline-flex items-center gap-2 rounded-lg bg-blue-800 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
-        <Plus className="h-4 w-4" aria-hidden="true" />{files.length ? 'Agregar más archivos' : 'Seleccionar archivos'}
+        <Plus className="h-4 w-4" aria-hidden="true" />{files.length ? 'Agregar más archivos' : buttonLabel}
       </button>
       <p className="text-xs text-slate-500">PDF, JPG, PNG o WebP · Hasta 8 MB por archivo</p>
     </div>

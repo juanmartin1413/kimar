@@ -63,7 +63,7 @@ public class CobranzasController(KimarDbContext db, VentaService ventaSvc) : Con
         var pagos = await db.PagosCliente.Include(p => p.Cliente).Include(p => p.Imputaciones).ThenInclude(i => i.Cobranza).ThenInclude(c => c.Venta)
             .OrderByDescending(p => p.Fecha).ThenByDescending(p => p.FechaCreacion).ToListAsync();
         return Ok(pagos.Select(p => new { p.Id, p.ClienteId, clienteNombre = p.Cliente.Nombre, p.Fecha, p.Monto, p.FormaPago, p.Observaciones,
-            imputaciones = p.Imputaciones.Select(i => new { i.CobranzaId, i.Cobranza.VentaId, nroRemito = i.Cobranza.Venta?.NroRemito, i.Monto }) }));
+            imputaciones = p.Imputaciones.Select(i => new { i.CobranzaId, i.Cobranza.VentaId, nroRemito = i.Cobranza.Venta?.NroRemito, nroFactura = i.Cobranza.Venta?.NroFactura, i.Monto }) }));
     }
 
     private async Task<List<Cobranza>> Deudas(Guid clienteId) => await db.Cobranzas.Include(c => c.Venta).Include(c => c.Imputaciones)

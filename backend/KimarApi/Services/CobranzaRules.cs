@@ -9,7 +9,7 @@ public record PreviewPagoRequest(Guid ClienteId, decimal Monto, Guid? PrioridadI
 public record ConfirmarPagoRequest(Guid OperacionId, Guid ClienteId, DateOnly Fecha, decimal Monto,
     string FormaPago, string? Observaciones, string Version, List<AplicacionPagoRequest> Imputaciones);
 public record DeudaPagoDto(Guid CobranzaId, Guid? VentaId, string? NroRemito, DateOnly Vencimiento,
-    decimal Saldo, decimal Aplicar);
+    decimal Saldo, decimal Aplicar, string? NroFactura = null);
 
 public static class CobranzaRules
 {
@@ -26,7 +26,7 @@ public static class CobranzaRules
             var saldo = Saldo(c);
             var aplicar = Math.Min(monto, saldo);
             monto -= aplicar;
-            return new DeudaPagoDto(c.Id, c.VentaId, c.Venta?.NroRemito, c.Fecha, saldo, aplicar);
+            return new DeudaPagoDto(c.Id, c.VentaId, c.Venta?.NroRemito, c.Fecha, saldo, aplicar, c.Venta?.NroFactura);
         }).ToList();
     }
 

@@ -24,7 +24,11 @@ public class CobranzasTests
     public void DistribuyePorVencimientoYPermitePriorizarFila()
     {
         var deudas = Deudas();
+        deudas[0].Venta = new() { NroRemito = "00002-00000001", NroFactura = "00001-00000006" };
         var propuesta = CobranzaRules.Proponer(deudas.AsEnumerable().Reverse(), 350, null);
+        Assert.AreEqual("00002-00000001", propuesta[0].NroRemito);
+        Assert.AreEqual("00001-00000006", propuesta[0].NroFactura);
+        Assert.IsNull(propuesta[1].NroFactura);
         CollectionAssert.AreEqual(new decimal[] { 100, 200, 50 }, propuesta.Select(p => p.Aplicar).ToArray());
         var fila = CobranzaRules.Proponer(deudas, 350, deudas[2].Id);
         Assert.AreEqual(deudas[2].Id, fila[0].CobranzaId);

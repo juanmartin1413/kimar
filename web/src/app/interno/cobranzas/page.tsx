@@ -10,6 +10,7 @@ import { formatFecha, today } from '@/lib/format'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { CobranzaForm } from '@/components/interno/CobranzaForm'
 import { AdjuntosPago } from '@/components/interno/AdjuntosPago'
+import { DocumentosVenta } from '@/components/interno/DocumentosVenta'
 
 export default function CobranzasPage() {
   const { data } = useData()
@@ -50,7 +51,7 @@ export default function CobranzasPage() {
         const venta = data.ventas.find(v => v.id === c.ventaId)
         const parcial = venta?.estado === 'cobrado_parcial'
         return <tr key={c.id} className="border-t"><td className="p-3">{formatFecha(c.fecha)}</td><td>{data.clientes.find(x => x.id === c.clienteId)?.nombre}</td><td className="font-semibold">{dinero(c.monto)}</td>
-          <td>Remito {venta?.nroRemito ?? '—'}<p className={c.fecha < today() ? 'text-red-700' : 'text-amber-800'}>{c.fecha < today() ? 'Vencido' : 'Pendiente'}{parcial ? ' · Pago parcial' : ''}</p></td>
+          <td className="py-2"><DocumentosVenta nroRemito={venta?.nroRemito} nroFactura={venta?.nroFactura} /><p className={c.fecha < today() ? 'text-red-700' : 'text-amber-800'}>{c.fecha < today() ? 'Vencido' : 'Pendiente'}{parcial ? ' · Pago parcial' : ''}</p></td>
           <td className="p-3">{canManageData && <button className="text-blue-800 underline" onClick={() => { setInitial(c); setOpen(true) }}>Cobrar</button>}</td></tr>
       }) : historial.map(p => <tr key={p.id} className="border-t"><td className="p-3">{formatFecha(p.fecha)}</td><td>{p.clienteNombre}</td><td className="font-semibold">{dinero(p.monto)}</td><td>{p.formaPago}</td><td className="p-3"><button className="text-blue-800 underline" onClick={() => setDetalle(p)}>Detalle y comprobantes</button></td></tr>)}
       {(tab === 'agenda' ? !filas.length : !payments.loading && !payments.error && !historial.length) && <tr><td colSpan={5} className="p-10 text-center text-gray-500">Sin registros en esta categoría.</td></tr>}
@@ -60,7 +61,13 @@ export default function CobranzasPage() {
     </DialogContent></Dialog>
     <Dialog open={!!detalle} onOpenChange={v => { if (!v) setDetalle(null) }}><DialogContent className="sm:max-w-xl max-h-[85vh] overflow-y-auto"><DialogTitle>Detalle del pago</DialogTitle>
       {detalle && <><p>{detalle.clienteNombre} · {formatFecha(detalle.fecha)} · {detalle.formaPago}</p><p className="font-bold">{dinero(detalle.monto)}</p>{detalle.observaciones && <p>{detalle.observaciones}</p>}
-        {detalle.imputaciones.map(i => <p key={i.cobranzaId}>Remito {i.nroRemito ?? '—'}: {dinero(i.monto)}</p>)}<AdjuntosPago pagoId={detalle.id} /></>}
+        <div className="overflow-x-auto rounded-lg border"><table className="w-full text-sm">
+          <thead className="bg-slate-50 text-left"><tr><th className="p-3">Documentos de la venta</th><th className="p-3 text-right">Monto aplicado</th></tr></thead>
+          <tbody>{detalle.imputaciones.map(i => <tr key={i.cobranzaId} className="border-t">
+            <td className="p-3"><DocumentosVenta nroRemito={i.nroRemito} nroFactura={i.nroFactura} /></td>
+            <td className="p-3 text-right font-medium whitespace-nowrap">{dinero(i.monto)}</td>
+          </tr>)}</tbody>
+        </table></div><AdjuntosPago key={detalle.id} pagoId={detalle.id} /></>}
     </DialogContent></Dialog>
   </div>
 }

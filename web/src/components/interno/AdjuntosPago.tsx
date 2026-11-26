@@ -54,7 +54,7 @@ export function AdjuntosPago({ pagoId }: { pagoId: string }) {
     </div>)}
     <QueryState loading={query.loading} error={query.error} retry={query.retry} />
     {!query.loading && !query.error && !lista.length && <p className="text-gray-500">Sin comprobantes adjuntos.</p>}
-    <ComprobantesPagoSelector files={files} onChange={setFiles} disabled={busy} />
+    <ComprobantesPagoSelector files={files} onChange={setFiles} disabled={busy} buttonLabel="Añadir un comprobante" />
     {files.length > 0 && <button type="button" disabled={busy} onClick={subir} className="rounded-lg bg-blue-800 px-4 py-2 font-semibold text-white disabled:opacity-50">
       {busy ? 'Subiendo…' : 'Guardar comprobantes'}
     </button>}

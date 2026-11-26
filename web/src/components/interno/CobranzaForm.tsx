@@ -7,6 +7,7 @@ import { Cobranza, FormaPago } from '@/lib/types'
 import { ConfirmarPagoPayload, PreviewPago, dinero, distribucionValida } from '@/lib/cobranzas'
 import { formatFecha, today } from '@/lib/format'
 import { EstadoCuentaCliente } from './EstadoCuentaCliente'
+import { DocumentosVenta } from './DocumentosVenta'
 import { ComprobantesPagoSelector } from './ComprobantesPagoSelector'
 
 export function CobranzaForm({ initial, onDone, onBusy }: { initial?: Cobranza; onDone: () => void; onBusy: (busy: boolean) => void }) {
@@ -87,9 +88,9 @@ export function CobranzaForm({ initial, onDone, onBusy }: { initial?: Cobranza; 
       <button type="button" disabled={!clienteId || !(Number(monto) > 0) || !fecha} className="rounded-lg border px-4 py-2 text-blue-800 disabled:opacity-50" onClick={proponer}>Calcular distribución</button>
       {preview && <div className="space-y-2">
         <p className="font-semibold">Revisá y ajustá la distribución antes de confirmar</p>
-        <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="text-left"><th>Remito / vencimiento</th><th>Saldo</th><th>Aplicar</th><th>Restante</th></tr></thead>
+        <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="text-left"><th>Documentos / vencimiento</th><th>Saldo</th><th>Aplicar</th><th>Restante</th></tr></thead>
           <tbody>{preview.deudas.map(d => <tr key={d.cobranzaId} className="border-t">
-            <td className="py-2">{d.nroRemito ?? '—'}<br />{formatFecha(d.vencimiento)}</td><td>{dinero(d.saldo)}</td>
+            <td className="py-2"><DocumentosVenta nroRemito={d.nroRemito} nroFactura={d.nroFactura} />{formatFecha(d.vencimiento)}</td><td>{dinero(d.saldo)}</td>
             <td><input aria-label={`Aplicar a remito ${d.nroRemito ?? d.ventaId}`} className="w-28 border rounded p-2" type="number" min="0" max={d.saldo} step="0.01" value={d.aplicar} onChange={e => setPreview(p => p && ({ ...p, deudas: p.deudas.map(x => x.cobranzaId === d.cobranzaId ? { ...x, aplicar: Number(e.target.value) } : x) }))} /></td>
             <td>{dinero(d.saldo - d.aplicar)}</td>
           </tr>)}</tbody></table></div>
