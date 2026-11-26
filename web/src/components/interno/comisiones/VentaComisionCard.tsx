@@ -20,9 +20,9 @@ export function VentaComisionCard({ venta: v, expanded, onToggle, selected, onSe
         <span className="text-xs">{v.cobrado >= v.totalVenta ? 'Cobrado' : v.cobrado > 0 ? 'Cobro parcial' : 'Pendiente de cobro'} · {expanded ? 'Ocultar detalle' : 'Ver detalle'}</span>
         </span>
       <span className="text-xs flex flex-wrap gap-4">
-        <span>Comisión total<strong className="block text-sm">{formatPeso(v.total)}</strong></span>
+        {!onSelect && <><span>Comisión total<strong className="block text-sm">{formatPeso(v.total)}</strong></span>
         <span>Comisión sobre lo cobrado<strong className="block text-sm">{formatPeso(v.habilitada)}</strong></span>
-        <span>Ya liquidado<strong className="block text-sm">{formatPeso(v.liquidada)}</strong></span>
+        <span>Ya liquidado<strong className="block text-sm">{formatPeso(v.liquidada)}</strong></span></>}
         <span>{v.pendiente < 0 ? 'Ajuste a recuperar' : 'En esta liquidación'}<strong className="block text-sm text-amber-200">{formatPeso(v.pendiente)}</strong></span>
       </span>
       </button>

@@ -4,6 +4,7 @@ import './globals.css'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { DataProvider } from '@/contexts/DataContext'
 import { ThemeProvider } from '@/contexts/ThemeContext'
+import { Notificaciones } from '@/components/Notificaciones'
 
 const geist = Geist({ subsets: ['latin'], variable: '--font-sans' })
 
@@ -50,6 +51,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body className="min-h-full flex flex-col">
+        <Notificaciones />
         <ThemeProvider>
         <AuthProvider>
           <DataProvider>

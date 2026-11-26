@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import Link from 'next/link'
+import { notificar } from '@/lib/notificaciones'
 import { useData } from '@/contexts/DataContext'
 
 const mensajes: Record<string, { texto: string; color: string }> = {
@@ -25,14 +25,9 @@ export function ResultadoRegistroVenta() {
     if (notice && validId && refreshed.current !== ventaId) {
       refreshed.current = ventaId
       refresh()
+      notificar(notice.texto, estado === 'pendiente' || estado === 'requiere_revision' ? 'warning' : 'success', `/interno/ventas/${ventaId}`)
+      router.replace('/interno/ventas', { scroll: false })
     }
-  }, [notice, validId, ventaId, refresh])
-  if (!notice || !validId) return null
-  return <div role="status" className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4 text-sm ${notice.color}`}>
-    <p>{notice.texto}</p>
-    <div className="flex gap-4">
-      <Link className="font-semibold underline" href={`/interno/ventas/${ventaId}`}>Ir a la venta</Link>
-      <button className="font-medium" onClick={() => router.replace('/interno/ventas', { scroll: false })} aria-label="Cerrar aviso de registro">Cerrar</button>
-    </div>
-  </div>
+  }, [notice, validId, ventaId, refresh, estado, router])
+  return null
 }

@@ -74,7 +74,6 @@ function EditVentaForm({ ventaId }: { ventaId: string }) {
   const [calidadId, setCalidadId] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [guardado, setGuardado] = useState(false)
 
   const neto = items.reduce((s, i) => s + (venta.emitirFactura ? roundMoney(i.cantidad * i.precioUnitario) : i.subtotal), 0)
   const total = puedeEditarProductos ? neto + (venta.emitirFactura ? roundMoney(neto * 0.21) : 0) : venta.total
@@ -150,7 +149,6 @@ function EditVentaForm({ ventaId }: { ventaId: string }) {
     if (!canManageData) return
     setSaving(true)
     setError('')
-    setGuardado(false)
     try {
       if (puedeEditarProductos) {
         await updateVentaCompleta(ventaId, {
@@ -175,7 +173,7 @@ function EditVentaForm({ ventaId }: { ventaId: string }) {
           observaciones: observaciones || undefined,
         })
       }
-      if (venta.emitirFactura) { setSaving(false); setGuardado(true); revisarPermiso() } else router.push('/interno/ventas')
+      if (venta.emitirFactura) { setSaving(false); revisarPermiso() } else router.push('/interno/ventas')
     } catch (e) {
       setError(parseApiError(e, 'No se pudo guardar la venta.'))
       setSaving(false)
@@ -405,7 +403,6 @@ function EditVentaForm({ ventaId }: { ventaId: string }) {
         )}
       </form>
 
-      {guardado && !itemsCambiaron && <p role="status" className="rounded-lg bg-green-50 p-3 text-green-800">Cambios guardados. Podés revisar y emitir la factura de reemplazo.</p>}
       {canManageData && venta.emitirFactura && <ComprobantesFiscales ventaId={ventaId} onFiscalChange={revisarPermiso} cambiosSinGuardar={itemsCambiaron || saving} />}
       {/* Fuera del form: los documentos se suben/eliminan al instante, no al guardar la venta */}
       {canManageData && <div className="bg-white rounded-xl border border-[oklch(0.9_0.01_240)] shadow-sm p-6 space-y-3">

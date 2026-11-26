@@ -1,3 +1,5 @@
+import { mensajeOperacion, notificar } from './notificaciones'
+
 const BASE = (process.env.NEXT_PUBLIC_API_URL ?? '').replace(/\/$/, '')
 
 async function request<T>(method: string, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
@@ -30,9 +32,10 @@ async function request<T>(method: string, path: string, body?: unknown, signal?:
     throw Object.assign(new Error(message || `HTTP ${res.status}`), { status: res.status })
   }
 
-  if (res.status === 204) return undefined as T
-
-  return res.json()
+  const result = res.status === 204 ? undefined : await res.json()
+  const mensaje = mensajeOperacion(method, path)
+  if (mensaje) notificar(mensaje)
+  return result as T
 }
 
 export const api = {

@@ -30,6 +30,7 @@ export function PagoComisionDialog({ accion, pendiente, storageKey, onClose, onS
   async function guardar(e: React.FormEvent) {
     e.preventDefault()
     if (busy) return
+    if (!enviada && accion.liquidacion && importe <= 0) { setError('No hay importe a pagar. No se puede registrar una liquidación en cero.'); return }
     const request = enviada ?? { accion: { ...accion, monto: importe }, body: { ...accion.body, operacionId: crypto.randomUUID(), fecha,
       formaPago: importe !== 0 ? formaPago : null, referencia: referencia || null, motivo: motivo || null,
       ...(accion.liquidacion ? { compensarAdelantos } : {}),
@@ -69,10 +70,11 @@ export function PagoComisionDialog({ accion, pendiente, storageKey, onClose, onS
         <label className="block text-sm">Referencia del pago<input maxLength={200} value={referencia} onChange={e => setReferencia(e.target.value)} className={field} /></label>
         <label className="block text-sm">{accion.requiereMotivo ? 'Motivo (obligatorio)' : 'Observaciones'}<textarea required={accion.requiereMotivo} maxLength={500} value={motivo} onChange={e => setMotivo(e.target.value)} className={field} /></label>
       </>}
+      {!enviada && accion.liquidacion && importe <= 0 && <p className="text-sm text-amber-800">No hay importe a pagar con estas compensaciones.</p>}
       {error && <p role="alert" className="text-red-700 text-sm">{error}</p>}
       <div className="flex gap-3">
         {!enviada && <button type="button" onClick={onClose} disabled={busy} className="border rounded-lg px-4 py-2">Volver</button>}
-        <button type="submit" disabled={busy} className="bg-slate-900 text-white rounded-lg px-4 py-2 disabled:opacity-50">{busy ? 'Registrando…' : enviada ? 'Reintentar confirmación' : 'Confirmar y generar constancia'}</button>
+        <button type="submit" disabled={busy || (!enviada && !!accion.liquidacion && importe <= 0)} className="bg-slate-900 text-white rounded-lg px-4 py-2 disabled:opacity-50">{busy ? 'Registrando…' : enviada ? 'Reintentar confirmación' : 'Confirmar y generar constancia'}</button>
       </div>
     </form>
   </div>

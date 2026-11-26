@@ -75,17 +75,21 @@ public class ComisionTests
     }
 
     [TestMethod]
-    public async Task AnticiposFifoNetoCeroLimiteYSaldoArrastrado()
+    public async Task AnticiposRechazanNetoCeroYCompensanCuandoHayPago()
     {
         await using var f = await Setup(240); var s = new ComisionService(f.Db); var id = f.Venta.VendedorId;
         await s.Anticipar(new(id, Guid.NewGuid(), 10000, ComisionService.Hoy, "efectivo", null, "Primero"), f.User);
-        var segundo = await s.Anticipar(new(id, Guid.NewGuid(), 10000, ComisionService.Hoy, "efectivo", null, "Segundo"), f.User);
+        await s.Anticipar(new(id, Guid.NewGuid(), 10000, ComisionService.Hoy, "efectivo", null, "Segundo"), f.User);
         await Assert.ThrowsExceptionAsync<ComisionException>(() => s.Anticipar(new(id, Guid.NewGuid(), 30000.01m, ComisionService.Hoy, "efectivo", null, "Exceso"), f.User));
+        await Assert.ThrowsExceptionAsync<ComisionException>(async () => await s.Confirmar(await Solicitud(s, id), f.User));
+        Assert.AreEqual(2, await f.Db.ComisionDocumentos.CountAsync());
+        Assert.AreEqual(0, await f.Db.ComisionAplicaciones.CountAsync());
+        f.AddPago(260); await f.Db.SaveChangesAsync();
         var d = await s.Confirmar(await Solicitud(s, id), f.User);
-        Assert.AreEqual(0m, d.Pago); Assert.AreEqual(12000m, d.Compensado);
+        Assert.AreEqual(5000m, d.Pago); Assert.AreEqual(20000m, d.Compensado);
         var p = await s.Preview(new(id, ComisionService.Hoy));
-        Assert.AreEqual(8000m, p.AnticiposPendientes); Assert.AreEqual(segundo.Id, p.Anticipos.Single().Id);
-        Assert.AreEqual(30000m, p.LimiteAnticipo);
+        Assert.AreEqual(0m, p.AnticiposPendientes); Assert.AreEqual(0, p.Anticipos.Count);
+        Assert.AreEqual(25000m, p.LimiteAnticipo);
     }
 
     [TestMethod]
@@ -133,10 +137,10 @@ public class ComisionTests
         f.Venta.CreditoAplicado = f.Venta.Total; await f.Db.SaveChangesAsync();
         var p = await s.Preview(new(id, ComisionService.Hoy, ClienteIds: []));
         Assert.AreEqual(-25000m, p.Comision); Assert.IsTrue(p.Ventas.Single().Incluida);
-        var ajuste = await s.Confirmar(await Solicitud(s, id), f.User);
-        Assert.AreEqual(-25000m, ajuste.Comision); Assert.AreEqual(0m, ajuste.Pago);
+        await Assert.ThrowsExceptionAsync<ComisionException>(async () => await s.Confirmar(await Solicitud(s, id), f.User));
+        Assert.AreEqual(1, await f.Db.ComisionDocumentos.CountAsync());
         p = await s.Preview(new(id, ComisionService.Hoy));
-        Assert.AreEqual(25000m, p.AjusteAnterior); Assert.AreEqual(0m, p.LimiteAnticipo);
+        Assert.AreEqual(-25000m, p.Comision); Assert.AreEqual(0m, p.LimiteAnticipo);
         Assert.AreEqual(snapshot, (await f.Db.ComisionDocumentos.AsNoTracking().SingleAsync(x => x.Id == d.Id)).DatosJson);
     }
 
@@ -147,8 +151,8 @@ public class ComisionTests
         var d = await s.Confirmar(await Solicitud(s, id), f.User);
         var contra = await s.Corregir(d.Id, new(Guid.NewGuid(), ComisionService.Hoy, "Corrección"), f.User);
         Assert.AreEqual(-25000m, contra.Comision); Assert.AreEqual(0m, contra.Pago);
-        var reemplazo = await s.Confirmar(await Solicitud(s, id), f.User);
-        Assert.AreEqual(0m, reemplazo.Pago); Assert.AreEqual(25000m, reemplazo.Compensado);
+        await Assert.ThrowsExceptionAsync<ComisionException>(async () => await s.Confirmar(await Solicitud(s, id), f.User));
+        Assert.AreEqual(2, await f.Db.ComisionDocumentos.CountAsync());
         var a = await s.Anticipar(new(id, Guid.NewGuid(), 10000, ComisionService.Hoy, "efectivo", null, "Anticipo"), f.User);
         var devolucion = await s.Corregir(a.Id, new(Guid.NewGuid(), ComisionService.Hoy, "Dinero devuelto", "efectivo"), f.User);
         Assert.AreEqual(-10000m, devolucion.Pago);

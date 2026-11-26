@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { PdfButton } from './PdfButton'
 import { useAuth } from '@/contexts/AuthContext'
 import { useData } from '@/contexts/DataContext'
+import { notificar } from '@/lib/notificaciones'
 import { api } from '@/lib/api'
 import { formatPeso, formatFecha, today, addDaysIso } from '@/lib/format'
 import { ComprobanteFiscal, FiscalConfig, fiscalLabels, fiscalStatusClass, ReceptorFiscal } from '@/lib/facturacion'
@@ -32,7 +33,6 @@ export function ComprobantesFiscales({ ventaId, onFiscalChange, cambiosSinGuarda
   const [pagina, setPagina] = useState(1)
   const [estado, setEstado] = useState('')
   const [error, setError] = useState('')
-  const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<{ c: ComprobanteFiscal; action: 'nc' | 'corregir' | 'reemplazar' } | null>(null)
@@ -81,8 +81,8 @@ export function ComprobantesFiscales({ ventaId, onFiscalChange, cambiosSinGuarda
     setDescripciones(c.datos.items.map(i => i.descripcion)); setObservaciones(c.datos.observaciones || ''); setFecha(today()); setError('')
   }
   async function run(fn: () => Promise<unknown>, message: string) {
-    setBusy(true); setError(''); setNotice('')
-    try { await fn(); setNotice(message); setSelected(null); await load(); refresh(); onFiscalChange?.() }
+    setBusy(true); setError('')
+    try { await fn(); notificar(message); setSelected(null); await load(); refresh(); onFiscalChange?.() }
     catch (e) { setError(e instanceof Error ? e.message : 'No se pudo completar la operación') }
     finally { setBusy(false) }
   }
@@ -97,7 +97,6 @@ export function ComprobantesFiscales({ ventaId, onFiscalChange, cambiosSinGuarda
       <p>Reintentos cada {config.reintentoMinutos} minutos, sin límite para errores transitorios.</p>
       {config.error && <p className="text-amber-800">{config.error}</p>}
     </div>}
-    {notice && <p role="status" className="rounded-lg bg-green-50 p-3 text-green-800">{notice}</p>}
     {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-red-800">{error}</p>}
     {!ventaId && <form className="rounded-xl border border-slate-200 bg-white p-4 space-y-3" onSubmit={e => {
       e.preventDefault()

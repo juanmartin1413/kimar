@@ -125,6 +125,7 @@ public class ComisionService(KimarDbContext db)
         if (filas.Count == 0) throw new ComisionException("No hay comisiones pendientes para liquidar.");
         var compensado = req.CompensarAdelantos ? p.Compensado : Math.Min(Math.Max(0, p.Comision), p.AjusteAnterior);
         var neto = Math.Max(0, Money(p.Comision - compensado));
+        if (neto <= 0) throw new ComisionException("No hay importe a pagar. La liquidación debe tener un neto mayor a cero.");
         ValidarPago(req.Fecha, neto, req.FormaPago, req.Referencia, req.Motivo);
         if (req.Fecha < req.Filtro.Hasta) throw new ComisionException("La fecha de pago debe ser igual o posterior al corte.");
         var doc = new ComisionDocumento { VendedorId = p.VendedorId, UsuarioId = usuario, OperacionId = req.OperacionId, Huella = hash,
