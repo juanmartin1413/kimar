@@ -7,6 +7,7 @@ import { Cobranza, FormaPago } from '@/lib/types'
 import { ConfirmarPagoPayload, PreviewPago, dinero, distribucionValida } from '@/lib/cobranzas'
 import { formatFecha, today } from '@/lib/format'
 import { EstadoCuentaCliente } from './EstadoCuentaCliente'
+import { ComprobantesPagoSelector } from './ComprobantesPagoSelector'
 
 export function CobranzaForm({ initial, onDone, onBusy }: { initial?: Cobranza; onDone: () => void; onBusy: (busy: boolean) => void }) {
   const { data, registrarPago, subirAdjunto } = useData()
@@ -36,7 +37,7 @@ export function CobranzaForm({ initial, onDone, onBusy }: { initial?: Cobranza; 
   }
   async function confirmar() {
     if (gate.current || (!savedId && !valid)) return
-    if (!savedId && files.some(f => f.size === 0 || f.size > 8 * 1024 * 1024 || !['application/pdf', 'image/jpeg', 'image/png', 'image/webp'].includes(f.type))) {
+    if (files.some(f => f.size === 0 || f.size > 8 * 1024 * 1024 || !['application/pdf', 'image/jpeg', 'image/png', 'image/webp'].includes(f.type))) {
       setError('Elegí comprobantes PDF, JPG, PNG o WebP de hasta 8 MB cada uno.'); return
     }
     lock(true); setError('')
@@ -80,7 +81,9 @@ export function CobranzaForm({ initial, onDone, onBusy }: { initial?: Cobranza; 
         <option value="efectivo">Efectivo</option><option value="transferencia">Transferencia</option><option value="cheque">Cheque</option>
       </select></label>
       <label className="block text-sm">Observaciones<textarea maxLength={500} className={field} value={observaciones} onChange={e => setObservaciones(e.target.value)} /></label>
-      <label className="block text-sm">Comprobantes (opcionales, hasta 8 MB por archivo)<input className={field} type="file" multiple accept="application/pdf,image/jpeg,image/png,image/webp" onChange={e => setFiles(Array.from(e.target.files ?? []))} /></label>
+    </fieldset>
+    <ComprobantesPagoSelector files={files} onChange={setFiles} disabled={busy} />
+    <fieldset disabled={busy || !!savedId || uncertain} className="space-y-4">
       <button type="button" disabled={!clienteId || !(Number(monto) > 0) || !fecha} className="rounded-lg border px-4 py-2 text-blue-800 disabled:opacity-50" onClick={proponer}>Calcular distribución</button>
       {preview && <div className="space-y-2">
         <p className="font-semibold">Revisá y ajustá la distribución antes de confirmar</p>
@@ -98,7 +101,7 @@ export function CobranzaForm({ initial, onDone, onBusy }: { initial?: Cobranza; 
     {error && <p role="alert" className="text-red-700">{error}</p>}
     {uncertain && <p className="text-sm">No se pudo confirmar la respuesta. Reintentá con los mismos datos para recuperar el resultado sin duplicar el pago.</p>}
     <button type="button" disabled={busy || (!savedId && (!valid || !fecha))} onClick={confirmar} className="rounded-lg bg-blue-800 text-white px-4 py-2 disabled:opacity-50">
-      {busy ? 'Procesando…' : savedId ? 'Reintentar comprobantes' : uncertain ? 'Reintentar confirmación' : 'Confirmar distribución y registrar pago'}
+      {busy ? 'Procesando…' : savedId ? (files.length ? 'Reintentar comprobantes' : 'Finalizar') : uncertain ? 'Reintentar confirmación' : 'Confirmar distribución y registrar pago'}
     </button>
     {savedId && !busy && <button type="button" className="ml-3 underline" onClick={onDone}>Cerrar y completar adjuntos después</button>}
   </div>
